@@ -18,15 +18,17 @@ le backlog de réalisation est dans [`Calepin_backlog.md`](./Calepin_backlog.md)
 ```bash
 pnpm install        # installe les 10 projets du workspace
 pnpm dev:services    # PostgreSQL, Redis, MinIO — via Docker Compose
+cp apps/web/.env.example apps/web/.env  # variables d'environnement locales
 pnpm dev             # http://localhost:3000
 ```
 
 `pnpm dev:services` démarre les trois services en arrière-plan
 (`docker compose up -d`) ; `docker compose ps` montre leur état une fois
 `healthy`. Les données vivent dans des volumes Docker nommés et survivent à un
-`docker compose down` (sans `-v`). Aucun code applicatif ne s'y connecte
-encore — CAL-006 (validation d'environnement), CAL-011 (schéma Prisma) et
-CAL-060 (worker) sont les tâches qui les câbleront.
+`docker compose down` (sans `-v`). `apps/web/.env` est validé au démarrage par
+`@calepin/shared/config` (schéma Zod, `packages/shared/src/config`) ; aucun
+code applicatif ne se connecte encore aux services eux-mêmes — CAL-011
+(schéma Prisma) et CAL-060 (worker) sont les tâches qui les câbleront.
 
 | Service | Port hôte | Identifiants locaux |
 |---|---|---|
@@ -37,8 +39,8 @@ CAL-060 (worker) sont les tâches qui les câbleront.
 Le port hôte de PostgreSQL est décalé sur `5434` : les ports `5432` et `5433`
 sont déjà pris par d'autres projets sur les machines de développement
 courantes. Les identifiants ci-dessus sont des valeurs de développement local
-en clair, sans portée au-delà de cette machine — CAL-006 les fera passer par
-un `.env` validé.
+en clair, sans portée au-delà de cette machine — `apps/web/.env.example` les
+reprend telles quelles.
 
 Autres scripts à la racine : `pnpm typecheck` (tous les paquets), `pnpm start`
 (sert le build de production), `pnpm build` (build de production), `pnpm test`
@@ -60,6 +62,7 @@ calepin/
 │
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
+│   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
 │   ├── direction/             @calepin/direction — directions romanesques divergentes

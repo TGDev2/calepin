@@ -94,6 +94,31 @@ const eslintConfig = defineConfig([
     },
   },
 
+  {
+    // process.env is read in exactly one place — the validated config module
+    // (CLAUDE.md §4.2, §13 CAL-006). Everywhere else imports
+    // @calepin/shared/config. The three ignored files are framework/test
+    // wiring that runs before or outside that config: Next's own runtime
+    // flag, Playwright's CI convention.
+    files: ["apps/web/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/shared/src/config/env.ts",
+      "apps/web/src/instrumentation.ts",
+      "apps/web/playwright.config.ts",
+    ],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "process",
+          property: "env",
+          message:
+            "Do not read process.env directly — import the validated config from @calepin/shared/config instead.",
+        },
+      ],
+    },
+  },
+
   ...nextVitals.map((config) => ({
     ...config,
     files: ["apps/web/**/*.{ts,tsx,js,jsx}"],
