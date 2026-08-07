@@ -22,7 +22,9 @@ pnpm build     # build de production
 ```
 
 Autres scripts à la racine : `pnpm typecheck` (tous les paquets), `pnpm start`
-(sert le build de production).
+(sert le build de production), `pnpm test` (Vitest, unitaire), `pnpm
+test:integration` (Vitest, base PostgreSQL isolée par exécution via
+Testcontainers — nécessite Docker), `pnpm test:e2e` (Playwright, `apps/web`).
 
 ## Arborescence
 
@@ -31,18 +33,24 @@ calepin/
 ├── apps/
 │   └── web/                  @calepin/web — application Next.js 16, App Router
 │       ├── next.config.ts    transpilePackages : compile les paquets depuis leurs sources TS
+│       ├── playwright.config.ts  configuration Playwright (E2E)
 │       ├── public/
-│       └── src/app/          routes, layouts et styles
+│       ├── src/app/          routes, layouts et styles
+│       └── tests/e2e/        specs Playwright
 │
 ├── packages/                 le métier, hors de toute application
-│   ├── shared/               @calepin/shared — primitives transverses
-│   ├── analysis/             @calepin/analysis — diagnostic du texte source
-│   ├── direction/            @calepin/direction — directions romanesques divergentes
-│   ├── bible/                @calepin/bible — référence narrative
-│   ├── outline/              @calepin/outline — parties, plans de chapitre, fils
-│   ├── manuscript/           @calepin/manuscript — rédaction, édition, versions
-│   ├── coherence/            @calepin/coherence — mémoire narrative et moteur d'audit
-│   └── export/               @calepin/export — composition et rendu par format
+│   ├── shared/                @calepin/shared — primitives transverses
+│   │   └── src/testing/       helpers de fabrique de données pour les tests
+│   ├── analysis/              @calepin/analysis — diagnostic du texte source
+│   ├── direction/             @calepin/direction — directions romanesques divergentes
+│   ├── bible/                 @calepin/bible — référence narrative
+│   ├── outline/               @calepin/outline — parties, plans de chapitre, fils
+│   ├── manuscript/            @calepin/manuscript — rédaction, édition, versions
+│   ├── coherence/             @calepin/coherence — mémoire narrative et moteur d'audit
+│   └── export/                @calepin/export — composition et rendu par format
+│
+├── test/
+│   └── integration/          base PostgreSQL isolée par exécution (Testcontainers) et son globalSetup Vitest
 │
 ├── tasks/
 │   ├── todo.md               le plan en cours
@@ -52,7 +60,8 @@ calepin/
 ├── Calepin_backlog.md        207 tâches, 21 epics
 ├── package.json              scripts racine, délégués au workspace
 ├── pnpm-workspace.yaml       apps/* et packages/*
-└── tsconfig.base.json        socle TypeScript strict, étendu par chaque paquet
+├── tsconfig.base.json        socle TypeScript strict, étendu par chaque paquet
+└── vitest.config.ts          projets Vitest « unit » et « integration »
 ```
 
 Chaque paquet suit la même forme : `package.json`, `tsconfig.json` qui étend le
