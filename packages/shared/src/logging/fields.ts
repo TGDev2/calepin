@@ -42,6 +42,14 @@ export interface LogFields {
   errorName?: string;
   errorStack?: string;
   /**
+   * Next.js' own hash of an error's message and stack (CAL-010). It is the only
+   * token a reader can quote off the failure screen, so without it the trace on
+   * screen and the trace in the log cannot be joined. Allowlisted deliberately:
+   * a hash carries no content, and §9's mechanism is a decision per field, not
+   * a filter.
+   */
+  errorDigest?: string;
+  /**
    * The path of the field that failed validation — never its value
    * (CLAUDE.md §6). `errorMessage` is deliberately absent from this list: a
    * message routinely quotes the value that made it fail.
@@ -83,6 +91,7 @@ const LOG_FIELD_ALLOWLIST = {
   errorCategory: true,
   errorName: true,
   errorStack: true,
+  errorDigest: true,
   fieldPath: true,
   wordCount: true,
   byteCount: true,

@@ -8,7 +8,10 @@ export default defineConfig({
         test: {
           name: "unit",
           environment: "node",
-          include: ["packages/**/*.test.ts", "apps/web/**/*.test.ts"],
+          // `.tsx` is matched too: the React error boundaries are tested by
+          // rendering them to static markup (CAL-010), and a pattern that
+          // missed those files would report success while running nothing.
+          include: ["packages/**/*.test.{ts,tsx}", "apps/web/**/*.test.{ts,tsx}"],
           exclude: ["**/node_modules/**", "**/.next/**", "**/*.integration.test.ts"],
         },
       },

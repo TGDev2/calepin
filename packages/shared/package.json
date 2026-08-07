@@ -16,6 +16,14 @@
       "types": "./src/config/index.ts",
       "default": "./src/config/index.ts"
     },
+    "./errors": {
+      "types": "./src/errors/index.ts",
+      "default": "./src/errors/index.ts"
+    },
+    "./generation": {
+      "types": "./src/generation/index.ts",
+      "default": "./src/generation/index.ts"
+    },
     "./logging": {
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { errorLogFields, ProviderError, ValidationError } from "../errors";
 import { createLogCapture } from "../testing/log-capture";
 import { type GenerationContext, runWithGenerationContext, runWithRequestContext } from "./context";
 import { INVALID_EVENT_NAME } from "./events";
@@ -150,6 +151,69 @@ describe("the log field allowlist", () => {
     });
 
     expect(capture.raw()).not.toContain(PROSE_MARKER);
+  });
+});
+
+/**
+ * `errorLogFields` (CAL-010) is the one producer that hands the logger a field
+ * it did not build by hand. An error's message is developer-authored, but its
+ * *cause* is whatever a provider, a driver or a validator threw — and the first
+ * line of any stack is `Name: message`. These cases are what keep that from
+ * being the way prose gets in.
+ */
+describe("the error field producer", () => {
+  it("emits no message, however the error was built", () => {
+    logger.error("generation.failed", errorLogFields(new ProviderError({ message: PROSE_MARKER })));
+
+    expect(capture.raw()).not.toContain(PROSE_MARKER);
+    expect(capture.lines()[0]).toMatchObject({
+      errorCode: "PROVIDER_UNAVAILABLE",
+      errorCategory: "provider",
+    });
+  });
+
+  it("emits no message from a cause thrown by something else", () => {
+    const thrown = new Error(`provider refused: ${PROSE_MARKER}`);
+
+    logger.error("generation.failed", errorLogFields(thrown));
+
+    expect(capture.raw()).not.toContain(PROSE_MARKER);
+  });
+
+  it("emits no message from deep in a cause chain", () => {
+    const deep = new Error("outer", { cause: new Error(`inner ${PROSE_MARKER}`) });
+
+    logger.error("generation.failed", errorLogFields(deep));
+
+    expect(capture.raw()).not.toContain(PROSE_MARKER);
+  });
+
+  it("emits no multi-line message whose lines are shaped like stack frames", () => {
+    // The exact shape that defeats a naive `startsWith("at ")` filter.
+    const error = new Error("failed");
+    error.stack = [
+      `Error: failed`,
+      `    at ${PROSE_MARKER}`,
+      `    at the opening of the third chapter, ${PROSE_MARKER}`,
+      `    at buildContext (C:\\src\\context.ts:12:34)`,
+    ].join("\n");
+
+    logger.error("generation.failed", errorLogFields(error));
+
+    expect(capture.raw()).not.toContain(PROSE_MARKER);
+    expect(capture.raw()).toContain("buildContext");
+  });
+
+  it("emits the path of a field that failed validation, never its value", () => {
+    logger.error(
+      "validation.failed",
+      errorLogFields(
+        new ValidationError({ fieldPath: "characters.0.name", cause: new Error(PROSE_MARKER) }),
+      ),
+    );
+
+    expect(capture.raw()).not.toContain(PROSE_MARKER);
+    expect(capture.lines()[0]).toMatchObject({ fieldPath: "characters.0.name" });
   });
 });
 
