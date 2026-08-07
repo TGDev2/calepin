@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10 blocks postinstall scripts by default. These two are the ones
+# create-next-app itself declines to build; both ship prebuilt binaries as
+# optional dependencies, so nothing needs compiling locally.
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

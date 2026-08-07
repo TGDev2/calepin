@@ -1,0 +1,19 @@
+{
+  "name": "calepin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @calepin/web dev",
+    "build": "pnpm --filter @calepin/web build",
+    "start": "pnpm --filter @calepin/web start",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

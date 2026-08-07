@@ -1,0 +1,54 @@
+/*
+ * Placeholder tokens only. The real design system — the full token set and the
+ * base component library — is CAL-181 / CAL-182. Keep values defined here, in
+ * one place, rather than hard-coded in components.
+ */
+:root {
+  --color-background: #fdfcfa;
+  --color-surface: #ffffff;
+  --color-text: #1b1917;
+  --color-text-muted: #6b655e;
+  --color-border: #e5e1db;
+
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2.5rem;
+
+  --radius-1: 6px;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #14130f;
+    --color-surface: #1c1a17;
+    --color-text: #f3f0ea;
+    --color-text-muted: #a09a91;
+    --color-border: #302c27;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
