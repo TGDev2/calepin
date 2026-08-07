@@ -58,6 +58,9 @@ calepin/
 │       ├── playwright.config.ts  configuration Playwright (E2E)
 │       ├── public/
 │       ├── src/app/          routes, layouts et styles
+│       ├── src/lib/          câblage applicatif — reprise de l'identifiant de corrélation
+│       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
+│       ├── src/instrumentation.ts  validation de l'environnement et niveau du journal au démarrage
 │       └── tests/e2e/        specs Playwright
 │
 ├── docs/
@@ -67,6 +70,7 @@ calepin/
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
+│   │   ├── src/logging/       journal Pino, corrélation, liste blanche de champs (`@calepin/shared/logging`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
 │   ├── direction/             @calepin/direction — directions romanesques divergentes
@@ -144,6 +148,16 @@ métier que l'application web. Le métier ne peut donc pas vivre dans `apps/web`
 - **`next typegen` avant `tsc`.** Le script `typecheck` de `apps/web` génère
   d'abord les types de routes, sans quoi il échoue sur un dépôt fraîchement
   cloné.
+- **Journal : liste blanche, pas filtrage.** Un appel au journal s'écrit
+  `logger.info(événement, champs?)`. Le nom d'événement doit avoir une forme
+  d'identifiant et les champs sont retenus en parcourant la liste blanche, pas
+  l'objet fourni par l'appelant : aucun contenu littéraire ne peut donc
+  atteindre un journal technique. C'est une exigence du cahier des charges,
+  vérifiée par `no-literary-content.test.ts`.
+- **`proxy.ts`, pas `middleware.ts`.** Next 16.3 déprécie la convention
+  `middleware` et avertit à chaque build. Le fichier attribue un
+  `x-correlation-id` à chaque requête ; il ne journalise pas lui-même, faute de
+  `node:async_hooks` sur le runtime Edge.
 
 ## Emplacements réservés
 
