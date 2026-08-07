@@ -13,6 +13,8 @@ them; an import in the other direction is a cycle.
 |---|---|
 | `@calepin/shared` | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS` |
 | `@calepin/shared/config` | the Zod environment schema and the single validated `process.env` read (CAL-006) |
+| `@calepin/shared/errors` | the `AppError` hierarchy, `Result`, the HTTP mapping, the French user messages (CAL-010) |
+| `@calepin/shared/generation` | the generation attempt lifecycle and its append-only guarantee (CAL-010) |
 | `@calepin/shared/logging` | the Pino logger, the correlation context and the log field allowlist (CAL-009) |
 | `@calepin/shared/testing` | test helpers — data factories, log capture |
 

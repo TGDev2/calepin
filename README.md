@@ -57,10 +57,11 @@ calepin/
 │       ├── next.config.ts    transpilePackages : compile les paquets depuis leurs sources TS
 │       ├── playwright.config.ts  configuration Playwright (E2E)
 │       ├── public/
-│       ├── src/app/          routes, layouts et styles
-│       ├── src/lib/          câblage applicatif — reprise de l'identifiant de corrélation
+│       ├── src/app/          routes, layouts, styles, frontières d'erreur et page 404
+│       ├── src/components/   composants partagés — écran d'erreur en français
+│       ├── src/lib/          câblage applicatif — corrélation, report des erreurs serveur
 │       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
-│       ├── src/instrumentation.ts  validation de l'environnement et niveau du journal au démarrage
+│       ├── src/instrumentation.ts  environnement, niveau du journal, `onRequestError`
 │       └── tests/e2e/        specs Playwright
 │
 ├── docs/
@@ -70,6 +71,8 @@ calepin/
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
+│   │   ├── src/errors/        hiérarchie `AppError`, `Result`, codes HTTP (`@calepin/shared/errors`)
+│   │   ├── src/generation/    cycle de vie d'une tentative de génération (`@calepin/shared/generation`)
 │   │   ├── src/logging/       journal Pino, corrélation, liste blanche de champs (`@calepin/shared/logging`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
@@ -158,6 +161,14 @@ métier que l'application web. Le métier ne peut donc pas vivre dans `apps/web`
   `middleware` et avertit à chaque build. Le fichier attribue un
   `x-correlation-id` à chaque requête ; il ne journalise pas lui-même, faute de
   `node:async_hooks` sur le runtime Edge.
+- **Erreurs : deux projections, jamais une seule.** Une défaillance devient soit
+  une charge utile lisible — code, catégorie, message en français, identifiant
+  de corrélation — soit une ligne de journal — code, catégorie, nom de l'erreur
+  sous-jacente, cadres de pile, chemin du champ. Aucune des deux ne transporte
+  le message technique. Les frontières d'erreur React n'inspectent jamais
+  l'erreur reçue ; elles affichent le message français et l'empreinte (`digest`)
+  que la ligne de journal porte elle aussi, ce qui permet de relier l'écran à la
+  trace.
 
 ## Emplacements réservés
 
