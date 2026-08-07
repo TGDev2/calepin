@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
+import "./globals.css";
 
 import { APP_NAME } from "@calepin/shared";
-
-import "./globals.css";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: APP_NAME,
