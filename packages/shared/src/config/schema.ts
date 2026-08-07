@@ -12,6 +12,12 @@ import { z } from "zod";
  */
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  /**
+   * Level of the process-wide logger (CAL-009). The logger itself never reads
+   * this — `apps/web/src/instrumentation.ts` passes it to `configureLogger`
+   * at startup, so importing a logger never requires a full environment.
+   */
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   S3_ENDPOINT: z.string().url(),
