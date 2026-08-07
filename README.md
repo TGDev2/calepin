@@ -60,6 +60,10 @@ calepin/
 │       ├── src/app/          routes, layouts et styles
 │       └── tests/e2e/        specs Playwright
 │
+├── docs/
+│   └── adr/                  décisions d'architecture — ADR-001 : forme du
+│                             backend, frontière couche IA / couche métier
+│
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
@@ -150,7 +154,6 @@ et ne sont pas créés à vide.
 |---|---|
 | `apps/worker/` | CAL-060 — worker BullMQ, `pnpm worker` |
 | `prisma/` | CAL-011 et suivantes — schéma et `prisma/seed.ts` |
-| `docs/adr/001-architecture.md` | CAL-008 — frontière couche IA / couche métier |
 
 ## Conventions
 
