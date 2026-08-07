@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @calepin/web dev",
+    "dev:services": "docker compose up -d",
     "build": "pnpm --filter @calepin/web build",
     "start": "pnpm --filter @calepin/web start",
     "typecheck": "pnpm -r typecheck",

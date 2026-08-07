@@ -16,15 +16,35 @@ le backlog de réalisation est dans [`Calepin_backlog.md`](./Calepin_backlog.md)
 ## Démarrer
 
 ```bash
-pnpm install   # installe les 10 projets du workspace
-pnpm dev       # http://localhost:3000
-pnpm build     # build de production
+pnpm install        # installe les 10 projets du workspace
+pnpm dev:services    # PostgreSQL, Redis, MinIO — via Docker Compose
+pnpm dev             # http://localhost:3000
 ```
 
+`pnpm dev:services` démarre les trois services en arrière-plan
+(`docker compose up -d`) ; `docker compose ps` montre leur état une fois
+`healthy`. Les données vivent dans des volumes Docker nommés et survivent à un
+`docker compose down` (sans `-v`). Aucun code applicatif ne s'y connecte
+encore — CAL-006 (validation d'environnement), CAL-011 (schéma Prisma) et
+CAL-060 (worker) sont les tâches qui les câbleront.
+
+| Service | Port hôte | Identifiants locaux |
+|---|---|---|
+| PostgreSQL | `5434` (mappé sur `5432` du conteneur) | `calepin` / `calepin`, base `calepin` |
+| Redis | `6379` | aucun |
+| MinIO (API S3 / console) | `9000` / `9001` | `calepin` / `calepin_local` |
+
+Le port hôte de PostgreSQL est décalé sur `5434` : les ports `5432` et `5433`
+sont déjà pris par d'autres projets sur les machines de développement
+courantes. Les identifiants ci-dessus sont des valeurs de développement local
+en clair, sans portée au-delà de cette machine — CAL-006 les fera passer par
+un `.env` validé.
+
 Autres scripts à la racine : `pnpm typecheck` (tous les paquets), `pnpm start`
-(sert le build de production), `pnpm test` (Vitest, unitaire), `pnpm
-test:integration` (Vitest, base PostgreSQL isolée par exécution via
-Testcontainers — nécessite Docker), `pnpm test:e2e` (Playwright, `apps/web`).
+(sert le build de production), `pnpm build` (build de production), `pnpm test`
+(Vitest, unitaire), `pnpm test:integration` (Vitest, base PostgreSQL isolée par
+exécution via Testcontainers — nécessite Docker), `pnpm test:e2e` (Playwright,
+`apps/web`).
 
 ## Arborescence
 
@@ -58,6 +78,7 @@ calepin/
 │
 ├── CLAUDE.md                 contrat de travail du dépôt
 ├── Calepin_backlog.md        207 tâches, 21 epics
+├── docker-compose.yml        PostgreSQL, Redis, MinIO — `pnpm dev:services`
 ├── package.json              scripts racine, délégués au workspace
 ├── pnpm-workspace.yaml       apps/* et packages/*
 ├── tsconfig.base.json        socle TypeScript strict, étendu par chaque paquet
@@ -127,7 +148,6 @@ et ne sont pas créés à vide.
 | `apps/worker/` | CAL-060 — worker BullMQ, `pnpm worker` |
 | `prisma/` | CAL-011 et suivantes — schéma et `prisma/seed.ts` |
 | `docs/adr/001-architecture.md` | CAL-008 — frontière couche IA / couche métier |
-| `docker-compose.yml` | CAL-005 — PostgreSQL, Redis, MinIO |
 
 ## Conventions
 
