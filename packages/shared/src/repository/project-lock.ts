@@ -59,6 +59,17 @@ async function lockProject(client: TransactionClient, scope: ProjectScope): Prom
   if (!Array.isArray(rows) || rows.length === 0) throw new RollbackSignal(projectNotFound());
 }
 
+export interface LockedProjectOptions {
+  /**
+   * How long the transaction may run, when Prisma's five-second default is not
+   * enough. Every writer of derived state stays on the default — each is one
+   * recomputation over one project. CAL-035's duplication does not: it copies
+   * every row of a novel inside the lock, and a timeout there rolls back a
+   * whole copy rather than half of one.
+   */
+  readonly timeoutMs?: number;
+}
+
 /**
  * One transaction, holding the project's row lock, around whatever the caller
  * has to do under it. The single place a `RollbackSignal` is turned back into
@@ -67,15 +78,19 @@ async function lockProject(client: TransactionClient, scope: ProjectScope): Prom
 export async function runLockedOnProject<T>(
   scope: ProjectScope,
   body: (client: TransactionClient) => Promise<Result<T>>,
+  options: LockedProjectOptions = {},
 ): Promise<Result<T>> {
   assertProjectScope(scope);
 
   try {
-    return await getDatabaseClient().$transaction(async (tx) => {
-      await lockProject(tx, scope);
+    return await getDatabaseClient().$transaction(
+      async (tx) => {
+        await lockProject(tx, scope);
 
-      return await body(tx);
-    });
+        return await body(tx);
+      },
+      options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs },
+    );
   } catch (error: unknown) {
     if (error instanceof RollbackSignal) return fail(error.failure);
 

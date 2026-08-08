@@ -140,8 +140,16 @@ function toAggregates(rows: unknown): ProjectAggregates | undefined {
   return { writtenChapterCount: written, totalWordCount: words };
 }
 
-/** Recomputes both counters and stores them. The project row is already locked. */
-async function writeAggregates(
+/**
+ * Recomputes both counters and stores them. The project row is already locked.
+ *
+ * Exported to `./duplication` and to nothing else — deliberately absent from
+ * the package's public surface, for the reason `writeDerivedStatus` is: a
+ * caller holding a transaction client is already inside a wrapper that owns
+ * this sequence, or is the one write path that creates the project it is
+ * reconciling and therefore holds it alone until commit.
+ */
+export async function writeAggregates(
   client: TransactionClient,
   scope: ProjectScope,
 ): Promise<ProjectAggregates> {

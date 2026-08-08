@@ -16,6 +16,22 @@ export {
   withProjectAggregates,
 } from "./aggregates";
 export {
+  type DuplicatedProject,
+  duplicateProject,
+  type DuplicateProjectInput,
+} from "./duplication";
+export {
+  DUPLICATED_MODEL_NAMES,
+  type DuplicatedModelName,
+  DUPLICATION_PLAN,
+  type DuplicationStep,
+  type DuplicationTarget,
+  isUnduplicatedModel,
+  NEVER_COPIED_COLUMNS,
+  UNDUPLICATED_MODELS,
+  type UnduplicatedModelName,
+} from "./duplication-plan";
+export {
   delegateName,
   isProjectOwnedModel,
   PROJECT_OWNED_MODEL_NAMES,

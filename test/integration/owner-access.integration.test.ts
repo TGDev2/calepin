@@ -26,6 +26,7 @@ import {
   createProject,
   delegateName,
   deleteProject,
+  duplicateProject,
   getProjectForOwner,
   listProjectDashboardRows,
   listProjectsForOwner,
@@ -60,6 +61,7 @@ const ENTRY_POINTS = [
   "computeProjectAggregates",
   "createProject",
   "deleteProject",
+  "duplicateProject",
   "getProjectForOwner",
   "listProjectDashboardRows",
   "listProjectsForOwner",
@@ -81,6 +83,7 @@ const HELPERS = [
   "delegateName",
   "isProjectOwnedModel",
   "isProjectScope",
+  "isUnduplicatedModel",
   "projectOwnedFilter",
   "scopedWhere",
 ];
@@ -327,6 +330,27 @@ describe("owner access policy", () => {
       if (!deleted.ok) expect(deleted.error.code).toBe("NOT_FOUND");
       expect((await getProjectForOwner({ ownerId: alice.ownerId, projectId: alice.projectId })).ok) //
         .toBe(true);
+    });
+
+    // CAL-035. A duplication reads every table of a project and writes a copy
+    // of each row, so a forged scope here would not leak one row but a whole
+    // novel — into a project the forger owns and can read at leisure. The
+    // criterion the copy itself is held to is
+    // `project-duplication.integration.test.ts`; what is asserted here is that
+    // it never runs for anyone but the owner.
+    it("duplicateProject refuses a scope forged for another owner's project", async () => {
+      const before = await listProjectsForOwner(bob.ownerId);
+
+      const duplicated = await runWithActor(bob.ownerId, async () =>
+        duplicateProject(forgedScope(bob.ownerId, alice.projectId), { title: "seized" }),
+      );
+
+      expect(duplicated.ok).toBe(false);
+      if (!duplicated.ok) expect(duplicated.error.code).toBe("NOT_FOUND");
+
+      // Not merely refused: nothing was created on the way to refusing it.
+      const after = await listProjectsForOwner(bob.ownerId);
+      expect(after.map((project) => project.id)).toEqual(before.map((project) => project.id));
     });
 
     // CAL-033's three entry points, all of which reach `projects` through a

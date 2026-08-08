@@ -11,6 +11,10 @@ import {
   UNAUDITED_MUTABLE_MODELS,
 } from "@calepin/shared/audit";
 import {
+  DUPLICATED_MODEL_NAMES,
+  DUPLICATION_PLAN,
+  isUnduplicatedModel,
+  NEVER_COPIED_COLUMNS,
   PROJECT_OWNED_MODEL_NAMES,
   PROJECT_OWNED_MODELS,
   PROJECT_OWNER_FIELD,
@@ -1851,6 +1855,182 @@ describe("the project ownership graph", () => {
         return fieldType(current, segment) ?? current;
       }, model);
     });
+  });
+});
+
+/**
+ * CAL-035 — the duplication plan against the schema.
+ *
+ * The plan is what a deep copy of a project reads: which models it walks, in
+ * what order, and what every foreign-key column of each of them points at. A
+ * column the plan does not know about is copied verbatim, so a reference the
+ * plan misses becomes a row of the copy pointing at the original — the one
+ * outcome CAL-035 exists to make impossible.
+ *
+ * That makes the schema, not the plan, the authority. Everything below derives
+ * the answer from `schema.prisma` and compares: the columns, the model each one
+ * resolves to, and the nullability the two treatments depend on. A model added
+ * later with a new relation fails here rather than shipping half-copied.
+ */
+describe("the duplication plan (CAL-035)", () => {
+  interface DeclaredRelation {
+    readonly target: string;
+    /** The scalar columns on this model that carry the reference. */
+    readonly fields: readonly string[];
+    /** The columns they point at, positionally, on the target. */
+    readonly references: readonly string[];
+  }
+
+  function argumentList(args: string, name: string): string[] {
+    const list = new RegExp(`${name}:\\s*\\[([^\\]]*)\\]`).exec(args)?.[1];
+
+    return list === undefined ? [] : list.split(",").map((entry) => entry.trim());
+  }
+
+  /**
+   * Every relation a model *holds the key of* — the side carrying `fields:`.
+   * The other side declares no column and copies nothing.
+   */
+  function declaredRelations(model: string): DeclaredRelation[] {
+    return [...modelBlock(model).matchAll(/^\s*\w+\s+(\w+)[?[\]]*\s+@relation\(([^)]*)\)/gm)]
+      .map((match) => ({
+        target: match[1] ?? "",
+        fields: argumentList(match[2] ?? "", "fields"),
+        references: argumentList(match[2] ?? "", "references"),
+      }))
+      .filter((relation) => relation.fields.length > 0);
+  }
+
+  /** Every scalar column of a model that carries a foreign key. */
+  function referenceColumns(model: string): string[] {
+    return [...new Set(declaredRelations(model).flatMap((relation) => relation.fields))];
+  }
+
+  /**
+   * The model a reference column names, resolved the way a copier has to
+   * resolve it.
+   *
+   * A column pointing at the target's `id` names that target. A column pointing
+   * at another of the target's columns — every composite relation in this
+   * schema is keyed on `[bibleId, id]` or `[outlineId, id]`, so the
+   * discriminator half is exactly that — names whatever *that* column names,
+   * which is why this recurses. `TimelineEventParticipant.bibleId` reaches
+   * `Bible` through `TimelineEvent` and never declares a relation to it.
+   *
+   * A candidate that walks back onto the pair being resolved is dropped rather
+   * than followed: `TimelineEvent.bibleId` appears both in its own relation to
+   * `Bible` and in the self-relation `precedingEvent`, and the second is a
+   * cycle, not an answer.
+   */
+  function resolveReferenceTarget(
+    model: string,
+    column: string,
+    seen: ReadonlySet<string> = new Set(),
+  ): string | undefined {
+    const key = `${model}.${column}`;
+    if (seen.has(key)) return undefined;
+
+    const walked = new Set(seen).add(key);
+    const resolved = new Set<string>();
+
+    for (const relation of declaredRelations(model)) {
+      const index = relation.fields.indexOf(column);
+      const referenced = index === -1 ? undefined : relation.references[index];
+      if (referenced === undefined) continue;
+
+      if (referenced === "id") {
+        resolved.add(relation.target);
+        continue;
+      }
+
+      const deeper = resolveReferenceTarget(relation.target, referenced, walked);
+      if (deeper !== undefined) resolved.add(deeper);
+    }
+
+    if (resolved.size > 1) {
+      throw new Error(`${key} resolves to more than one model: ${[...resolved].join(", ")}`);
+    }
+
+    return [...resolved][0];
+  }
+
+  function isOptional(model: string, field: string): boolean {
+    return new RegExp(`^\\s*${field}\\s+\\S+\\?`, "m").test(modelBlock(model));
+  }
+
+  it("resolves a composite discriminator through the model it borrows it from", () => {
+    // The resolver above is the assertion's own machinery, so it is checked
+    // against the two cases it exists for before it is trusted with thirty-four
+    // models: a column with no relation of its own, and a self-relation.
+    expect(resolveReferenceTarget("TimelineEventParticipant", "bibleId")).toBe("Bible");
+    expect(resolveReferenceTarget("TimelineEvent", "bibleId")).toBe("Bible");
+    expect(resolveReferenceTarget("TimelineEvent", "precedingEventId")).toBe("TimelineEvent");
+  });
+
+  describe.each(DUPLICATION_PLAN)("$model", ({ model, references }) => {
+    it("declares exactly the reference columns the schema gives the model", () => {
+      // The audit author column is a reference too, and it is never copied: the
+      // extension fills it from the actor who asked for the duplication.
+      const expected = referenceColumns(model).filter(
+        (column) => !(NEVER_COPIED_COLUMNS as readonly string[]).includes(column),
+      );
+
+      expect(Object.keys(references).sort()).toEqual(expected.sort());
+    });
+
+    it("names, for each of them, the model the schema says it points at", () => {
+      for (const [column, target] of Object.entries(references)) {
+        expect(resolveReferenceTarget(model, column), `${model}.${column}`).toBe(target);
+      }
+    });
+
+    it("only leaves behind what a copied row may be missing", () => {
+      // A reference to a model the copy does not carry is nulled. A mandatory
+      // column could not be, and the copy would fail on the insert — late, and
+      // after a long transaction. It fails here instead.
+      for (const [column, target] of Object.entries(references)) {
+        if (!isUnduplicatedModel(target)) continue;
+
+        expect(isOptional(model, column), `${model}.${column} → ${target}`).toBe(true);
+      }
+    });
+
+    it("can omit every column the copy does not carry", () => {
+      // `id` is supplied by the copier; the other four are dropped from the
+      // payload, so each must be a column the database can fill on its own.
+      expect(modelBlock(model)).toMatch(/^\s*id\s+String\s+@id @default\(cuid\(\)\)/m);
+
+      for (const column of NEVER_COPIED_COLUMNS) {
+        if (column === "id") continue;
+
+        const declaration = new RegExp(`^\\s*${column}\\s+.*$`, "m").exec(modelBlock(model))?.[0];
+        if (declaration === undefined) continue;
+
+        expect(declaration, `${model}.${column}`).toMatch(/@default\(|@updatedAt/);
+      }
+    });
+  });
+
+  it("leaves nothing a copied row is required to name", () => {
+    // The direction that matters. A left-behind model *pointing at* a copied one
+    // is ordinary — an export names a project, a quality issue anchors into a
+    // chapter — and none of it constrains the copy. The reverse would: a copied
+    // row required to name a row the copy does not hold cannot be written at
+    // all. Asserted here over the whole plan, and not only per model, so a
+    // model moved out of the plan is caught by the rows that still need it.
+    const copied = new Set<string>([...DUPLICATED_MODEL_NAMES, "Project", "User"]);
+    const leftBehind = new Set<string>(
+      PROJECT_OWNED_MODEL_NAMES.filter((model) => !copied.has(model)),
+    );
+
+    for (const step of DUPLICATION_PLAN) {
+      for (const column of Object.keys(step.references)) {
+        const target = resolveReferenceTarget(step.model, column);
+        if (target === undefined || !leftBehind.has(target)) continue;
+
+        expect(isOptional(step.model, column), `${step.model}.${column} → ${target}`).toBe(true);
+      }
+    }
   });
 });
 

@@ -21,7 +21,7 @@
  * rather than trusted.
  */
 
-import { getDatabaseClient } from "../database/client";
+import { getDatabaseClient, type TransactionClient } from "../database/client";
 import { InternalError, NotFoundError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
 import {
@@ -105,8 +105,19 @@ export function assertProjectScope(scope: ProjectScope): void {
  * would answer "this project exists, but not for you" — the enumeration leak a
  * 404 is chosen to close. Whether the row is missing or someone else's is not
  * information this layer is willing to give.
+ *
+ * **The client is a parameter since CAL-035**, defaulting to the registered
+ * one. A duplication creates a project and then has to operate on it under the
+ * scope every repository call requires — inside the transaction that created
+ * it, where no other client can see the row yet. Passing the transaction's own
+ * client keeps this the only function that mints a scope, and keeps the mint
+ * backed by a real `WHERE id = ? AND userId = ?` rather than by a second,
+ * weaker way of asserting ownership.
  */
-export async function openProjectScope(input: ProjectScopeInput): Promise<Result<ProjectScope>> {
+export async function openProjectScope(
+  input: ProjectScopeInput,
+  client?: TransactionClient,
+): Promise<Result<ProjectScope>> {
   const { ownerId, projectId } = input;
 
   if (ownerId === "" || projectId === "") {
@@ -120,7 +131,11 @@ export async function openProjectScope(input: ProjectScopeInput): Promise<Result
     });
   }
 
-  const project = await getDatabaseClient().project.findFirst({
+  // Resolved after the guard above, never as a default argument: a default is
+  // evaluated on entry, and reaching for the registered client there would make
+  // "no client configured" the answer to a call that has no owner — the
+  // mis-wiring the guard exists to name.
+  const project = await (client ?? getDatabaseClient()).project.findFirst({
     where: { id: projectId, [PROJECT_OWNER_FIELD]: ownerId },
     select: { id: true },
   });

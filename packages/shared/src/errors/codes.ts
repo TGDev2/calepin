@@ -68,6 +68,14 @@ export const ERROR_CODES = [
   "PROJECT_SCOPE_REQUIRED",
   /** No process shell registered a database client (CAL-023). Mis-wiring. */
   "DATABASE_NOT_CONFIGURED",
+  /**
+   * A row being copied into a duplicated project references a row the copy does
+   * not hold (CAL-035). Either the duplication plan is missing a model, or the
+   * graph reaches outside the project it is supposed to be confined to — both
+   * are defects, and both would otherwise ship a copy pointing at the original.
+   * The copy is one transaction, so this rolls all of it back.
+   */
+  "PROJECT_DUPLICATION_INCOMPLETE",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -95,4 +103,5 @@ export const CATEGORY_BY_CODE = {
   AUDIT_ACTOR_REQUIRED: "internal",
   PROJECT_SCOPE_REQUIRED: "internal",
   DATABASE_NOT_CONFIGURED: "internal",
+  PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;
