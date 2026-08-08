@@ -7,8 +7,10 @@
  * the client half reads `useSession`, and they are shown side by side so a
  * mismatch between them is visible instead of theoretical.
  *
- * CAL-028 and CAL-029 replace this with the real sign-in and account screens.
+ * CAL-029 replaces this with the real account screen.
  */
+
+import Link from "next/link";
 
 import { getCurrentUser } from "@/lib/current-user";
 
@@ -24,6 +26,7 @@ export async function AccountBar() {
         Session serveur&nbsp;: <strong>{user ? user.email : "aucune"}</strong>
       </p>
       <SessionIndicator />
+      {user ? null : <Link href="/sign-in">Se connecter</Link>}
     </header>
   );
 }

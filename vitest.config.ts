@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -5,6 +7,16 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        // `apps/web/tsconfig.json` maps `@/*` to its own `src/*` for Next's
+        // bundler (webpack/Turbopack read that `paths` entry directly);
+        // Vitest does not read `tsconfig.json` `paths` on its own, so a test
+        // that imports a component importing `@/...` needs the same mapping
+        // here (CAL-028).
+        resolve: {
+          alias: {
+            "@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),
+          },
+        },
         test: {
           name: "unit",
           environment: "node",

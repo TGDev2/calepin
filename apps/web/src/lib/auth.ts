@@ -66,6 +66,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
     },
 
     /**
+     * The single sign-in / sign-up screen (CAL-028) replaces Auth.js's own
+     * unstyled pages. `error` matters most: a failed OAuth callback is a
+     * full-page redirect, and without this it would land on Auth.js's
+     * default page instead of ours. `verifyRequest` covers the same
+     * built-in page rendered on a direct `GET` — `sign-in-form.tsx` itself
+     * never follows it, since a `redirect: false` request navigates on its
+     * own once it succeeds.
+     */
+    pages: {
+      signIn: "/sign-in",
+      error: "/sign-in",
+      verifyRequest: "/sign-in/check-email",
+    },
+
+    /**
      * Read from the validated configuration rather than left to Auth.js's own
      * `process.env` lookup, so a missing key fails at startup with every other
      * missing variable (§4.2, CAL-006).
