@@ -24,66 +24,91 @@
 import {
   createAuthAdapter,
   createEmailProvider,
+  createGoogleProvider,
+  resolveOAuthAccountLink,
   SESSION_MAX_AGE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@calepin/shared/auth";
 import { env } from "@calepin/shared/config";
 import NextAuth from "next-auth";
 
-export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
-  adapter: createAuthAdapter(),
+export const { handlers, auth, signIn, signOut } = NextAuth(() => {
+  const adapter = createAuthAdapter();
 
-  /**
-   * The email link (CAL-025). Google (CAL-026) and GitHub (CAL-027) each add
-   * one entry here and nothing else, per the comment this one replaces.
-   */
-  providers: [
-    createEmailProvider({
-      from: env.EMAIL_FROM,
-      server: {
-        host: env.EMAIL_SERVER_HOST,
-        port: env.EMAIL_SERVER_PORT,
-        auth: { user: env.EMAIL_SERVER_USER, pass: env.EMAIL_SERVER_PASSWORD },
-      },
-    }),
-  ],
+  return {
+    adapter,
 
-  session: {
-    strategy: "database",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-    updateAge: SESSION_UPDATE_AGE_SECONDS,
-  },
+    /** The email link (CAL-025), Google (CAL-026). GitHub (CAL-027) adds one entry here. */
+    providers: [
+      createEmailProvider({
+        from: env.EMAIL_FROM,
+        server: {
+          host: env.EMAIL_SERVER_HOST,
+          port: env.EMAIL_SERVER_PORT,
+          auth: { user: env.EMAIL_SERVER_USER, pass: env.EMAIL_SERVER_PASSWORD },
+        },
+      }),
+      createGoogleProvider({
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+      }),
+    ],
 
-  /**
-   * Read from the validated configuration rather than left to Auth.js's own
-   * `process.env` lookup, so a missing key fails at startup with every other
-   * missing variable (§4.2, CAL-006).
-   */
-  secret: env.AUTH_SECRET,
-
-  /**
-   * Calepin is self-hosted behind its own reverse proxy (ADR-001), never on a
-   * platform that injects a canonical URL. Without this, Auth.js refuses to
-   * derive its callback URL from the request and every route answers 500.
-   */
-  trustHost: true,
-
-  callbacks: {
-    /**
-     * **Returning the session unchanged is not a no-op — deleting this
-     * callback breaks the owner id.** Auth.js's *default* session callback
-     * rebuilds `user` from `name`, `email` and `image` alone; under the
-     * database strategy the session it is handed carries the adapter's whole
-     * user row, and `id` is the field the default one drops. Declaring a
-     * callback of our own is what keeps it.
-     *
-     * `id` is not a nicety here: `openProjectScope` takes the owner id and
-     * nothing else, so the whole access policy of CAL-023 rests on it. The
-     * integration suite asserts it off the real endpoint, which is what turns
-     * this comment into something that fails rather than something to believe.
-     */
-    session({ session }) {
-      return session;
+    session: {
+      strategy: "database",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+      updateAge: SESSION_UPDATE_AGE_SECONDS,
     },
-  },
-}));
+
+    /**
+     * Read from the validated configuration rather than left to Auth.js's own
+     * `process.env` lookup, so a missing key fails at startup with every other
+     * missing variable (§4.2, CAL-006).
+     */
+    secret: env.AUTH_SECRET,
+
+    /**
+     * Calepin is self-hosted behind its own reverse proxy (ADR-001), never on a
+     * platform that injects a canonical URL. Without this, Auth.js refuses to
+     * derive its callback URL from the request and every route answers 500.
+     */
+    trustHost: true,
+
+    callbacks: {
+      /**
+       * **Returning the session unchanged is not a no-op — deleting this
+       * callback breaks the owner id.** Auth.js's *default* session callback
+       * rebuilds `user` from `name`, `email` and `image` alone; under the
+       * database strategy the session it is handed carries the adapter's whole
+       * user row, and `id` is the field the default one drops. Declaring a
+       * callback of our own is what keeps it.
+       *
+       * `id` is not a nicety here: `openProjectScope` takes the owner id and
+       * nothing else, so the whole access policy of CAL-023 rests on it. The
+       * integration suite asserts it off the real endpoint, which is what turns
+       * this comment into something that fails rather than something to believe.
+       */
+      session({ session }) {
+        return session;
+      },
+
+      /**
+       * Attaches an OAuth identity to an existing account when the address is
+       * verified and identical (CAL-026) — see `account-linking.ts` for the
+       * rule. Always returns `true`: linking is the only thing this callback
+       * decides, every other outcome (new user, refused unverified match) is
+       * Auth.js's own default behavior.
+       */
+      async signIn({ account, user, profile }) {
+        if (account) {
+          await resolveOAuthAccountLink(adapter, account, {
+            email: user.email,
+            emailVerified: profile?.email_verified === true,
+          });
+        }
+
+        return true;
+      },
+    },
+  };
+});

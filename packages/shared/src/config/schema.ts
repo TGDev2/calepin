@@ -38,6 +38,13 @@ export const envSchema = z.object({
   EMAIL_SERVER_USER: z.string().min(1),
   EMAIL_SERVER_PASSWORD: z.string().min(1),
   EMAIL_FROM: z.email(),
+  /**
+   * The OAuth client Google issues for the app (CAL-026). Read here rather
+   * than left to Auth.js's own `process.env` lookup, for the same reason as
+   * `AUTH_SECRET`.
+   */
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
   REDIS_URL: z.string().url(),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),

@@ -3,6 +3,7 @@
  * wire Auth.js without holding a database client itself.
  */
 
+export { type OAuthIdentity, resolveOAuthAccountLink } from "./account-linking";
 export {
   type AuthAdapter,
   createAuthAdapter,
@@ -15,6 +16,7 @@ export {
   EMAIL_SIGN_IN_MAX_AGE_SECONDS,
   type EmailProviderOptions,
 } from "./email-provider";
+export { createGoogleProvider, type GoogleProviderOptions } from "./google-provider";
 export {
   assertEmailSignInAllowed,
   EMAIL_SIGN_IN_LIMIT,
