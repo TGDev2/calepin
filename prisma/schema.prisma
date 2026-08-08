@@ -379,6 +379,12 @@ model Bible {
   relationships Relationship[]
   places        Place[]
   worldRules    WorldRule[]
+  /// The chronology (CAL-017). CLAUDE.md §4.3 maps *chronologie* to `Timeline`;
+  /// the timeline of a bible is this ordered set of events and not a table of
+  /// its own, since a `Timeline` row would carry one foreign key and nothing
+  /// else. The glossary row was amended rather than left to name a model that
+  /// would exist only to be joined through.
+  timeline      TimelineEvent[]
 
   @@map("bibles")
 }
@@ -515,6 +521,11 @@ model Character {
   /// computes an age at an event. Nullable, because it can be genuinely unknown
   /// while the bible is being written; bounded below by characters_age_check
   /// and deliberately not above, since a character can be eight hundred.
+  ///
+  /// The age **at day 0 of the timeline**, which is the day the novel opens
+  /// (CAL-017). An age is meaningless without the instant it is the age at, and
+  /// naming that instant here is what lets `ageRangeAt` compute the age at any
+  /// event without a second column able to contradict this one.
   age                Int?
   role               String? // rôle
   importance         CharacterImportance @default(SECONDARY)
@@ -554,8 +565,10 @@ model Character {
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
-  outgoingRelationships Relationship[] @relation("RelationshipSource")
-  incomingRelationships Relationship[] @relation("RelationshipTarget")
+  outgoingRelationships Relationship[]             @relation("RelationshipSource")
+  incomingRelationships Relationship[]             @relation("RelationshipTarget")
+  /// Every event of the chronology this character is present at (CAL-017).
+  timelineAppearances   TimelineEventParticipant[]
 
   // The target of Relationship's two composite foreign keys. It is what makes a
   // relationship between two bibles unstorable rather than merely unlikely.
@@ -694,4 +707,176 @@ model WorldRule {
 
   @@unique([bibleId, name])
   @@map("world_rules")
+}
+
+/// The three kinds of moment a chronology holds, in the specification's own
+/// terms.
+///
+/// They are narrative categories, not statements about the day axis. A
+/// BACKSTORY event normally sits before day 0 and a PLANNED one after the last
+/// narrated chapter, but the two are deliberately not tied together by a
+/// constraint: an event whose category and whose date disagree is one of the
+/// inconsistencies CAL-093 exists to report, and a CHECK would make it
+/// unstorable instead of visible.
+enum TimelineEventCategory {
+  BACKSTORY // antérieur au roman
+  NARRATED // raconté
+  PLANNED // prévu
+
+  @@map("timeline_event_category")
+}
+
+/// How finely a date or a duration is known. "Spring 1892" is not a day, and
+/// "three years later" is not 1095 days: an age computed from either carries an
+/// uncertainty, and a detector that ignores it reports a contradiction on data
+/// that never contradicted itself.
+///
+/// This schema stores the choice, not its interpretation — the tolerance in
+/// days behind each member is a narrative rule and belongs to the domain, the
+/// same boundary TargetLength already draws.
+enum TimelinePrecision {
+  DAY
+  MONTH
+  SEASON
+  YEAR
+  DECADE
+
+  @@map("timeline_precision")
+}
+
+/// One moment of the novel's chronology (CAL-017).
+///
+/// **The axis is an integer number of days from the day the novel opens**, day
+/// 0, negative before it. Not a DateTime: a fictional calendar does not map to
+/// the Gregorian one, "spring 1892" is not a timestamp, and an age is computed
+/// by subtracting two positions — which a timestamp column would allow but a
+/// free-text date would not. How a day is written in the novel's own terms is
+/// `dateLabel`'s job, beside the number, never instead of it.
+///
+/// An event is placed in one of two ways, and may carry both:
+///
+/// - **absolutely** — `absoluteDay` with the precision it is known to;
+/// - **relatively** — `precedingEventId`, alone for pure ordering (the case the
+///   backlog names: events with no date but a known order), or with
+///   `daysAfterPreceding` to resolve to a day whenever the anchor resolves.
+///
+/// Carrying both is the point rather than an oversight. When the stated date
+/// and the chain disagree, that disagreement *is* the inconsistent duration
+/// CAL-093 has to detect; a schema that made the two mutually exclusive would
+/// delete the evidence before the detector could read it. The agreement is not
+/// a CHECK because it spans rows — the anchor's own day may itself be relative
+/// — and PostgreSQL cannot express that.
+///
+/// There is deliberately no manual `position` column. A third ordering able to
+/// contradict the other two would become the one consumers trust, which is
+/// CAL-012's recorded lesson; the order is reconstructed from the data by
+/// `resolveTimeline` in @calepin/bible.
+model TimelineEvent {
+  id      String @id @default(cuid())
+  bibleId String
+
+  /// A short handle, unique inside the bible: a model may name an event and
+  /// business code resolves the primary key (CLAUDE.md §6), the same rule
+  /// Character, Place and WorldRule already follow.
+  name     String
+  summary  String?
+  category TimelineEventCategory
+
+  /// Days from the day the novel opens. Negative before it.
+  absoluteDay   Int?
+  /// Set if and only if absoluteDay is — timeline_events_absolute_date_check.
+  /// A date whose precision is unknown would be read as day-precise by every
+  /// consumer, which is the false-positive machine this enum exists to avoid.
+  datePrecision TimelinePrecision?
+  /// The date as the novel writes it, in the project's language. Free of the
+  /// number beside it: an author may know the words before the position.
+  dateLabel     String?
+
+  /// The event this one is placed after. Composite foreign key on
+  /// (bibleId, id), like Relationship's two ends, so an event of another
+  /// bible cannot be the anchor.
+  precedingEventId   String?
+  /// The duration since the preceding event, in days, and never negative —
+  /// "depuis" means the anchor comes first, so a chain always runs one way and
+  /// resolution terminates. Null with an anchor set means pure ordering.
+  daysAfterPreceding Int?
+  /// Set if and only if daysAfterPreceding is —
+  /// timeline_events_relative_date_check.
+  durationPrecision  TimelinePrecision?
+
+  /// The lock, same convention as every other bible element (CAL-095).
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible           Bible           @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+  // NoAction, and above all not Prisma's SetNull default for an optional
+  // relation. PostgreSQL nulls *every* column of a composite key, `bibleId`
+  // included, so SET NULL here does not un-place the follower — it fails on
+  // `bibleId`'s NOT NULL with an error that names neither the event nor the
+  // cause. Probed, not assumed; the add_timeline migration records the trace.
+  //
+  // Deleting an anchored event is therefore refused, which is the intent: it
+  // would silently un-place everything hanging off it. Deleting the bible or
+  // the project still cascades — the referencing rows go in the same statement,
+  // before the check runs.
+  precedingEvent  TimelineEvent?  @relation("TimelineEventChain", fields: [bibleId, precedingEventId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
+  followingEvents TimelineEvent[] @relation("TimelineEventChain")
+
+  participants TimelineEventParticipant[]
+
+  // The target of this model's own chain key and of the participants' event
+  // key. It is what keeps a chronology inside one bible.
+  @@unique([bibleId, id])
+  @@unique([bibleId, name])
+  // The chronology of a bible, read in order, which is the query this table
+  // exists for.
+  @@index([bibleId, absoluteDay])
+  // Resolving the chain: the events anchored to a given one. PostgreSQL does
+  // not index a foreign key on its own.
+  @@index([bibleId, precedingEventId])
+  @@map("timeline_events")
+}
+
+/// A character present at an event — "personnages présents", one row per
+/// presence.
+///
+/// It stores no computed age. The age at an event follows from `Character.age`
+/// (the age at day 0) and the event's day, so a column here would be the copy
+/// able to drift that CAL-012 recorded as a lesson.
+///
+/// `declaredAge` is a different thing, and it is the reason this table has a
+/// column at all: the age the text *asserts* for this character at this event.
+/// It is an independent statement by the author, not a cache of the
+/// computation, and comparing the two is exactly how CAL-093 detects an
+/// incompatible age.
+///
+/// bibleId is not a copy able to drift either — it is part of both foreign
+/// keys, so a participation tying a character to an event of another bible is
+/// rejected by PostgreSQL. No separate foreign key to bibles is needed: both
+/// keys already reference rows that carry it.
+model TimelineEventParticipant {
+  id      String @id @default(cuid())
+  bibleId String
+
+  eventId     String
+  characterId String
+  /// Bounded below by timeline_event_participants_declared_age_check, and
+  /// deliberately not above, as characters_age_check already is.
+  declaredAge Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event     TimelineEvent @relation(fields: [bibleId, eventId], references: [bibleId, id], onDelete: Cascade)
+  character Character     @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
+
+  // One presence per character per event. A rerun of the mission that fills the
+  // timeline collides here instead of doubling a character's presence.
+  @@unique([eventId, characterId])
+  // Every event a character is present at, which is the read CAL-093 makes to
+  // check one character's ages across the whole chronology.
+  @@index([characterId])
+  @@map("timeline_event_participants")
 }

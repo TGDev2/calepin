@@ -7,4 +7,11 @@
  * Backlog: E09 — CAL-088 to CAL-100
  */
 
-export {};
+export {
+  type AgeRange,
+  ageRangeAt,
+  DAYS_PER_YEAR,
+  type ResolvedTimelineEvent,
+  resolveTimeline,
+  type TimelinePlacement,
+} from "./timeline";

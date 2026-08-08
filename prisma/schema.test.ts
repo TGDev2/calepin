@@ -280,6 +280,10 @@ describe("prisma schema", () => {
       "bible",
       "outgoingRelationships",
       "incomingRelationships",
+      // Where the character appears on the chronology (CAL-017). A back-relation,
+      // not a sheet field: it is written on the event, not on the sheet, and
+      // nothing about it is lockable on its own.
+      "timelineAppearances",
     ];
 
     const characterSheetFields = modelFields("Character").filter(
@@ -438,6 +442,10 @@ describe("prisma schema", () => {
         "Relationship",
         "Place",
         "WorldRule",
+        // CAL-095 names a timeline event among the elements a lock must stop a
+        // generation from contradicting, so it follows the same convention
+        // (CAL-017).
+        "TimelineEvent",
       ];
 
       it("makes every bible element lockable on its own row", () => {
@@ -538,6 +546,166 @@ describe("prisma schema", () => {
       expect(modelBlock("Relationship")).toMatch(/@@map\("relationships"\)/);
       expect(modelBlock("Place")).toMatch(/@@map\("places"\)/);
       expect(modelBlock("WorldRule")).toMatch(/@@map\("world_rules"\)/);
+    });
+  });
+
+  describe("chronology", () => {
+    // The specification's three kinds of moment. Closed, and pinned here: a
+    // fourth one is a decision about the product, and every reader of the
+    // timeline branches on this list.
+    it("distinguishes the three categories of the specification, and only those", () => {
+      expect(enumMembers("TimelineEventCategory")).toEqual(["BACKSTORY", "NARRATED", "PLANNED"]);
+      expect(modelBlock("TimelineEvent")).toMatch(/^\s*category\s+TimelineEventCategory(?!\?)/m);
+    });
+
+    // The enum that keeps the later detector from crying wolf: "spring 1892"
+    // is not a day, and an age computed from it is known to within six months.
+    it("records how finely a date and a duration are known", () => {
+      expect(enumMembers("TimelinePrecision")).toEqual([
+        "DAY",
+        "MONTH",
+        "SEASON",
+        "YEAR",
+        "DECADE",
+      ]);
+    });
+
+    describe("the two placements", () => {
+      // The axis is an integer count of days, not a DateTime: a fictional
+      // calendar does not map to the Gregorian one, and an age is computed by
+      // subtracting two positions.
+      it("dates an event on a signed day axis, never on a calendar date", () => {
+        const timelineEvent = modelBlock("TimelineEvent");
+
+        expect(timelineEvent).toMatch(/^\s*absoluteDay\s+Int\?/m);
+        // The only DateTime columns are the row's own lifecycle. Narrative time
+        // is never one: a DateTime commits the product to the Gregorian
+        // calendar and to a precision "spring 1892" does not have.
+        const dateTimeFields = timelineEvent
+          .split("\n")
+          .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+DateTime/.exec(line)?.[1])
+          .filter((field): field is string => field !== undefined);
+
+        expect(dateTimeFields).toEqual(["lockedAt", "createdAt", "updatedAt"]);
+      });
+
+      it("keeps the author's own wording beside the number, not instead of it", () => {
+        expect(modelBlock("TimelineEvent")).toMatch(/^\s*dateLabel\s+String\?/m);
+      });
+
+      // The case the backlog names: events with no absolute date but a known
+      // order. The duration is optional, the anchor is what places the event.
+      it("orders an event after another, with or without a duration", () => {
+        const timelineEvent = modelBlock("TimelineEvent");
+
+        expect(timelineEvent).toMatch(/^\s*precedingEventId\s+String\?/m);
+        expect(timelineEvent).toMatch(/^\s*daysAfterPreceding\s+Int\?/m);
+      });
+
+      // Both placements are optional at the column level; that at least one is
+      // present is timeline_events_placement_check, hand-written in the
+      // add_timeline migration and asserted by the integration suite — a
+      // requirement Prisma cannot express.
+      it("pairs each placement with the precision it is known to", () => {
+        const timelineEvent = modelBlock("TimelineEvent");
+
+        expect(timelineEvent).toMatch(/^\s*datePrecision\s+TimelinePrecision\?/m);
+        expect(timelineEvent).toMatch(/^\s*durationPrecision\s+TimelinePrecision\?/m);
+      });
+
+      // A third ordering would become the one consumers trust, and it could
+      // contradict both others — CAL-012's recorded lesson. The order is
+      // reconstructed from the data by resolveTimeline.
+      it("keeps no manual ordering column able to contradict the data", () => {
+        expect(modelBlock("TimelineEvent")).not.toMatch(
+          /^\s*(position|order|sequence|rank|sortIndex)\s/m,
+        );
+      });
+    });
+
+    describe("the characters present", () => {
+      it("is one row per presence, resolvable to a character", () => {
+        const participant = modelBlock("TimelineEventParticipant");
+
+        expect(participant).toMatch(/^\s*eventId\s+String/m);
+        expect(participant).toMatch(/^\s*characterId\s+String/m);
+        expect(participant).toMatch(/@@unique\(\[eventId, characterId\]\)/);
+      });
+
+      // The age at an event follows from Character.age and the event's day, so
+      // a column here would be the copy able to drift. declaredAge is the other
+      // thing entirely: what the text asserts, which is what the computed value
+      // is compared *against*.
+      it("stores the age the text asserts, and never the computed one", () => {
+        const participant = modelBlock("TimelineEventParticipant");
+
+        expect(participant).toMatch(/^\s*declaredAge\s+Int\?/m);
+        expect(participant).not.toMatch(/^\s*(age|computedAge|ageAtEvent)\s/m);
+      });
+
+      // The read CAL-093 makes to check one character's ages across the whole
+      // chronology. PostgreSQL does not index a foreign key on its own.
+      it("indexes the events a character appears in", () => {
+        expect(modelBlock("TimelineEventParticipant")).toMatch(/@@index\(\[characterId\]\)/);
+      });
+    });
+
+    describe("staying inside one bible", () => {
+      // The same shape Relationship uses, applied to a self-reference: an event
+      // of another bible cannot be the anchor, and bibleId cannot contradict
+      // the row it points at because it is part of the key.
+      it("anchors an event through the bible, not by id alone", () => {
+        const timelineEvent = modelBlock("TimelineEvent");
+
+        expect(timelineEvent).toMatch(/references: \[bibleId, id\]/);
+        expect(timelineEvent).toMatch(/@@unique\(\[bibleId, id\]\)/);
+      });
+
+      it("ties a participation to an event and a character of the same bible", () => {
+        const references = modelBlock("TimelineEventParticipant").match(
+          /references: \[bibleId, id\]/g,
+        );
+
+        expect(references).toHaveLength(2);
+      });
+
+      // Deleting an anchor would silently un-place everything hanging off it,
+      // so the chain refuses it. Never SetNull, which is Prisma's default for
+      // an optional relation and which nulls every column of a composite key —
+      // bibleId included, where it hits a NOT NULL and fails without naming the
+      // cause. The integration suite runs both paths.
+      it("refuses to delete an anchored event, and never nulls the key", () => {
+        const chain = /precedingEvent\s+TimelineEvent\?\s+@relation\(([^)]*)\)/.exec(
+          modelBlock("TimelineEvent"),
+        );
+
+        expect(chain?.[1]).toContain("onDelete: NoAction");
+      });
+
+      // A model may name an event; business code resolves the primary key
+      // (CLAUDE.md §6), the rule Character, Place and WorldRule already follow.
+      it("makes an event name resolvable inside its bible", () => {
+        expect(modelBlock("TimelineEvent")).toMatch(/@@unique\(\[bibleId, name\]\)/);
+      });
+
+      it("hangs the chronology off the bible", () => {
+        expect(modelBlock("Bible")).toMatch(/^\s*timeline\s+TimelineEvent\[\]/m);
+      });
+    });
+
+    // The query this table exists for: the chronology of a bible, in order.
+    it("indexes the chronology of a bible and the chain that resolves it", () => {
+      const timelineEvent = modelBlock("TimelineEvent");
+
+      expect(timelineEvent).toMatch(/@@index\(\[bibleId, absoluteDay\]\)/);
+      expect(timelineEvent).toMatch(/@@index\(\[bibleId, precedingEventId\]\)/);
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      expect(modelBlock("TimelineEvent")).toMatch(/@@map\("timeline_events"\)/);
+      expect(modelBlock("TimelineEventParticipant")).toMatch(
+        /@@map\("timeline_event_participants"\)/,
+      );
     });
   });
 });
