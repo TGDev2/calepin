@@ -23,7 +23,10 @@ export {
   type CreateProjectInput,
   deleteProject,
   getProjectForOwner,
+  listProjectDashboardRows,
   listProjectsForOwner,
+  type ProjectDashboardRow,
+  type ProjectStatus,
   updateProject,
   type UpdateProjectInput,
 } from "./project";

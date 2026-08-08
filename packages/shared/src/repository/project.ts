@@ -73,6 +73,89 @@ export async function listProjectsForOwner(ownerId: string) {
   });
 }
 
+/**
+ * `Project.status` (CAL-032), re-exported under the repository's own name so
+ * `apps/web` can type against it without importing `@prisma/client` — the
+ * import the interface layer is never allowed to hold (CLAUDE.md §3.5).
+ */
+export type ProjectStatus = $Enums.ProjectStatus;
+
+/** One row of the project dashboard (CAL-032). */
+export interface ProjectDashboardRow {
+  readonly id: string;
+  readonly title: string;
+  readonly status: ProjectStatus;
+  readonly updatedAt: Date;
+  /** Every chapter of the project's plan, written or not. */
+  readonly plannedChapterCount: number;
+  /** Chapters carrying at least one `ChapterRevision` — text actually drafted. */
+  readonly writtenChapterCount: number;
+  /** The sum of each written chapter's *latest* revision — never every revision. */
+  readonly totalWordCount: number;
+}
+
+/**
+ * The dashboard's read (CAL-032): one user's projects, most recently modified
+ * first, each carrying its chapter and word-count aggregates.
+ *
+ * One `findMany`, `relationLoadStrategy: "join"` so the nested
+ * `outline.chapters.revisions` read compiles to a single SQL statement (a
+ * LATERAL join) rather than one query per relation or per row — there is no
+ * second round trip to aggregate over. "Written" is derived from revision
+ * presence rather than `ChapterStatus`, so the written count and the word sum
+ * below are read from the exact same join and can never disagree with each
+ * other.
+ *
+ * Live-computed, not stored: CAL-033 owns denormalized, write-time
+ * aggregates. This is the naive, always-correct read they will replace.
+ */
+export async function listProjectDashboardRows(ownerId: string): Promise<ProjectDashboardRow[]> {
+  assertOwnerId(ownerId);
+
+  const projects = await getDatabaseClient().project.findMany({
+    where: { [PROJECT_OWNER_FIELD]: ownerId },
+    orderBy: { updatedAt: "desc" },
+    relationLoadStrategy: "join",
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      updatedAt: true,
+      outline: {
+        select: {
+          chapters: {
+            select: {
+              revisions: {
+                orderBy: { revisionNumber: "desc" },
+                take: 1,
+                select: { wordCount: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return projects.map((project) => {
+    const chapters = project.outline?.chapters ?? [];
+    const writtenChapters = chapters.filter((chapter) => chapter.revisions.length > 0);
+
+    return {
+      id: project.id,
+      title: project.title,
+      status: project.status,
+      updatedAt: project.updatedAt,
+      plannedChapterCount: chapters.length,
+      writtenChapterCount: writtenChapters.length,
+      totalWordCount: writtenChapters.reduce(
+        (sum, chapter) => sum + (chapter.revisions[0]?.wordCount ?? 0),
+        0,
+      ),
+    };
+  });
+}
+
 export async function getProjectForOwner(input: { ownerId: string; projectId: string }) {
   assertOwnerId(input.ownerId);
 

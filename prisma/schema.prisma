@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  // relationJoins (CAL-032): lets a nested read ask for `relationLoadStrategy:
+  // "join"`, compiling to one SQL statement instead of one query per relation
+  // level — the dashboard's own query needs the literal single round trip,
+  // not merely the N+1 Prisma's default batching already avoids.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

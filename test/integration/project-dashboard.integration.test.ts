@@ -1,0 +1,181 @@
+/**
+ * `listProjectDashboardRows` (CAL-032), against a real PostgreSQL: **the
+ * dashboard's aggregates are correct, and the whole read is one SQL
+ * statement — never one query per project or per chapter.**
+ *
+ * Same shape as `owner-access.integration.test.ts`: a `createAuditedClient`
+ * for seeding (the audited writes the schema's `updatedById` columns
+ * require), and a separate bare `PrismaClient` registered on the seam — the
+ * one the repository function itself reads through, and the one this suite
+ * listens to for query events.
+ */
+
+import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
+import { listProjectDashboardRows } from "@calepin/shared/repository";
+import { type Prisma, PrismaClient } from "@prisma/client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { createAuditedClient } from "./audited-client";
+
+describe("listProjectDashboardRows (CAL-032)", () => {
+  const { prisma, setActor } = createAuditedClient();
+  const queryLog: string[] = [];
+  const seam = new PrismaClient({ log: [{ emit: "event", level: "query" }] });
+
+  beforeAll(() => {
+    seam.$on("query", (event: Prisma.QueryEvent) => {
+      queryLog.push(event.query);
+    });
+    configureDatabaseClient(seam);
+  });
+
+  afterAll(async () => {
+    resetDatabaseClient();
+    await prisma.$disconnect();
+    await seam.$disconnect();
+  });
+
+  it("aggregates chapters and words from the latest revision only, across every project, in one query", async () => {
+    const user = await prisma.user.create({
+      data: { email: "project-dashboard-owner@example.test" },
+    });
+    setActor(user.id);
+
+    // First project: three chapters — one revised twice (proves "latest
+    // revision only", not a sum of every draft), one written once, one still
+    // unwritten.
+    const firstProject = await prisma.project.create({
+      data: { userId: user.id, title: "First project" },
+    });
+    const firstBible = await prisma.bible.create({ data: { projectId: firstProject.id } });
+    const firstOutline = await prisma.outline.create({
+      data: { projectId: firstProject.id, bibleId: firstBible.id },
+    });
+    const firstPart = await prisma.part.create({
+      data: { outlineId: firstOutline.id, orderKey: "i", title: "Part one" },
+    });
+
+    const revisedChapter = await prisma.chapter.create({
+      data: {
+        outlineId: firstOutline.id,
+        bibleId: firstBible.id,
+        partId: firstPart.id,
+        orderKey: "i",
+      },
+    });
+    await prisma.chapterRevision.create({
+      data: {
+        chapterId: revisedChapter.id,
+        revisionNumber: 1,
+        origin: "GENERATED",
+        content: "fixture",
+        wordCount: 500,
+        createdById: user.id,
+      },
+    });
+    await prisma.chapterRevision.create({
+      data: {
+        chapterId: revisedChapter.id,
+        revisionNumber: 2,
+        origin: "EDITED",
+        content: "fixture",
+        wordCount: 800,
+        createdById: user.id,
+      },
+    });
+
+    const writtenOnceChapter = await prisma.chapter.create({
+      data: {
+        outlineId: firstOutline.id,
+        bibleId: firstBible.id,
+        partId: firstPart.id,
+        orderKey: "r",
+      },
+    });
+    await prisma.chapterRevision.create({
+      data: {
+        chapterId: writtenOnceChapter.id,
+        revisionNumber: 1,
+        origin: "GENERATED",
+        content: "fixture",
+        wordCount: 300,
+        createdById: user.id,
+      },
+    });
+
+    await prisma.chapter.create({
+      data: {
+        outlineId: firstOutline.id,
+        bibleId: firstBible.id,
+        partId: firstPart.id,
+        orderKey: "x",
+      },
+    });
+
+    // Second project: one chapter, one revision.
+    const secondProject = await prisma.project.create({
+      data: { userId: user.id, title: "Second project" },
+    });
+    const secondBible = await prisma.bible.create({ data: { projectId: secondProject.id } });
+    const secondOutline = await prisma.outline.create({
+      data: { projectId: secondProject.id, bibleId: secondBible.id },
+    });
+    const secondPart = await prisma.part.create({
+      data: { outlineId: secondOutline.id, orderKey: "i", title: "Part one" },
+    });
+    const secondChapter = await prisma.chapter.create({
+      data: {
+        outlineId: secondOutline.id,
+        bibleId: secondBible.id,
+        partId: secondPart.id,
+        orderKey: "i",
+      },
+    });
+    await prisma.chapterRevision.create({
+      data: {
+        chapterId: secondChapter.id,
+        revisionNumber: 1,
+        origin: "GENERATED",
+        content: "fixture",
+        wordCount: 42,
+        createdById: user.id,
+      },
+    });
+
+    // Third project: no outline at all yet — the null-safe path.
+    const thirdProject = await prisma.project.create({
+      data: { userId: user.id, title: "Third project" },
+    });
+
+    queryLog.length = 0;
+    const rows = await listProjectDashboardRows(user.id);
+
+    expect(queryLog).toHaveLength(1);
+
+    expect(rows).toHaveLength(3);
+
+    const first = rows.find((row) => row.id === firstProject.id);
+    expect(first).toMatchObject({
+      title: "First project",
+      plannedChapterCount: 3,
+      writtenChapterCount: 2,
+      totalWordCount: 1100, // 800 (latest of the revised chapter) + 300, never 500 + 800 + 300
+    });
+
+    const second = rows.find((row) => row.id === secondProject.id);
+    expect(second).toMatchObject({
+      title: "Second project",
+      plannedChapterCount: 1,
+      writtenChapterCount: 1,
+      totalWordCount: 42,
+    });
+
+    const third = rows.find((row) => row.id === thirdProject.id);
+    expect(third).toMatchObject({
+      title: "Third project",
+      plannedChapterCount: 0,
+      writtenChapterCount: 0,
+      totalWordCount: 0,
+    });
+  });
+});

@@ -25,6 +25,7 @@ import {
   delegateName,
   deleteProject,
   getProjectForOwner,
+  listProjectDashboardRows,
   listProjectsForOwner,
   openProjectScope,
   PROJECT_OWNED_MODEL_NAMES,
@@ -46,6 +47,7 @@ const ENTRY_POINTS = [
   "createProject",
   "deleteProject",
   "getProjectForOwner",
+  "listProjectDashboardRows",
   "listProjectsForOwner",
   "openProjectScope",
   "requireOwnedRow",
@@ -257,6 +259,24 @@ describe("owner access policy", () => {
       expect(bobsProjects.map((project) => project.id)).toContain(bob.projectId);
       expect(bobsProjects.map((project) => project.id)).not.toContain(alice.projectId);
       expect(alicesProjects.map((project) => project.id)).not.toContain(bob.projectId);
+    });
+
+    // The fixture graph gives each owner one chapter with a revision
+    // (wordCount 1) and one without — enough to prove the aggregates without
+    // a bespoke seed, on top of the isolation the assertion is really about.
+    it("listProjectDashboardRows never returns another owner's project or aggregates", async () => {
+      const bobsRows = await listProjectDashboardRows(bob.ownerId);
+      const alicesRows = await listProjectDashboardRows(alice.ownerId);
+
+      expect(bobsRows.map((row) => row.id)).not.toContain(alice.projectId);
+      expect(alicesRows.map((row) => row.id)).not.toContain(bob.projectId);
+
+      const bobsRow = bobsRows.find((row) => row.id === bob.projectId);
+      expect(bobsRow).toMatchObject({
+        plannedChapterCount: 2,
+        writtenChapterCount: 1,
+        totalWordCount: 1,
+      });
     });
 
     it("updateProject refuses a scope forged for another owner's project", async () => {
