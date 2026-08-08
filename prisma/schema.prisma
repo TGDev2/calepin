@@ -1158,6 +1158,8 @@ model Outline {
 
   parts    Part[]
   chapters Chapter[]
+  /// The narrative threads of this plan (CAL-020).
+  threads  Thread[]
 
   // The target of Chapter's outline key. `bibleId` is already unique on its
   // own, so this adds nothing to the data — PostgreSQL simply requires a unique
@@ -1279,6 +1281,12 @@ model Chapter {
 
   chapterOutline ChapterOutline?
   revisions      ChapterRevision[]
+  /// The threads this chapter opens (CAL-020).
+  threadOpenings Thread[] @relation("ThreadOpening")
+  /// The threads this chapter closes.
+  threadClosings Thread[] @relation("ThreadClosing")
+  /// The threads this chapter carries forward.
+  threadContinuations ThreadContinuation[]
 
   // The target of ChapterOutline's chapter key, and of everything E12 and E13
   // will tie to a chapter inside one bible.
@@ -1491,4 +1499,111 @@ model ChapterRevision {
   // collide here as a unique violation instead of silently losing one.
   @@unique([chapterId, revisionNumber])
   @@map("chapter_revisions")
+}
+
+/// The three states of a narrative thread (CAL-020), in the command's own
+/// order: opened, then carried forward, then paid off. "Still open" — the
+/// read this task exists to serve — is every status but CLOSED, not OPEN
+/// alone: a thread being actively continued has not been closed either.
+enum ThreadStatus {
+  OPEN // ouvert
+  CONTINUED // poursuivi
+  CLOSED // fermé
+
+  @@map("thread_status")
+}
+
+/// One narrative thread (CAL-020) — a promise raised in one chapter, carried
+/// by zero or more others, and, eventually, paid off in one. CAL-019 left this
+/// table out on purpose: "Chapter is the spine... a thread opens at one
+/// (CAL-020)", and Chapter already exposes @@unique([bibleId, id]) for this
+/// table's links to hang off without a migration to that one.
+///
+/// `bibleId` travels down from Outline exactly as it does on ChapterOutline:
+/// every reference to a chapter is a composite [bibleId, chapterId] against
+/// Chapter's own [bibleId, id] key, which is what makes a thread of one
+/// project citing another project's chapter unstorable rather than merely
+/// unlikely.
+///
+/// No CHECK pairs status with closingChapterId. The pairings this schema
+/// already writes (bibles_validation_check, analyses_validation_check) bind an
+/// atomic action — stamped together by one code path, never independently.
+/// Closing a thread is not that, and CAL-109's own wording asks to flag a
+/// thread closed with no closing chapter, which is only a finding to surface
+/// if the schema can hold it — the reading ChapterOutline's optional planning
+/// attributes already establish, applied here instead of to a pairing CHECK
+/// that would fight closingChapterId's SET NULL below.
+model Thread {
+  id        String @id @default(cuid())
+  outlineId String
+  bibleId   String
+
+  label            String // libellé
+  narrativePromise String // promesse narrative associée
+
+  openingChapterId String // chapitre d'ouverture
+  closingChapterId String? // chapitre de fermeture — set once closed, not before
+
+  status ThreadStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outline Outline @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
+  // NoAction, the pattern chapters_outlineId_partId_fkey already sets:
+  // deleting a single chapter that a thread still opens at is refused, the
+  // same protection "refuses to delete a part still holding chapters" gives.
+  // A whole outline/bible/project cascade still empties both tables in the
+  // same statement, because Thread and Chapter are both direct children of
+  // Outline — the same subtree, not the two-subtree case that broke
+  // focalCharacterId's NoAction in CAL-019. Probed against the real database,
+  // not assumed, per the CAL-017 lesson; the integration suite runs both
+  // paths.
+  openingChapter Chapter @relation("ThreadOpening", fields: [bibleId, openingChapterId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
+  // SET NULL on this column alone — ChapterOutline's focalCharacterId and
+  // placeId pattern exactly, hand-written in the migration because Prisma
+  // cannot express a column-scoped SET NULL. Deleting the closing chapter
+  // forgets where the thread was said to end; it does not reopen it.
+  closingChapter Chapter? @relation("ThreadClosing", fields: [bibleId, closingChapterId], references: [bibleId, id], onDelete: SetNull, onUpdate: NoAction)
+
+  continuations ThreadContinuation[]
+
+  // The target of ThreadContinuation's thread key.
+  @@unique([bibleId, id])
+  // A model may name a thread; business code resolves the primary key
+  // (CLAUDE.md §6), the rule Character, Place, WorldRule, TimelineEvent and
+  // Part already follow.
+  @@unique([outlineId, label])
+  // The read this task exists to serve: every thread not CLOSED, at any
+  // instant.
+  @@index([outlineId, status])
+  // PostgreSQL does not index a foreign key on its own, and the NoAction and
+  // SET NULL checks on chapter deletion each walk one of these.
+  @@index([bibleId, openingChapterId])
+  @@index([bibleId, closingChapterId])
+  @@map("threads")
+}
+
+/// A chapter that carries a thread forward — "chapitres de poursuite", one row
+/// per chapter. Immutable, like ChapterOutlineCharacter: a continuation is
+/// added or removed, never edited, so it carries no updatedAt.
+model ThreadContinuation {
+  id      String @id @default(cuid())
+  bibleId String
+
+  threadId  String
+  chapterId String
+
+  createdAt DateTime @default(now())
+
+  thread  Thread  @relation(fields: [bibleId, threadId], references: [bibleId, id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [bibleId, chapterId], references: [bibleId, id], onDelete: Cascade)
+
+  // One continuation per chapter per thread. A rerun of the mission that finds
+  // continuations collides here instead of doubling one.
+  @@unique([threadId, chapterId])
+  // Every thread a chapter carries forward — the read a repercussion analysis
+  // (CAL-108) will make when that chapter moves.
+  @@index([chapterId])
+  @@map("thread_continuations")
 }

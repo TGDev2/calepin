@@ -1071,4 +1071,133 @@ describe("prisma schema", () => {
       }
     });
   });
+
+  describe("narrative threads", () => {
+    // The command's own order: opened, then carried forward, then paid off.
+    it("declares the three states of the command, in order", () => {
+      expect(enumMembers("ThreadStatus")).toEqual([
+        "OPEN", // ouvert
+        "CONTINUED", // poursuivi
+        "CLOSED", // fermé
+      ]);
+      expect(modelBlock("Thread")).toMatch(/status\s+ThreadStatus\s+@default\(OPEN\)/);
+    });
+
+    it("carries the four attributes the command names", () => {
+      const thread = modelBlock("Thread");
+
+      expect(thread).toMatch(/^\s*label\s+String(?!\?)/m);
+      expect(thread).toMatch(/^\s*narrativePromise\s+String(?!\?)/m);
+      expect(thread).toMatch(/^\s*openingChapterId\s+String(?!\?)/m);
+      expect(thread).toMatch(/^\s*closingChapterId\s+String\?/m);
+    });
+
+    // A thread cannot exist without the chapter it was raised in; it may well
+    // never be paid off, so only the opening reference is required.
+    it("requires the opening chapter and nothing else", () => {
+      const required = modelBlock("Thread")
+        .split("\n")
+        .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+(String|Int|Boolean)(?!\?)/.exec(line)?.[1])
+        .filter((field): field is string => field !== undefined);
+
+      expect(required).toEqual([
+        "id",
+        "outlineId",
+        "bibleId",
+        "label",
+        "narrativePromise",
+        "openingChapterId",
+      ]);
+    });
+
+    // "Chapitres de poursuite" is plural in the command: several rows, the
+    // shape ChapterOutlineCharacter and ChapterOutlineFact already use for a
+    // planned one-to-many, not a column on Thread.
+    it("carries the continuing chapters as a join table, not a column", () => {
+      expect(modelBlock("Thread")).toMatch(/^\s*continuations\s+ThreadContinuation\[\]/m);
+      expect(modelBlock("Thread")).not.toMatch(
+        /^\s*(continuingChapters|continuationChapterIds)\s/m,
+      );
+    });
+
+    // No CHECK pairs status with closingChapterId — CAL-109's own wording
+    // asks to flag a thread closed with no closing chapter, which is only a
+    // finding to surface if the schema can hold it, the reading
+    // ChapterOutline's optional planning attributes already establish.
+    it("keeps no pairing between the status and the closing chapter", () => {
+      expect(schema).not.toMatch(/threads_(status|closing)[a-zA-Z_]*_check/);
+    });
+
+    it("references its outline and both its chapters through the bible", () => {
+      const references = modelBlock("Thread").match(/references: \[bibleId, id\]/g);
+
+      expect(references).toHaveLength(3);
+      expect(modelBlock("Thread")).toMatch(/@@unique\(\[bibleId, id\]\)/);
+    });
+
+    // A model may name a thread; business code resolves the primary key
+    // (CLAUDE.md §6), the rule Character, Place, WorldRule, TimelineEvent and
+    // Part already follow.
+    it("makes a thread name resolvable inside its plan", () => {
+      expect(modelBlock("Thread")).toMatch(/@@unique\(\[outlineId, label\]\)/);
+    });
+
+    // The read this task exists to serve.
+    it("indexes the still-open threads of a plan", () => {
+      expect(modelBlock("Thread")).toMatch(/@@index\(\[outlineId, status\]\)/);
+    });
+
+    // Deleting a single chapter that a thread still opens at is refused, the
+    // same protection chapters_outlineId_partId_fkey gives a part still
+    // holding chapters — never CASCADE, which would take the thread with it
+    // without saying so.
+    it("refuses to delete the opening chapter of a thread, and never cascades to it", () => {
+      const opening = /openingChapter\s+Chapter\s+@relation\(([^)]*)\)/.exec(modelBlock("Thread"));
+
+      expect(opening?.[1]).toContain("onDelete: NoAction");
+    });
+
+    it("un-references the closing chapter when it goes, on that column alone", () => {
+      const closing = /closingChapter\s+Chapter\?\s+@relation\(([^)]*)\)/.exec(
+        modelBlock("Thread"),
+      );
+
+      expect(closing?.[1]).toContain("onDelete: SetNull");
+    });
+
+    describe("the continuation join table", () => {
+      it("is one row per chapter per thread, resolvable to both", () => {
+        const continuation = modelBlock("ThreadContinuation");
+
+        expect(continuation).toMatch(/^\s*threadId\s+String/m);
+        expect(continuation).toMatch(/^\s*chapterId\s+String/m);
+        expect(continuation).toMatch(/@@unique\(\[threadId, chapterId\]\)/);
+      });
+
+      it("ties a continuation to its thread and its chapter through the bible", () => {
+        expect(modelBlock("ThreadContinuation").match(/references: \[bibleId, id\]/g)).toHaveLength(
+          2,
+        );
+      });
+
+      it("indexes the threads a chapter carries forward", () => {
+        expect(modelBlock("ThreadContinuation")).toMatch(/@@index\(\[chapterId\]\)/);
+      });
+
+      // Added or removed, never edited, the same reasoning
+      // ChapterOutlineCharacter and ChapterOutlineFact already carry.
+      it("carries no updatedAt", () => {
+        expect(modelBlock("ThreadContinuation")).not.toMatch(/^\s*updatedAt\s/m);
+      });
+    });
+
+    it("hangs the threads off the plan", () => {
+      expect(modelBlock("Outline")).toMatch(/^\s*threads\s+Thread\[\]/m);
+    });
+
+    it("maps to snake_case plural tables", () => {
+      expect(modelBlock("Thread")).toMatch(/@@map\("threads"\)/);
+      expect(modelBlock("ThreadContinuation")).toMatch(/@@map\("thread_continuations"\)/);
+    });
+  });
 });

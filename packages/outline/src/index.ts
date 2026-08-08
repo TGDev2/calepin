@@ -22,3 +22,4 @@ export {
   type ResolvedPart,
   resolveOutline,
 } from "./order";
+export { isThreadOpen, listOpenThreads, type OpenableThread, type ThreadStatus } from "./thread";

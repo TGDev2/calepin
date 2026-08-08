@@ -20,3 +20,14 @@ Backlog: E10 — CAL-101 to CAL-111. Schemas: CAL-019, CAL-020.
 - `isOrderKey`, `compareOrderKeys`, `ORDER_KEY_ALPHABET` — the key's shape and
   its order, the same ones `parts_order_key_check` and `chapters_order_key_check`
   hold in the database.
+
+`thread/` — which narrative threads are still open (CAL-020).
+
+- `isThreadOpen`, `listOpenThreads` — "still open" is every status but
+  `CLOSED`, not `OPEN` alone: a thread being carried by a continuation has not
+  been paid off either. Structural, database-free, the same reasoning
+  `order/types.ts` states in full: the repository layer that will read a
+  `Thread` row does not exist yet (CAL-023), so this package reasons about the
+  status alone rather than a Prisma type. The actual query —
+  `prisma/queries/open-threads.ts` — expresses the same "not `CLOSED`"
+  condition as a `where` clause, for whichever caller runs it today.
