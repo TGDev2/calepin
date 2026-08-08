@@ -16,22 +16,30 @@ async function main() {
   });
   console.log(`User: ${demoUser.email}`);
 
-  // Upsert three projects at different statuses.
+  // Upsert three projects at different statuses. One carries a custom target
+  // length so the demo data covers both shapes the schema allows: a preset with
+  // no word count, and CUSTOM with one.
   const projects = [
     {
       id: "proj_draft_demo",
       title: "Draft Project",
       status: "DRAFT" as const,
+      targetLength: "STANDARD" as const,
+      targetWordCount: null,
     },
     {
       id: "proj_outline_demo",
       title: "Outline in Progress",
       status: "OUTLINE_IN_PROGRESS" as const,
+      targetLength: "SHORT" as const,
+      targetWordCount: null,
     },
     {
       id: "proj_writing_demo",
       title: "Writing in Progress",
       status: "WRITING_IN_PROGRESS" as const,
+      targetLength: "CUSTOM" as const,
+      targetWordCount: 64_000,
     },
   ];
 
@@ -40,13 +48,16 @@ async function main() {
       where: { id: proj.id },
       update: {
         status: proj.status,
+        targetLength: proj.targetLength,
+        targetWordCount: proj.targetWordCount,
       },
       create: {
         id: proj.id,
         title: proj.title,
         userId: demoUser.id,
         language: "fr",
-        targetLength: "STANDARD",
+        targetLength: proj.targetLength,
+        targetWordCount: proj.targetWordCount,
         targetAudience: "Grand public",
         freedomLevel: "BALANCED",
         status: proj.status,
@@ -91,9 +102,7 @@ Le train arriva. Ils montèrent, l'un après l'autre, dans des wagons différent
 Marc continua son chemin, sa valise à la main, se demandant ce que son propre rituel deviendrait.`;
 
   // Count words (simple split on spaces)
-  const wordCount = storyContent
-    .split(/\s+/)
-    .filter((word) => word.length > 0).length;
+  const wordCount = storyContent.split(/\s+/).filter((word) => word.length > 0).length;
   console.log(`Story: ${wordCount} words`);
 
   // Upsert source text and its version.
