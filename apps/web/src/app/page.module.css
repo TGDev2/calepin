@@ -20,6 +20,51 @@
   color: var(--color-text-muted);
 }
 
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.filterLabel {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.filterInput,
+.filterSelect {
+  display: block;
+  padding: 0.35rem var(--space-1);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font: inherit;
+  color: inherit;
+}
+
+.filterSubmit {
+  padding: 0.4rem var(--space-2);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font: inherit;
+  cursor: pointer;
+}
+
+.filterReset {
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .projects {
   list-style: none;
   margin: 0;

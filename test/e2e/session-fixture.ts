@@ -27,7 +27,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { PrismaClient } from "@prisma/client";
+import { type $Enums, PrismaClient } from "@prisma/client";
 
 /** The name Auth.js gives its session cookie over plain HTTP. */
 export const SESSION_COOKIE = "authjs.session-token";
@@ -184,6 +184,24 @@ export async function seedProjectWithChapters(
     });
 
     return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Overwrites a project's status directly — the dashboard's search/sort/filter
+ * specs (CAL-036) need a project at a status other than the default `DRAFT`
+ * without driving an entire generation through the browser to earn one.
+ */
+export async function setProjectStatus(
+  projectId: string,
+  status: $Enums.ProjectStatus,
+): Promise<void> {
+  const prisma = new PrismaClient();
+
+  try {
+    await prisma.project.update({ where: { id: projectId }, data: { status } });
   } finally {
     await prisma.$disconnect();
   }

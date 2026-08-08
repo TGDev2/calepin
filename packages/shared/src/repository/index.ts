@@ -48,6 +48,7 @@ export {
   getProjectForOwner,
   listProjectDashboardRows,
   listProjectsForOwner,
+  type ProjectDashboardQuery,
   type ProjectDashboardRow,
   type ProjectStatus,
   updateProject,

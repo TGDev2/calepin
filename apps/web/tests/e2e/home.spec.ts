@@ -5,6 +5,7 @@ import {
   openSignedInSession,
   seedProjectWithChapters,
   SESSION_COOKIE,
+  setProjectStatus,
 } from "../../../../test/e2e/session-fixture";
 
 /**
@@ -74,6 +75,65 @@ test("lists a signed-in visitor's project with its chapter and word aggregates",
     // words — the only chapter carrying a revision.
     await expect(card.getByText("1 / 2")).toBeVisible();
     await expect(card.getByText("250")).toBeVisible();
+  } finally {
+    await closeSignedInSession(session);
+  }
+});
+
+test("filters the list to the project matching a title search", async ({ page, context }) => {
+  const session = await openSignedInSession();
+
+  try {
+    const matching = await seedProjectWithChapters(session.userId, "Les Ombres du Nord");
+    const other = await seedProjectWithChapters(session.userId, "La Cité de Verre");
+
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: session.sessionToken,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+
+    await page.goto("/?q=Ombres");
+
+    await expect(page.getByRole("article").filter({ hasText: matching.title })).toBeVisible();
+    await expect(page.getByRole("article").filter({ hasText: other.title })).toHaveCount(0);
+  } finally {
+    await closeSignedInSession(session);
+  }
+});
+
+test("a URL carrying search, sort and status restores exactly that view (CAL-036)", async ({
+  page,
+  context,
+}) => {
+  const session = await openSignedInSession();
+
+  try {
+    const project = await seedProjectWithChapters(session.userId, "Le Sentier Oublié");
+    await setProjectStatus(project.projectId, "WRITING_IN_PROGRESS");
+
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: session.sessionToken,
+        domain: "localhost",
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+
+    await page.goto("/?q=Sentier&sort=progress&status=WRITING_IN_PROGRESS");
+
+    await expect(page.getByLabel("Titre")).toHaveValue("Sentier");
+    await expect(page.getByLabel("Trier par")).toHaveValue("progress");
+    await expect(page.getByLabel("Statut")).toHaveValue("WRITING_IN_PROGRESS");
+    await expect(page.getByRole("article").filter({ hasText: project.title })).toBeVisible();
   } finally {
     await closeSignedInSession(session);
   }

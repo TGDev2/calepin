@@ -107,8 +107,24 @@ export interface ProjectDashboardRow {
 }
 
 /**
- * The dashboard's read (CAL-032): one user's projects, most recently modified
- * first, each carrying its chapter and word-count aggregates.
+ * The dashboard's search, sort and filter (CAL-036), all optional and all
+ * folded into the same single query.
+ *
+ * `sort: "progress"` orders directly on the `status` column rather than on a
+ * computed rank: the Postgres enum's declared order mirrors `PROJECT_STATUSES`
+ * (`prisma/schema.test.ts` pins the two against each other), so `ORDER BY
+ * status` already reads as "furthest stage first" without a rank column or an
+ * in-memory sort.
+ */
+export interface ProjectDashboardQuery {
+  readonly search?: string;
+  readonly status?: ProjectStatus;
+  readonly sort?: "updatedAt" | "progress";
+}
+
+/**
+ * The dashboard's read (CAL-032, CAL-036): one user's projects, filtered and
+ * sorted per `query`, each carrying its chapter and word-count aggregates.
  *
  * Two of the three come off the row itself. `writtenChapterCount` and
  * `totalWordCount` are maintained by the write that moved them (CAL-033,
@@ -125,12 +141,22 @@ export interface ProjectDashboardRow {
  * dashboard is one SQL statement — asserted by
  * `test/integration/project-dashboard.integration.test.ts`, not assumed.
  */
-export async function listProjectDashboardRows(ownerId: string): Promise<ProjectDashboardRow[]> {
+export async function listProjectDashboardRows(
+  ownerId: string,
+  query: ProjectDashboardQuery = {},
+): Promise<ProjectDashboardRow[]> {
   assertOwnerId(ownerId);
 
   const projects = await getDatabaseClient().project.findMany({
-    where: { [PROJECT_OWNER_FIELD]: ownerId },
-    orderBy: { updatedAt: "desc" },
+    where: {
+      [PROJECT_OWNER_FIELD]: ownerId,
+      ...(query.search ? { title: { contains: query.search, mode: "insensitive" } } : {}),
+      ...(query.status === undefined ? {} : { status: query.status }),
+    },
+    orderBy:
+      query.sort === "progress"
+        ? [{ status: "desc" }, { updatedAt: "desc" }]
+        : { updatedAt: "desc" },
     relationLoadStrategy: "join",
     select: {
       id: true,

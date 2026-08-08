@@ -201,4 +201,47 @@ describe("listProjectDashboardRows (CAL-032)", () => {
       totalWordCount: 0,
     });
   });
+
+  it("searches by title, filters by status and sorts by progress (CAL-036), still in one query", async () => {
+    const user = await prisma.user.create({
+      data: { email: "project-dashboard-filters@example.test" },
+    });
+    setActor(user.id);
+
+    const draftProject = await prisma.project.create({
+      data: { userId: user.id, title: "Draft Alpha" },
+    });
+    const writingProject = await prisma.project.create({
+      data: { userId: user.id, title: "Writing Beta" },
+    });
+    const archivedProject = await prisma.project.create({
+      data: { userId: user.id, title: "Archived Gamma" },
+    });
+
+    await prisma.project.update({
+      where: { id: writingProject.id },
+      data: { status: "WRITING_IN_PROGRESS" },
+    });
+    await prisma.project.update({
+      where: { id: archivedProject.id },
+      data: { status: "ARCHIVED" },
+    });
+
+    queryLog.length = 0;
+    const bySearch = await listProjectDashboardRows(user.id, { search: "beta" });
+    expect(queryLog).toHaveLength(1);
+    expect(bySearch.map((row) => row.id)).toEqual([writingProject.id]);
+
+    const byStatus = await listProjectDashboardRows(user.id, { status: "DRAFT" });
+    expect(byStatus.map((row) => row.id)).toEqual([draftProject.id]);
+
+    // Furthest stage first: ARCHIVED, then WRITING_IN_PROGRESS, then DRAFT —
+    // `PROJECT_STATUSES`' own order, not an in-memory sort.
+    const byProgress = await listProjectDashboardRows(user.id, { sort: "progress" });
+    expect(byProgress.map((row) => row.id)).toEqual([
+      archivedProject.id,
+      writingProject.id,
+      draftProject.id,
+    ]);
+  });
 });
