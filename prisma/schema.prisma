@@ -20,6 +20,7 @@ model User {
   analysisRevisionsCreated AnalysisSectionRevision[]
   analysisAnnotations      AnalysisAnnotation[]
   biblesValidated          Bible[]
+  chapterRevisionsCreated  ChapterRevision[]
 
   @@map("users")
 }
@@ -84,6 +85,7 @@ model Project {
   analysis           Analysis?
   creativeDirections CreativeDirection[]
   bible              Bible?
+  outline            Outline?
 
   // The dashboard lists one user's projects, most recently modified first
   // (CAL-065), and filters that list by status. No index on userId alone:
@@ -387,6 +389,8 @@ model Bible {
   timeline      TimelineEvent[]
   /// The atomic facts of the canon (CAL-018).
   canonFacts    CanonFact[]
+  /// The plan written against this bible (CAL-019).
+  outline       Outline?
 
   @@map("bibles")
 }
@@ -576,6 +580,10 @@ model Character {
   factBeliefs           CanonFactBelief[]
   /// The canonical facts this character is a subject of (CAL-018).
   factSubjects          CanonFactSubject[]
+  /// The chapters this character is the focal one of (CAL-019).
+  chapterOutlinesFocal  ChapterOutline[]
+  /// The planned chapters this character is present in (CAL-019).
+  chapterAppearances    ChapterOutlineCharacter[]
 
   // The target of Relationship's two composite foreign keys. It is what makes a
   // relationship between two bibles unstorable rather than merely unlikely.
@@ -678,7 +686,9 @@ model Place {
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
   /// The canonical facts this place is a subject of (CAL-018).
-  factSubjects CanonFactSubject[]
+  factSubjects    CanonFactSubject[]
+  /// The planned chapters set in this place (CAL-019).
+  chapterOutlines ChapterOutline[]
 
   // The target of CanonFactSubject's composite key, the role Character and
   // TimelineEvent already play for theirs: it is what keeps a fact's subjects
@@ -1033,8 +1043,10 @@ model CanonFact {
   // the check runs.
   invalidatedByEvent TimelineEvent? @relation(fields: [bibleId, invalidatedByEventId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
 
-  beliefs  CanonFactBelief[]
-  subjects CanonFactSubject[]
+  beliefs         CanonFactBelief[]
+  subjects        CanonFactSubject[]
+  /// The planned chapters concerned by this fact (CAL-019).
+  chapterOutlines ChapterOutlineFact[]
 
   // The target of the belief and subject composite keys, the role Character
   // and TimelineEvent already play: it is what keeps a fact's rows inside the
@@ -1121,4 +1133,362 @@ model CanonFactSubject {
   @@index([characterId])
   @@index([placeId])
   @@map("canon_fact_subjects")
+}
+
+/// The plan of the novel (CAL-019) — one per project.
+///
+/// It holds no content of its own: the parts are its rows and the chapters are
+/// theirs. What it does hold is the frame the plan is written against — the
+/// project it belongs to, and the bible its chapters cite. A plan cannot exist
+/// before a bible does (CAL-101 reads a validated one), and `bibleId` sits here
+/// rather than being reached through the project because it is the leading
+/// column of every composite foreign key below: it is what makes a chapter
+/// focalised on another project's character unstorable rather than unlikely.
+model Outline {
+  id String @id @default(cuid())
+
+  projectId String @unique
+  bibleId   String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bible   Bible   @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  parts    Part[]
+  chapters Chapter[]
+
+  // The target of Chapter's outline key. `bibleId` is already unique on its
+  // own, so this adds nothing to the data — PostgreSQL simply requires a unique
+  // constraint on exactly the referenced columns.
+  @@unique([bibleId, id])
+  @@map("outlines")
+}
+
+/// One part of the novel (CAL-101): a run of consecutive chapters carrying a
+/// dramatic arc of its own.
+///
+/// Its place in the plan is `orderKey` and never a number, for the reason
+/// Chapter states in full. Every attribute but the title is optional: CAL-101's
+/// criterion is that a part *has* an identifiable tipping point, and a part the
+/// author added by hand starts empty — CAL-110's audit exists to report the
+/// gap, which a NOT NULL would make unstorable instead of visible.
+///
+/// The narrative threads a part concerns are CAL-020's; `@@unique([outlineId,
+/// id])` is already the key its links will hang off.
+model Part {
+  id        String @id @default(cuid())
+  outlineId String
+
+  /// The fractional index placing this part among its siblings. Shape enforced
+  /// by parts_order_key_check.
+  orderKey String
+
+  title             String
+  dramaticObjective String? // objectif dramatique
+  initialState      String? // état initial
+  tippingPoint      String? // basculement
+  finalState        String? // état final
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outline  Outline   @relation(fields: [outlineId], references: [id], onDelete: Cascade)
+  chapters Chapter[]
+
+  // The target of Chapter's part key.
+  @@unique([outlineId, id])
+  // A model may name a part and business code resolves the primary key
+  // (CLAUDE.md §6), which needs the title to be unique inside the plan — the
+  // rule Character, Place, WorldRule and TimelineEvent already follow. A rerun
+  // of CAL-101's mission then collides here instead of doubling a part.
+  @@unique([outlineId, title])
+  // Two parts cannot hold the same place, and this is the index the plan is
+  // read in order by.
+  @@unique([outlineId, orderKey])
+  @@map("parts")
+}
+
+/// The seven statuses of a chapter, in the specification's own order (CAL-124).
+/// The list is closed and pinned by schema.test.ts.
+///
+/// LOCKED is a status here rather than the `lockedAt` timestamp every bible
+/// element carries, because the specification made the lock one of the seven
+/// states of the chapter's life. The *plan* of a chapter is a different thing
+/// and is locked the usual way — ChapterOutline.lockedAt.
+enum ChapterStatus {
+  PLANNED // planifié
+  TO_WRITE // à rédiger
+  GENERATING // génération en cours
+  FIRST_DRAFT // premier jet
+  TO_REVISE // à corriger
+  VALIDATED // validé
+  LOCKED // verrouillé
+
+  @@map("chapter_status")
+}
+
+/// One chapter — the spine of both the plan and the manuscript (CAL-019).
+///
+/// Everything downstream cites a chapter: a thread opens and closes at one
+/// (CAL-020), a fact is extracted from one (E12), a finding names one (E13), a
+/// comment hangs off one (CAL-124). One entity to reference is what "breaks no
+/// reference" means in practice, so the ordering, the part membership and the
+/// status live here and the plan hangs off this row rather than the reverse.
+///
+/// **There is deliberately no number and no position column.** The number a
+/// reader sees is derived from the order by `resolveOutline` in
+/// @calepin/outline, and the order is `orderKey`, a fractional index string. A
+/// stored number is rewritten on every insertion and every move — forty-seven
+/// rows to insert at position 3 of fifty — and, worse, it becomes an identity:
+/// anything citing "chapter 7" points at a different chapter after one move.
+/// Minting one key between two neighbours rewrites nothing, which is precisely
+/// what keeps the ordering stable under insertion, move, merge and split
+/// without breaking a reference. Same reasoning as TimelineEvent's absent
+/// `position`, and CAL-012's recorded lesson: a second ordering able to
+/// contradict the first becomes the one consumers trust.
+///
+/// `orderKey` is scoped to the part, so the reading order is
+/// `(part.orderKey, chapter.orderKey)` and the chapters of a part are
+/// necessarily contiguous — a property a plan-wide key could not give.
+model Chapter {
+  id        String @id @default(cuid())
+  outlineId String
+  bibleId   String
+  partId    String
+
+  /// The fractional index placing this chapter among its part's siblings.
+  /// Shape enforced by chapters_order_key_check: the alphabet is 0-9a-z and a
+  /// key never ends in 0, because a trailing zero makes two keys the same
+  /// fraction and the midpoint between them stop existing.
+  orderKey String
+  status   ChapterStatus @default(PLANNED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  outline Outline @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
+  // NoAction, never Cascade: deleting a part that still holds chapters would
+  // take the manuscript with it without saying so. The plan screen moves the
+  // chapters out first. Deleting the outline or the project still works — the
+  // chapters go in the same statement, before the check runs — and that claim
+  // is probed by the integration suite rather than asserted here, per the
+  // CAL-017 lesson.
+  part    Part    @relation(fields: [outlineId, partId], references: [outlineId, id], onDelete: NoAction, onUpdate: NoAction)
+
+  chapterOutline ChapterOutline?
+  revisions      ChapterRevision[]
+
+  // The target of ChapterOutline's chapter key, and of everything E12 and E13
+  // will tie to a chapter inside one bible.
+  @@unique([bibleId, id])
+  // Two chapters cannot hold the same place in a part, and this is the index a
+  // part is read in order by.
+  @@unique([partId, orderKey])
+  // The whole plan in one query. Neither key above leads with outlineId, and
+  // PostgreSQL does not index a foreign key on its own.
+  @@index([outlineId])
+  @@map("chapters")
+}
+
+/// The plan of one chapter (CAL-102) — the sixteen attributes the
+/// specification names, minus the number, which is derived, and minus the
+/// narrative threads, which are CAL-020's own table.
+///
+/// CLAUDE.md §4.3 maps *plan de chapitre* to `ChapterOutline` while the
+/// backlog's content line calls it `ChapterPlan`. The glossary identifier is
+/// kept rather than amended, unlike CAL-016's and CAL-017's: *plan* is already
+/// `Outline`, and `ChapterPlan` beside it would be two English words for one
+/// French concept inside one model family.
+///
+/// Its own row rather than fifteen more columns on Chapter: it is produced by
+/// its own mission, regenerated alone (CAL-111) and locked alone (CAL-107),
+/// and the context composer reads it without dragging status and prose along
+/// (§5.8). Every attribute is optional — the criterion is that a complete plan
+/// is *persistable*, and CAL-110's audit exists to report a chapter with no
+/// dramatic function, which a NOT NULL would make unstorable instead of
+/// visible, the trap TimelineEventCategory already records.
+model ChapterOutline {
+  id        String @id @default(cuid())
+  bibleId   String
+  chapterId String @unique
+
+  workingTitle    String? // titre provisoire
+  /// Longueur cible. Strictly positive when set —
+  /// chapter_outlines_target_word_count_check. CAL-103 sums these against the
+  /// novel's own target.
+  targetWordCount Int?
+
+  focalCharacterId String? // personnage focal
+  placeId          String? // lieu
+
+  /// Période — the chapter's moment on the chronology's axis: days from the day
+  /// the novel opens, negative before it (CAL-017). Both bounds inclusive, one
+  /// precision for the span since a chapter is stated at a single granularity,
+  /// and the author's own wording beside the numbers rather than instead of
+  /// them, so a chapter may be placed by words alone exactly as a timeline
+  /// event may. Numbered rather than free text because E13 has to compare a
+  /// chapter's moment against a fact's validity window, and two prose strings
+  /// do not compare. Paired by chapter_outlines_period_precision_check and
+  /// ordered by chapter_outlines_period_order_check.
+  periodStartDay  Int?
+  periodEndDay    Int?
+  periodPrecision TimelinePrecision?
+  periodLabel     String?
+
+  dramaticFunction String? // fonction dramatique
+  immediateGoal    String? // objectif immédiat
+  obstacle         String? // obstacle
+  decision         String? // décision
+  revelation       String? // révélation éventuelle
+  consequence      String? // conséquence
+  detailedSummary  String? // résumé détaillé
+
+  /// The lock on the *plan* of the chapter (CAL-107), the timestamp convention
+  /// every bible element uses; CAL-111 reads it to leave a locked neighbour
+  /// alone. The lock on the written chapter is Chapter.status = LOCKED.
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chapter Chapter @relation(fields: [bibleId, chapterId], references: [bibleId, id], onDelete: Cascade)
+  // SET NULL **on one column only** — `ON DELETE SET NULL ("focalCharacterId")`,
+  // written by hand in the migration because Prisma cannot express the column
+  // list. Deleting a character un-focalises the chapters they focalised, and
+  // deleting a place empties the chapters set in it; the plan keeps its fifteen
+  // other attributes and CAL-108 reports the hole.
+  //
+  // Neither of the two actions the schema already uses works here, and the
+  // probe is what said so rather than the reasoning:
+  //
+  //   - plain SET NULL nulls *every* column of the composite key, bibleId
+  //     included, where it hits a NOT NULL — the add_timeline trap;
+  //   - NO ACTION, which is add_timeline's answer, makes deleting the **project**
+  //     fail. There the referencing rows and the referenced ones sat in the same
+  //     cascade subtree and went in the same statement; here they are in two —
+  //     characters hang off the bible, chapter outlines off the outline — and
+  //     the check on the character delete fires before the other branch has run.
+  //
+  // The column list, PostgreSQL 15 and later, is what keeps the same-bible
+  // guarantee and the cascade at the same time.
+  focalCharacter Character? @relation(fields: [bibleId, focalCharacterId], references: [bibleId, id], onDelete: SetNull, onUpdate: NoAction)
+  place          Place?     @relation(fields: [bibleId, placeId], references: [bibleId, id], onDelete: SetNull, onUpdate: NoAction)
+
+  characters ChapterOutlineCharacter[]
+  facts      ChapterOutlineFact[]
+
+  // The target of the two link tables' plan key.
+  @@unique([bibleId, id])
+  // One plan per chapter is `chapterId @unique` above, which is also the key
+  // the plan of a chapter is read by. This composite restates it because
+  // PostgreSQL — and Prisma before it — requires a unique constraint on exactly
+  // the columns a foreign key references.
+  @@unique([bibleId, chapterId])
+  // The chapters a character focalises, and the ones set in a place. PostgreSQL
+  // does not index a foreign key on its own, and the NO ACTION check on
+  // deletion walks both paths.
+  @@index([bibleId, focalCharacterId])
+  @@index([bibleId, placeId])
+  @@map("chapter_outlines")
+}
+
+/// A character the chapter plans to bring on — "personnages présents", one row
+/// per presence. The focal character is a column of the plan and not a flag
+/// here: a chapter has one point of view, and it is read without walking a
+/// collection.
+///
+/// An immutable link: it is added or removed, never edited, so it carries no
+/// updatedAt that could only ever equal its createdAt.
+model ChapterOutlineCharacter {
+  id      String @id @default(cuid())
+  bibleId String
+
+  chapterOutlineId String
+  characterId      String
+
+  createdAt DateTime @default(now())
+
+  chapterOutline ChapterOutline @relation(fields: [bibleId, chapterOutlineId], references: [bibleId, id], onDelete: Cascade)
+  character      Character      @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
+
+  // One presence per character per chapter. A rerun of CAL-102's mission
+  // collides here instead of doubling a presence.
+  @@unique([chapterOutlineId, characterId])
+  // Every chapter a character appears in — the read CAL-108 makes to find what
+  // a move affects.
+  @@index([characterId])
+  @@map("chapter_outline_characters")
+}
+
+/// A canonical fact the chapter is concerned by — "faits canoniques concernés".
+/// It is the selection §5.8 composes a writing context from: the facts this
+/// chapter actually needs, chosen without reading a statement.
+model ChapterOutlineFact {
+  id      String @id @default(cuid())
+  bibleId String
+
+  chapterOutlineId String
+  factId           String
+
+  createdAt DateTime @default(now())
+
+  chapterOutline ChapterOutline @relation(fields: [bibleId, chapterOutlineId], references: [bibleId, id], onDelete: Cascade)
+  fact           CanonFact      @relation(fields: [bibleId, factId], references: [bibleId, id], onDelete: Cascade)
+
+  @@unique([chapterOutlineId, factId])
+  // Every chapter a fact is used in — what CAL-108 reads to name the chapters
+  // a changed fact puts at risk.
+  @@index([factId])
+  @@map("chapter_outline_facts")
+}
+
+/// Where a revision of a chapter came from. Two members, the same distinction
+/// AnalysisRevisionOrigin draws and the only one CAL-147's history has to show:
+/// a generation, or a human edit. A chapter the author rewrote entirely is
+/// still EDITED, and a restoration (CAL-149) appends a row like any other.
+enum ChapterRevisionOrigin {
+  GENERATED
+  EDITED
+
+  @@map("chapter_revision_origin")
+}
+
+/// One version of a chapter's text (CAL-122) — append-only.
+///
+/// The table *is* the non-destructive versioning the specification asks for: a
+/// generation appends a row, an edit appends a row, and a restoration appends a
+/// row carrying the older text (CAL-149). Nothing is ever overwritten, so three
+/// regenerations leave four versions accessible and restorable.
+///
+/// The current revision of a chapter is the one with the highest
+/// revisionNumber. There is deliberately no isCurrent column, for the reason
+/// AnalysisSectionRevision records: a flag can point at revision 2 while
+/// revision 3 exists, and no constraint can forbid it.
+model ChapterRevision {
+  id        String @id @default(cuid())
+  chapterId String
+
+  revisionNumber Int
+  origin         ChapterRevisionOrigin
+  content        String
+  /// Counted at write time. A word count is one of the few things §9 lets a log
+  /// carry, and CAL-103 sums it against the target length.
+  wordCount      Int
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  // Restrict, as SourceTextVersion.editedBy and AnalysisSectionRevision
+  // .createdBy already are: who asked for a version is the audit trail and must
+  // not be silently orphaned. Deleting a project still works — it cascades this
+  // table away before the reference is checked.
+  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  // Also the index the current revision is read by. Two concurrent writes
+  // collide here as a unique violation instead of silently losing one.
+  @@unique([chapterId, revisionNumber])
+  @@map("chapter_revisions")
 }

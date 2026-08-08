@@ -289,6 +289,11 @@ describe("prisma schema", () => {
       // the sheet's own free-text form of the first is heldKnowledge above.
       "factBeliefs",
       "factSubjects",
+      // The chapters the character focalises and the ones they appear in
+      // (CAL-019). Back-relations again, written on the chapter outline: a
+      // chapter names its cast, a sheet does not name its chapters.
+      "chapterOutlinesFocal",
+      "chapterAppearances",
     ];
 
     const characterSheetFields = modelFields("Character").filter(
@@ -880,6 +885,190 @@ describe("prisma schema", () => {
       expect(modelBlock("CanonFact")).toMatch(/@@map\("canon_facts"\)/);
       expect(modelBlock("CanonFactBelief")).toMatch(/@@map\("canon_fact_beliefs"\)/);
       expect(modelBlock("CanonFactSubject")).toMatch(/@@map\("canon_fact_subjects"\)/);
+    });
+  });
+
+  describe("the plan and the manuscript", () => {
+    it("declares the seven chapter statuses of the specification, in order", () => {
+      expect(enumMembers("ChapterStatus")).toEqual([
+        "PLANNED", // planifié
+        "TO_WRITE", // à rédiger
+        "GENERATING", // génération en cours
+        "FIRST_DRAFT", // premier jet
+        "TO_REVISE", // à corriger
+        "VALIDATED", // validé
+        "LOCKED", // verrouillé
+      ]);
+    });
+
+    describe("stable ordering", () => {
+      // The decision the whole task turns on. A stored number is rewritten by
+      // every insertion and every move, and anything citing "chapter 7" follows
+      // it to the wrong chapter; the number is derived from orderKey by
+      // resolveOutline in @calepin/outline. Same absence, same reason, as
+      // TimelineEvent's missing `position` — CAL-012's lesson.
+      it("carries an order key on a part and a chapter, and no number", () => {
+        for (const model of ["Part", "Chapter"]) {
+          expect(modelBlock(model)).toMatch(/^\s*orderKey\s+String(?!\?)/m);
+          expect(modelBlock(model)).not.toMatch(/^\s*(number|position|rank|index|sortOrder)\s/m);
+        }
+      });
+
+      // The reading order is (part.orderKey, chapter.orderKey), which is what
+      // makes the chapters of a part contiguous by construction.
+      it("scopes a chapter's place to its part and a part's to the plan", () => {
+        expect(modelBlock("Chapter")).toMatch(/@@unique\(\[partId, orderKey\]\)/);
+        expect(modelBlock("Part")).toMatch(/@@unique\(\[outlineId, orderKey\]\)/);
+      });
+
+      // The shape of a key — the alphabet, and the ban on a trailing zero that
+      // makes the midpoint exist — is a CHECK Prisma cannot express, so it is
+      // hand-written in the add_outline_and_manuscript migration.
+      it("leaves the key's shape to the migration, where a CHECK can hold it", () => {
+        expect(schema).not.toMatch(/orderKey\s+String\s+@db\./);
+      });
+    });
+
+    describe("the chapter outline", () => {
+      // The sixteen attributes of CAL-102, minus the number, which is derived,
+      // and minus the narrative threads, which are CAL-020's own table.
+      it("carries the planning attributes the specification names", () => {
+        const outline = modelBlock("ChapterOutline");
+
+        for (const field of [
+          "workingTitle",
+          "targetWordCount",
+          "focalCharacterId",
+          "placeId",
+          "periodStartDay",
+          "periodEndDay",
+          "periodPrecision",
+          "periodLabel",
+          "dramaticFunction",
+          "immediateGoal",
+          "obstacle",
+          "decision",
+          "revelation",
+          "consequence",
+          "detailedSummary",
+        ]) {
+          expect(outline).toMatch(new RegExp(`^\\s*${field}\\s+\\S+\\?`, "m"));
+        }
+
+        expect(outline).toMatch(/^\s*characters\s+ChapterOutlineCharacter\[\]/m);
+        expect(outline).toMatch(/^\s*facts\s+ChapterOutlineFact\[\]/m);
+      });
+
+      // A complete plan must be persistable, not compulsory: CAL-110's audit
+      // reports a chapter with no dramatic function, and a NOT NULL would make
+      // the finding unstorable instead of visible.
+      it("makes every planning attribute optional", () => {
+        const required = modelBlock("ChapterOutline")
+          .split("\n")
+          .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+(String|Int|Boolean)(?!\?)/.exec(line)?.[1])
+          .filter((field): field is string => field !== undefined);
+
+        expect(required).toEqual(["id", "bibleId", "chapterId"]);
+      });
+
+      // Narrative time is the day axis, never a calendar date — the rule
+      // TimelineEvent established and CanonFact followed.
+      it("places a chapter on the day axis, never on a calendar date", () => {
+        const dateTimeFields = modelBlock("ChapterOutline")
+          .split("\n")
+          .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+DateTime/.exec(line)?.[1])
+          .filter((field): field is string => field !== undefined);
+
+        expect(dateTimeFields).toEqual(["lockedAt", "createdAt", "updatedAt"]);
+        expect(modelBlock("ChapterOutline")).toMatch(/periodPrecision\s+TimelinePrecision\?/);
+      });
+
+      // Two locks, and they are not the same lock: this one freezes the plan of
+      // a chapter (CAL-107, CAL-111), Chapter.status = LOCKED freezes the text.
+      it("locks the plan of a chapter with the bible's timestamp convention", () => {
+        expect(modelBlock("ChapterOutline")).toMatch(/^\s*lockedAt\s+DateTime\?/m);
+        expect(modelBlock("Chapter")).not.toMatch(/^\s*lockedAt\s/m);
+      });
+    });
+
+    describe("non-destructive versions", () => {
+      // Append-only, like AnalysisSectionRevision: the current revision is the
+      // highest revisionNumber, and no isCurrent flag can point at revision 2
+      // while revision 3 exists.
+      it("appends a numbered revision and keeps no current-version flag", () => {
+        const revision = modelBlock("ChapterRevision");
+
+        expect(revision).toMatch(/^\s*revisionNumber\s+Int(?!\?)/m);
+        expect(revision).toMatch(/^\s*origin\s+ChapterRevisionOrigin(?!\?)/m);
+        expect(revision).toMatch(/@@unique\(\[chapterId, revisionNumber\]\)/);
+        expect(revision).not.toMatch(/^\s*(isCurrent|current|isLatest)\s/m);
+        expect(revision).not.toMatch(/^\s*updatedAt\s/m);
+        expect(modelBlock("Chapter")).not.toMatch(/^\s*(content|currentRevisionId)\s/m);
+      });
+
+      it("names the origin the history has to show, and nothing more", () => {
+        expect(enumMembers("ChapterRevisionOrigin")).toEqual(["GENERATED", "EDITED"]);
+      });
+
+      // The audit trail of who asked for a version must not be silently
+      // orphaned — SourceTextVersion.editedBy's rule.
+      it("refuses to orphan the author of a revision", () => {
+        expect(modelBlock("ChapterRevision")).toMatch(
+          /createdBy\s+User\s+@relation\([^)]*Restrict/,
+        );
+      });
+    });
+
+    describe("staying inside one project", () => {
+      it("ties a chapter to an outline written against its own bible", () => {
+        expect(modelBlock("Chapter")).toMatch(/references: \[bibleId, id\]/);
+        expect(modelBlock("Outline")).toMatch(/@@unique\(\[bibleId, id\]\)/);
+      });
+
+      it("ties a chapter outline to a chapter, a character and a place of one bible", () => {
+        expect(modelBlock("ChapterOutline").match(/references: \[bibleId, id\]/g)).toHaveLength(3);
+      });
+
+      it("ties both link tables to the plan and the entity through the bible", () => {
+        for (const model of ["ChapterOutlineCharacter", "ChapterOutlineFact"]) {
+          expect(modelBlock(model).match(/references: \[bibleId, id\]/g)).toHaveLength(2);
+        }
+      });
+
+      // Deleting a part that still holds chapters would take the manuscript
+      // with it without saying so. Deleting a character un-focalises instead —
+      // and that SET NULL applies to one column, which only the migration can
+      // say; NoAction there breaks the project cascade, as the probe showed.
+      it("refuses to delete a part still holding chapters, and un-focalises rather than refusing", () => {
+        expect(modelBlock("Chapter")).toMatch(/part\s+Part\s+@relation\([^)]*onDelete: NoAction/);
+
+        const chapterOutline = modelBlock("ChapterOutline");
+        expect(chapterOutline).toMatch(
+          /focalCharacter\s+Character\?\s+@relation\([^)]*onDelete: SetNull/,
+        );
+        expect(chapterOutline).toMatch(/place\s+Place\?\s+@relation\([^)]*onDelete: SetNull/);
+      });
+
+      it("hangs the plan off the project and off the bible", () => {
+        expect(modelBlock("Project")).toMatch(/^\s*outline\s+Outline\?/m);
+        expect(modelBlock("Bible")).toMatch(/^\s*outline\s+Outline\?/m);
+      });
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      const tables: [string, string][] = [
+        ["Outline", "outlines"],
+        ["Part", "parts"],
+        ["Chapter", "chapters"],
+        ["ChapterOutline", "chapter_outlines"],
+        ["ChapterOutlineCharacter", "chapter_outline_characters"],
+        ["ChapterOutlineFact", "chapter_outline_facts"],
+        ["ChapterRevision", "chapter_revisions"],
+      ];
+
+      for (const [model, table] of tables) {
+        expect(modelBlock(model)).toMatch(new RegExp(`@@map\\("${table}"\\)`));
+      }
     });
   });
 });
