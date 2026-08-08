@@ -78,9 +78,10 @@ model Project {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sourceText SourceText?
-  analysis   Analysis?
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceText         SourceText?
+  analysis           Analysis?
+  creativeDirections CreativeDirection[]
 
   // The dashboard lists one user's projects, most recently modified first
   // (CAL-065), and filters that list by status. No index on userId alone:
@@ -283,4 +284,57 @@ model AnalysisAnnotation {
 
   @@index([elementId])
   @@map("analysis_annotations")
+}
+
+/// Where a creative direction came from. Three members, since that is the
+/// distinction CAL-015's origin requirement draws: an AI proposal taken as is,
+/// one the user edited, and one the user wrote from nothing. Mirrors
+/// AnalysisRevisionOrigin's shape, not its members — a direction the user
+/// rewrote from a proposal is still worth telling apart from one they started
+/// blank, which GENERATED / EDITED alone cannot.
+enum DirectionOrigin {
+  PROPOSED // proposée
+  EDITED // modifiée par l'utilisateur
+  USER_WRITTEN // rédigée par l'utilisateur
+
+  @@map("direction_origin")
+}
+
+/// One novelistic direction a project could take. Several coexist per project —
+/// CAL-015 asks for at least three to be explorable side by side — and at most
+/// one is canonical at a time. Flat by design: the backlog's own rationale for
+/// this task is a well-defined, single-table shape, so a list-shaped attribute
+/// (nouveaux enjeux, personnages à introduire, ...) is a Postgres array column
+/// rather than a child table.
+model CreativeDirection {
+  id        String @id @default(cuid())
+  projectId String
+
+  workingTitle             String // titre de travail
+  developedPremise         String // prémisse développée
+  dominantGenre            String // genre dominant
+  mainConflict             String // conflit principal
+  protagonistArc           String // trajectoire du protagoniste
+  newStakes                String[] // nouveaux enjeux
+  charactersToIntroduce    String[] // personnages à introduire
+  endingNature             String // nature de la fin
+  mainRisks                String[] // risques principaux
+  elementsKeptFromSource   String[] // éléments conservés du texte source
+  elementsTransformed      String[] // éléments transformés
+  novelPotentialAssessment String // évaluation du potentiel romanesque
+
+  /// The marker the backlog asks for. At most one true row per project is
+  /// enforced by creative_directions_canonical_per_project_key, a partial
+  /// unique index Prisma cannot express here — see the
+  /// add_creative_direction migration.
+  isCanonical Boolean         @default(false)
+  origin      DirectionOrigin
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("creative_directions")
 }

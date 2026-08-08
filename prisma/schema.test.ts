@@ -194,4 +194,57 @@ describe("prisma schema", () => {
       expect(modelBlock("AnalysisAnnotation")).toMatch(/@@map\("analysis_annotations"\)/);
     });
   });
+
+  describe("creative direction", () => {
+    // CAL-015's content line: the twelve attributes of the specification.
+    it("carries the twelve attributes of the specification", () => {
+      const direction = modelBlock("CreativeDirection");
+
+      for (const field of [
+        "workingTitle",
+        "developedPremise",
+        "dominantGenre",
+        "mainConflict",
+        "protagonistArc",
+        "newStakes",
+        "charactersToIntroduce",
+        "endingNature",
+        "mainRisks",
+        "elementsKeptFromSource",
+        "elementsTransformed",
+        "novelPotentialAssessment",
+      ]) {
+        expect(direction).toMatch(new RegExp(`^\\s*${field}\\s+\\S`, "m"));
+      }
+    });
+
+    it("distinguishes a proposal, an edit and a user-written direction", () => {
+      expect(enumMembers("DirectionOrigin")).toEqual(["PROPOSED", "EDITED", "USER_WRITTEN"]);
+    });
+
+    it("marks every direction with its origin, since the column admits no null", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/origin\s+DirectionOrigin(?!\?)/);
+    });
+
+    // The predicate CLAUDE.md §4.2 gives as its own example of boolean naming,
+    // defaulted off: a freshly proposed direction is not canonical until chosen.
+    it("marks the canonical direction with a boolean, defaulted to false", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/isCanonical\s+Boolean\s+@default\(false\)/);
+    });
+
+    // At most one canonical direction per project is a partial unique index,
+    // not a column, since Prisma's schema DSL has no syntax for it — see the
+    // add_creative_direction migration and its integration test.
+    it("keeps no per-project canonical uniqueness in the schema DSL itself", () => {
+      expect(modelBlock("CreativeDirection")).not.toMatch(/@@unique\(\[projectId\]\)/);
+    });
+
+    it("indexes the per-project listing", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/@@index\(\[projectId\]\)/);
+    });
+
+    it("maps to a snake_case plural table", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/@@map\("creative_directions"\)/);
+    });
+  });
 });
