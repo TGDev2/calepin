@@ -49,7 +49,27 @@ function withWritePolicy(base: PrismaClient) {
  */
 export type DatabaseClient = ReturnType<typeof withWritePolicy>;
 
-let client: DatabaseClient | undefined;
+/**
+ * The registration lives on `globalThis`, not in a module variable.
+ *
+ * `apps/web` compiles `packages/*` from source into more than one chunk graph:
+ * `instrumentation.ts` — the one file that registers the client — is bundled
+ * apart from the server components that read it, so each side would hold its
+ * own copy of this module and its own `client`. The shell would register into
+ * one and every page would throw `DATABASE_NOT_CONFIGURED` reading the other.
+ * `Symbol.for` gives both copies the same key, which is the reason `ProjectScope`
+ * brands itself with one (CAL-023) — the same hazard, one layer down.
+ *
+ * Found by CAL-024's end-to-end suite, on the first page that ever read the
+ * database: nothing before it did, so nothing before it could fail.
+ */
+const REGISTERED_CLIENT: unique symbol = Symbol.for("calepin.registeredDatabaseClient");
+
+interface ClientRegistry {
+  [REGISTERED_CLIENT]?: DatabaseClient;
+}
+
+const registry = globalThis as unknown as ClientRegistry;
 
 /**
  * Registers the client every repository will read. Called once, at startup, by
@@ -57,17 +77,20 @@ let client: DatabaseClient | undefined;
  * CAL-060 — with a bare `PrismaClient`.
  */
 export function configureDatabaseClient(base: PrismaClient): DatabaseClient {
-  client = withWritePolicy(base);
+  const client = withWritePolicy(base);
+  registry[REGISTERED_CLIENT] = client;
 
   return client;
 }
 
 /** Forgets the registered client. For a test's teardown, and for nothing else. */
 export function resetDatabaseClient(): void {
-  client = undefined;
+  registry[REGISTERED_CLIENT] = undefined;
 }
 
 export function getDatabaseClient(): DatabaseClient {
+  const client = registry[REGISTERED_CLIENT];
+
   if (client === undefined) {
     // A throw, not a `Result`: a process that reaches a query with no client
     // registered is mis-wired, which is a programming error rather than a
