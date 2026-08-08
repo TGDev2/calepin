@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getAuditContext, getContextActorId, runWithActor } from "./context";
 
@@ -35,6 +35,31 @@ describe("actor scope", () => {
     runWithActor("usr_1", () => getContextActorId());
 
     expect(getContextActorId()).toBeUndefined();
+  });
+
+  /**
+   * The bundle-split hazard, reproduced in one process (CAL-035).
+   *
+   * `vi.resetModules()` makes the next import build a genuinely second copy of
+   * this module — the same thing `apps/web` does when it compiles
+   * `packages/*` from source into more than one chunk graph, with
+   * `runWithActor` called from a server action and the audit extension built at
+   * boot from `instrumentation.ts`. With a module-level `AsyncLocalStorage` the
+   * two copies each get their own store, the extension sees no actor, and every
+   * audited write from a server action is refused with `AUDIT_ACTOR_REQUIRED`.
+   * That is not hypothetical: it is how the first one ever written failed.
+   */
+  it("shares one store across two copies of this module", async () => {
+    vi.resetModules();
+    const secondCopy = await import("./context");
+
+    expect(secondCopy.runWithActor).not.toBe(runWithActor);
+
+    const seenByTheOtherCopy = runWithActor("usr_1", () => secondCopy.getContextActorId());
+    const seenByThisCopy = secondCopy.runWithActor("usr_2", () => getContextActorId());
+
+    expect(seenByTheOtherCopy).toBe("usr_1");
+    expect(seenByThisCopy).toBe("usr_2");
   });
 
   it("keeps two concurrent scopes apart", async () => {

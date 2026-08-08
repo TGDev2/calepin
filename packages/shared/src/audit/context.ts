@@ -12,6 +12,19 @@
  * while an actor exists only where something is written on someone's behalf.
  * Folding them together would make one of the two nullable everywhere and turn
  * "no actor" into a state the type system stops arguing about.
+ *
+ * **The store lives on `globalThis`, keyed by `Symbol.for`** — the same hazard
+ * `@calepin/shared/database` records one layer down, and found the same way:
+ * by the first caller that ever needed the two sides to meet. `apps/web`
+ * compiles `packages/*` from source into more than one chunk graph, and the two
+ * ends of this mechanism sit in different ones — the extension is built at boot
+ * from `instrumentation.ts`, while `runWithActor` is called from a server
+ * action. A module-level `AsyncLocalStorage` gives each chunk its own, so the
+ * action opens a scope the extension cannot see and every audited write is
+ * refused with `AUDIT_ACTOR_REQUIRED`. `Symbol.for` gives both copies the same
+ * store. Found by CAL-035's project actions, on the first audited write
+ * `apps/web` ever made: nothing before it wrote through the extension, so
+ * nothing before it could fail.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -21,7 +34,16 @@ export interface AuditContext {
   readonly actorId: string;
 }
 
-const storage = new AsyncLocalStorage<AuditContext>();
+const ACTOR_STORAGE: unique symbol = Symbol.for("calepin.auditContextStorage");
+
+interface StorageHolder {
+  [ACTOR_STORAGE]?: AsyncLocalStorage<AuditContext>;
+}
+
+const holder = globalThis as StorageHolder;
+
+const storage: AsyncLocalStorage<AuditContext> = (holder[ACTOR_STORAGE] ??=
+  new AsyncLocalStorage<AuditContext>());
 
 /**
  * Runs `fn` with `actorId` credited for every audited write it performs,
