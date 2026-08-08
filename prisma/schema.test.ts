@@ -52,6 +52,30 @@ function toScreamingSnake(field: string): string {
   return field.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
 }
 
+/**
+ * A lowercase string-union constant exported by @calepin/shared, in
+ * `SCREAMING_SNAKE`, ready to compare against a Prisma enum.
+ *
+ * Read from the package's source rather than imported. The `unit` project has
+ * no workspace dependency on `@calepin/shared`, and reading the file is what
+ * makes the pin real: the two lists are the same list, so a member added to one
+ * and not to the other fails here instead of surfacing as a write error months
+ * later.
+ */
+function sharedStringUnion(path: string, name: string): string[] {
+  const source = readFileSync(
+    fileURLToPath(new URL(`../packages/shared/src/${path}`, import.meta.url)),
+    "utf8",
+  );
+  const block = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source);
+  if (!block?.[1]) throw new Error(`${name} is not declared in ${path}`);
+
+  return [...block[1].matchAll(/"([a-z_]+)"/g)]
+    .map((member) => member[1])
+    .filter((member): member is string => member !== undefined)
+    .map((member) => member.toUpperCase());
+}
+
 describe("prisma schema", () => {
   // The specification fixes this list and CAL-012's acceptance criterion is that
   // the schema matches it exactly. The French labels are the specification's own
@@ -1198,6 +1222,339 @@ describe("prisma schema", () => {
     it("maps to snake_case plural tables", () => {
       expect(modelBlock("Thread")).toMatch(/@@map\("threads"\)/);
       expect(modelBlock("ThreadContinuation")).toMatch(/@@map\("thread_continuations"\)/);
+    });
+  });
+
+  // CAL-021. The operational layer: what was asked of a model, what it cost,
+  // what it found wrong, and what left the product as a file or a public page.
+  describe("operations", () => {
+    describe("the generation", () => {
+      // The ten of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // registry owns. An enum and not free text because every §17 indicator
+      // touching generation is a group-by on this column.
+      it("declares the ten missions of the registry, and only those", () => {
+        expect(enumMembers("GenerationMission")).toEqual([
+          "ANALYZE_SOURCE_TEXT",
+          "PROPOSE_DIRECTIONS",
+          "EVALUATE_DIRECTION",
+          "CREATE_CHARACTER_SHEET",
+          "BUILD_CHAPTER_OUTLINE",
+          "WRITE_SCENE",
+          "EXTRACT_FACTS",
+          "CHECK_COHERENCE",
+          "FIX_ISSUE",
+          "SUMMARIZE_CHAPTER",
+        ]);
+      });
+
+      // CAL-060's own five: en attente, en cours, réussie, échouée, annulée.
+      it("declares the five states of a queued generation", () => {
+        expect(enumMembers("GenerationStatus")).toEqual([
+          "QUEUED",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED",
+          "CANCELLED",
+        ]);
+      });
+
+      it("mirrors the attempt statuses @calepin/shared already writes against", () => {
+        expect(enumMembers("GenerationAttemptStatus")).toEqual(
+          sharedStringUnion("generation/outcome.ts", "GENERATION_STATUSES"),
+        );
+      });
+
+      it("mirrors the eight error categories of @calepin/shared", () => {
+        expect(enumMembers("ErrorCategory")).toEqual(
+          sharedStringUnion("errors/categories.ts", "ERROR_CATEGORIES"),
+        );
+      });
+
+      it("carries the mission, its target and the replay payload", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/^\s*mission\s+GenerationMission/m);
+        expect(generation).toMatch(/^\s*targetId\s+String\?/m);
+        expect(generation).toMatch(/^\s*input\s+Json/m);
+        expect(generation).toMatch(/^\s*status\s+GenerationStatus\s+@default\(QUEUED\)/m);
+      });
+
+      // The payload is the whole acceptance criterion: a generation with no
+      // input cannot be replayed, so the column admits no null.
+      it("makes the replay payload mandatory", () => {
+        expect(modelBlock("Generation")).not.toMatch(/^\s*input\s+Json\?/m);
+      });
+
+      // A generation that failed twice before succeeding spent tokens three
+      // times, on possibly three different models. Those columns are true of an
+      // attempt and would be a lie here; the count and the cost are aggregates.
+      it("keeps no model, no token count, no cost and no attempt counter", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).not.toMatch(/^\s*model\s+String/m);
+        expect(generation).not.toMatch(/^\s*inputTokens\s/m);
+        expect(generation).not.toMatch(/^\s*outputTokens\s/m);
+        expect(generation).not.toMatch(/^\s*estimatedCostUsd\s/m);
+        expect(generation).not.toMatch(/^\s*attemptCount\s/m);
+        expect(generation).not.toMatch(/^\s*durationMs\s/m);
+      });
+
+      // An accounting record has to survive the deletion of what it produced,
+      // or a project's cost changes retroactively when a chapter is deleted.
+      it("references its target by id alone, with no foreign key", () => {
+        expect(modelBlock("Generation")).not.toMatch(/^\s*target\s+\w+\s+@relation/m);
+      });
+
+      // §9: a failure is classified, never described. The technical message and
+      // the provider payload stay out of the database entirely.
+      it("classifies a failure by code and category, and stores no message", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/^\s*errorCode\s+String\?/m);
+        expect(generation).toMatch(/^\s*errorCategory\s+ErrorCategory\?/m);
+        expect(generation).not.toMatch(/^\s*errorMessage\s/m);
+      });
+
+      it("indexes cost-per-mission, the project listing and the reconciliation sweep", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/@@index\(\[projectId, mission, targetId\]\)/);
+        expect(generation).toMatch(/@@index\(\[projectId, createdAt\]\)/);
+        expect(generation).toMatch(/@@index\(\[status, createdAt\]\)/);
+      });
+    });
+
+    describe("the attempt", () => {
+      // The constraint the shared port's contract asks for in words: succeed
+      // and fail are idempotent for a given (generationId, attempt). A BullMQ
+      // redelivery collides here instead of writing a second cost line.
+      it("is unique per generation and attempt number", () => {
+        expect(modelBlock("GenerationAttempt")).toMatch(/@@unique\(\[generationId, attempt\]\)/);
+      });
+
+      it("records what actually ran: the model, the usage, the cost and the duration", () => {
+        const attempt = modelBlock("GenerationAttempt");
+
+        expect(attempt).toMatch(/^\s*attempt\s+Int/m);
+        expect(attempt).toMatch(/^\s*model\s+String/m);
+        expect(attempt).toMatch(/^\s*inputTokens\s+Int\?/m);
+        expect(attempt).toMatch(/^\s*outputTokens\s+Int\?/m);
+        expect(attempt).toMatch(/^\s*durationMs\s+Int\?/m);
+      });
+
+      // Money summed in binary floating point stops adding up, and indicator
+      // §17.8 is a sum over every attempt of every generation of a project.
+      it("prices in decimal, never in a float", () => {
+        expect(modelBlock("GenerationAttempt")).toMatch(
+          /^\s*estimatedCostUsd\s+Decimal\?\s+@db\.Decimal\(12, 6\)/m,
+        );
+      });
+
+      // ADR-001: a generation records its prompt version and its model, so an
+      // output can be traced to what produced it. Both live here because a
+      // fallback runs attempt 2 on another model.
+      it("records the prompt version beside the model", () => {
+        expect(modelBlock("GenerationAttempt")).toMatch(/^\s*promptVersion\s+Int\?/m);
+      });
+
+      // Derived from errorCode by @calepin/shared, never stored: a second
+      // column able to disagree with the code's own category.
+      it("keeps no retryable flag able to disagree with the error code", () => {
+        expect(modelBlock("GenerationAttempt")).not.toMatch(/^\s*retryable\s/m);
+      });
+    });
+
+    describe("the quality issue", () => {
+      // CAL-135 names them one by one, in this order.
+      it("declares the five families of check of the specification", () => {
+        expect(enumMembers("QualityIssueCategory")).toEqual([
+          "FACTUAL_CONTINUITY",
+          "PSYCHOLOGICAL_CONTINUITY",
+          "STRUCTURE",
+          "STYLE",
+          "ORIGINALITY",
+        ]);
+      });
+
+      // The acceptance criterion of CAL-021, verbatim: détecté, accepté,
+      // à corriger, corrigé, ignoré.
+      it("carries the five statuses of the specification, and starts detected", () => {
+        expect(enumMembers("QualityIssueStatus")).toEqual([
+          "DETECTED",
+          "ACCEPTED",
+          "TO_FIX",
+          "FIXED",
+          "IGNORED",
+        ]);
+        expect(modelBlock("QualityIssue")).toMatch(
+          /^\s*status\s+QualityIssueStatus\s+@default\(DETECTED\)/m,
+        );
+      });
+
+      // A rank, in decreasing order — never a score. The specification forbids
+      // presenting a computed number as a measure of quality or originality.
+      it("ranks severity in decreasing order", () => {
+        expect(enumMembers("QualityIssueSeverity")).toEqual(["CRITICAL", "MAJOR", "MINOR"]);
+      });
+
+      it("carries the explanation, the proposed fix and the check that found it", () => {
+        const issue = modelBlock("QualityIssue");
+
+        expect(issue).toMatch(/^\s*explanation\s+String\s*$/m);
+        expect(issue).toMatch(/^\s*proposedFix\s+String\?/m);
+        expect(issue).toMatch(/^\s*checkId\s+String\s*$/m);
+        expect(issue).toMatch(/^\s*detectedByGenerationId\s+String\?/m);
+      });
+
+      // Structure and originality judge the manuscript as a whole, and CAL-099
+      // checks the bible before a chapter exists. What an issue is about is its
+      // passages, which may be none.
+      it("hangs off the project, never off a chapter", () => {
+        const issue = modelBlock("QualityIssue");
+
+        expect(issue).toMatch(/^\s*projectId\s+String\s*$/m);
+        expect(issue).not.toMatch(/^\s*chapterId\s/m);
+      });
+
+      it("indexes the filters the issues screen offers", () => {
+        const issue = modelBlock("QualityIssue");
+
+        expect(issue).toMatch(/@@index\(\[projectId, status, severity\]\)/);
+        expect(issue).toMatch(/@@index\(\[projectId, category\]\)/);
+      });
+
+      describe("a passage", () => {
+        // An anchor into an append-only revision, so the text the check read is
+        // still there after the author edits.
+        it("anchors into a revision through its chapter", () => {
+          const passage = modelBlock("QualityIssuePassage");
+
+          expect(passage).toMatch(/^\s*chapterId\s+String\s*$/m);
+          expect(passage).toMatch(/^\s*chapterRevisionId\s+String\?/m);
+          expect(passage).toMatch(/references: \[chapterId, id\]/);
+        });
+
+        it("locates by offsets, storing no copy of the prose", () => {
+          const passage = modelBlock("QualityIssuePassage");
+
+          expect(passage).toMatch(/^\s*startOffset\s+Int\?/m);
+          expect(passage).toMatch(/^\s*endOffset\s+Int\?/m);
+          expect(passage).not.toMatch(/^\s*(excerpt|quote|content|text)\s/m);
+        });
+
+        // Added or removed with its issue, never edited — the reasoning
+        // ChapterOutlineCharacter and ThreadContinuation already carry.
+        it("carries no updatedAt", () => {
+          expect(modelBlock("QualityIssuePassage")).not.toMatch(/^\s*updatedAt\s/m);
+        });
+
+        it("indexes the issues attached to a chapter", () => {
+          expect(modelBlock("QualityIssuePassage")).toMatch(/@@index\(\[chapterId\]\)/);
+        });
+      });
+    });
+
+    describe("the export", () => {
+      // Markdown and DOCX are the MVP; the four others are named now because
+      // CAL-154's design constraint is that adding a format costs a renderer.
+      it("declares the six formats the engine is designed for", () => {
+        expect(enumMembers("ExportFormat")).toEqual([
+          "MARKDOWN",
+          "DOCX",
+          "PDF",
+          "EPUB",
+          "HTML",
+          "PLAIN_TEXT",
+        ]);
+      });
+
+      // Expiry is expiresAt compared to the current time. A status able to
+      // disagree with that timestamp would become the one consumers trust.
+      it("declares no expired status, since expiry is a timestamp", () => {
+        expect(enumMembers("ExportStatus")).toEqual(["QUEUED", "RUNNING", "READY", "FAILED"]);
+        expect(modelBlock("Export")).toMatch(/^\s*expiresAt\s+DateTime\?/m);
+      });
+
+      it("carries the options, the stored object and its measurements", () => {
+        const exported = modelBlock("Export");
+
+        expect(exported).toMatch(/^\s*options\s+Json\s+@default\("\{\}"\)/m);
+        expect(exported).toMatch(/^\s*storageKey\s+String\?/m);
+        expect(exported).toMatch(/^\s*byteSize\s+Int\?/m);
+        expect(exported).toMatch(/^\s*wordCount\s+Int\?/m);
+      });
+
+      // Who asked for a copy of the manuscript is the audit trail, as every
+      // other author column in this schema is.
+      it("refuses to orphan the user who asked for it", () => {
+        expect(
+          /requestedBy\s+User\s+@relation\(([^)]*)\)/.exec(modelBlock("Export"))?.[1],
+        ).toContain("onDelete: Restrict");
+      });
+
+      it("indexes the export history and the export-rate indicator", () => {
+        const exported = modelBlock("Export");
+
+        expect(exported).toMatch(/@@index\(\[projectId, createdAt\]\)/);
+        expect(exported).toMatch(/@@index\(\[projectId, status\]\)/);
+      });
+    });
+
+    describe("the publication", () => {
+      // PRIVATE by default is what makes "la publication n'est jamais
+      // automatique" the schema's own state rather than a rule to remember.
+      it("declares the three visibilities and starts private", () => {
+        expect(enumMembers("PublicationVisibility")).toEqual(["PRIVATE", "UNLISTED", "PUBLIC"]);
+        expect(modelBlock("Publication")).toMatch(
+          /^\s*visibility\s+PublicationVisibility\s+@default\(PRIVATE\)/m,
+        );
+      });
+
+      // One stable public address per novel, and the presentation the reader
+      // sees — held here rather than read from the project, so renaming a
+      // working project cannot rename a novel that is already public.
+      it("holds one address and its presentation per project", () => {
+        const publication = modelBlock("Publication");
+
+        expect(publication).toMatch(/^\s*projectId\s+String\s+@unique/m);
+        expect(publication).toMatch(/^\s*slug\s+String\s+@unique/m);
+        expect(publication).toMatch(/^\s*title\s+String\s*$/m);
+        expect(publication).toMatch(/^\s*authorName\s+String\s*$/m);
+        expect(publication).toMatch(/^\s*firstPublishedAt\s+DateTime\?/m);
+        expect(publication).toMatch(/^\s*unpublishedAt\s+DateTime\?/m);
+      });
+    });
+
+    // ADR-001: a successful generation appends a Revision linked to its
+    // Generation. These two columns are that link.
+    describe("what a generation produced", () => {
+      it("links a chapter revision back to the generation that wrote it", () => {
+        const revision = modelBlock("ChapterRevision");
+
+        expect(revision).toMatch(/^\s*generationId\s+String\?/m);
+        expect(/generation\s+Generation\?\s+@relation\(([^)]*)\)/.exec(revision)?.[1]).toContain(
+          "onDelete: SetNull",
+        );
+      });
+
+      it("links an analysis section revision back the same way", () => {
+        expect(modelBlock("AnalysisSectionRevision")).toMatch(/^\s*generationId\s+String\?/m);
+      });
+
+      // What lets a passage reference a revision through its chapter, so the
+      // chapter it names cannot disagree with the revision it anchors into.
+      it("exposes a chapter revision through its chapter", () => {
+        expect(modelBlock("ChapterRevision")).toMatch(/@@unique\(\[chapterId, id\]\)/);
+      });
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      expect(modelBlock("Generation")).toMatch(/@@map\("generations"\)/);
+      expect(modelBlock("GenerationAttempt")).toMatch(/@@map\("generation_attempts"\)/);
+      expect(modelBlock("QualityIssue")).toMatch(/@@map\("quality_issues"\)/);
+      expect(modelBlock("QualityIssuePassage")).toMatch(/@@map\("quality_issue_passages"\)/);
+      expect(modelBlock("Export")).toMatch(/@@map\("exports"\)/);
+      expect(modelBlock("Publication")).toMatch(/@@map\("publications"\)/);
     });
   });
 });

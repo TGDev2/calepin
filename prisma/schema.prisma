@@ -21,6 +21,7 @@ model User {
   analysisAnnotations      AnalysisAnnotation[]
   biblesValidated          Bible[]
   chapterRevisionsCreated  ChapterRevision[]
+  exportsRequested         Export[]
 
   @@map("users")
 }
@@ -86,6 +87,12 @@ model Project {
   creativeDirections CreativeDirection[]
   bible              Bible?
   outline            Outline?
+  /// The operational trace of the project (CAL-021): what was asked of a
+  /// model, what it cost, and what it produced.
+  generations        Generation[]
+  qualityIssues      QualityIssue[]
+  exports            Export[]
+  publication        Publication?
 
   // The dashboard lists one user's projects, most recently modified first
   // (CAL-065), and filters that list by status. No index on userId alone:
@@ -221,6 +228,12 @@ model AnalysisSectionRevision {
   /// around it, and that is exactly what CAL-046 needs in order to name the
   /// sections a source-text edit made obsolete.
   sourceTextVersionId String
+  /// The generation that produced this revision (CAL-021), null for an edit.
+  /// ADR-001: *a successful generation appends a `Revision` linked to its
+  /// `Generation`* — this column is that link, and it is what makes the port's
+  /// atomic `succeed` (one transaction appending the revision and completing
+  /// the generation) expressible rather than merely described.
+  generationId        String?
   createdById         String
   createdAt           DateTime               @default(now())
 
@@ -231,6 +244,10 @@ model AnalysisSectionRevision {
   // works — it cascades this table away before the references are checked.
   sourceTextVersion SourceTextVersion @relation(fields: [sourceTextVersionId], references: [id], onDelete: Restrict)
   createdBy         User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // SetNull, not Restrict: a generation row is an accounting record with its
+  // own retention, and losing the pointer to it must never cost the author a
+  // revision of their analysis.
+  generation        Generation?       @relation(fields: [generationId], references: [id], onDelete: SetNull)
 
   elements AnalysisElement[]
 
@@ -1279,14 +1296,16 @@ model Chapter {
   // CAL-017 lesson.
   part    Part    @relation(fields: [outlineId, partId], references: [outlineId, id], onDelete: NoAction, onUpdate: NoAction)
 
-  chapterOutline ChapterOutline?
-  revisions      ChapterRevision[]
+  chapterOutline       ChapterOutline?
+  revisions            ChapterRevision[]
   /// The threads this chapter opens (CAL-020).
-  threadOpenings Thread[] @relation("ThreadOpening")
+  threadOpenings       Thread[]              @relation("ThreadOpening")
   /// The threads this chapter closes.
-  threadClosings Thread[] @relation("ThreadClosing")
+  threadClosings       Thread[]              @relation("ThreadClosing")
   /// The threads this chapter carries forward.
-  threadContinuations ThreadContinuation[]
+  threadContinuations  ThreadContinuation[]
+  /// The passages of this chapter a quality issue points at (CAL-021).
+  qualityIssuePassages QualityIssuePassage[]
 
   // The target of ChapterOutline's chapter key, and of everything E12 and E13
   // will tie to a chapter inside one bible.
@@ -1361,7 +1380,7 @@ model ChapterOutline {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  chapter Chapter @relation(fields: [bibleId, chapterId], references: [bibleId, id], onDelete: Cascade)
+  chapter        Chapter    @relation(fields: [bibleId, chapterId], references: [bibleId, id], onDelete: Cascade)
   // SET NULL **on one column only** — `ON DELETE SET NULL ("focalCharacterId")`,
   // written by hand in the migration because Prisma cannot express the column
   // list. Deleting a character un-focalises the chapters they focalised, and
@@ -1485,19 +1504,39 @@ model ChapterRevision {
   /// carry, and CAL-103 sums it against the target length.
   wordCount      Int
 
+  /// The generation that produced this revision (CAL-021), null for an edit
+  /// and for a restoration. Same link, and the same reason, as
+  /// AnalysisSectionRevision.generationId.
+  generationId String?
+
   createdById String
   createdAt   DateTime @default(now())
 
-  chapter   Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter    Chapter     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   // Restrict, as SourceTextVersion.editedBy and AnalysisSectionRevision
   // .createdBy already are: who asked for a version is the audit trail and must
   // not be silently orphaned. Deleting a project still works — it cascades this
   // table away before the reference is checked.
-  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy  User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // SetNull: losing the trace must never cost the author a version of their
+  // chapter. There is deliberately no CHECK pairing this column with
+  // `origin = GENERATED` — a generated revision whose generation row was never
+  // written is exactly the reconciliation case CAL-060 has to *report*, not a
+  // state the schema refuses to store.
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  /// The passages of this revision a quality issue points at (CAL-021).
+  qualityIssuePassages QualityIssuePassage[]
 
   // Also the index the current revision is read by. Two concurrent writes
   // collide here as a unique violation instead of silently losing one.
   @@unique([chapterId, revisionNumber])
+  // The target of QualityIssuePassage's revision key. It adds nothing to the
+  // data — `id` is already unique — but it is what lets a passage reference the
+  // revision *through* its chapter, so the chapter a passage names can never
+  // disagree with the revision it anchors into. The pattern Character, Place
+  // and Chapter already carry.
+  @@unique([chapterId, id])
   @@map("chapter_revisions")
 }
 
@@ -1549,7 +1588,7 @@ model Thread {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  outline Outline @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
+  outline        Outline  @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
   // NoAction, the pattern chapters_outlineId_partId_fkey already sets:
   // deleting a single chapter that a thread still opens at is refused, the
   // same protection "refuses to delete a part still holding chapters" gives.
@@ -1559,7 +1598,7 @@ model Thread {
   // focalCharacterId's NoAction in CAL-019. Probed against the real database,
   // not assumed, per the CAL-017 lesson; the integration suite runs both
   // paths.
-  openingChapter Chapter @relation("ThreadOpening", fields: [bibleId, openingChapterId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
+  openingChapter Chapter  @relation("ThreadOpening", fields: [bibleId, openingChapterId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
   // SET NULL on this column alone — ChapterOutline's focalCharacterId and
   // placeId pattern exactly, hand-written in the migration because Prisma
   // cannot express a column-scoped SET NULL. Deleting the closing chapter
@@ -1606,4 +1645,567 @@ model ThreadContinuation {
   // (CAL-108) will make when that chapter moves.
   @@index([chapterId])
   @@map("thread_continuations")
+}
+
+/// The ten missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+/// registry owns. An enum rather than free text because every indicator of
+/// specification §17 that touches generation is a group-by on this column: a
+/// typo would open a silent eleventh category and put a hole in the numbers,
+/// where an enum makes it a write error. Adding a mission is one member and one
+/// migration, owned by the task that adds the mission — the same trade
+/// CanonFactValidity records.
+enum GenerationMission {
+  ANALYZE_SOURCE_TEXT // analyser le texte source
+  PROPOSE_DIRECTIONS // proposer des directions
+  EVALUATE_DIRECTION // évaluer une direction
+  CREATE_CHARACTER_SHEET // créer une fiche personnage
+  BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
+  WRITE_SCENE // rédiger une scène
+  EXTRACT_FACTS // extraire les faits
+  CHECK_COHERENCE // contrôler la cohérence
+  FIX_ISSUE // corriger un problème ciblé
+  SUMMARIZE_CHAPTER // résumer un chapitre
+
+  @@map("generation_mission")
+}
+
+/// The five states of a queued generation, in CAL-060's own words: en attente,
+/// en cours, réussie, échouée, annulée. QUEUED is a real state and not an
+/// absent row — a job Redis accepted and no worker ever picked up has to be
+/// visible to the reconciliation task, and the wait before a worker takes it is
+/// what separates queue latency from run time in `createdAt` → first attempt.
+enum GenerationStatus {
+  QUEUED // en attente
+  RUNNING // en cours
+  SUCCEEDED // réussie
+  FAILED // échouée
+  CANCELLED // annulée
+
+  @@map("generation_status")
+}
+
+/// What one attempt is recorded as. Exactly the three members of
+/// `GENERATION_STATUSES` in @calepin/shared/generation, which is the closed
+/// list `runGenerationAttempt` already writes against; schema.test.ts pins the
+/// two together by reading that file, so the column and the union cannot drift.
+///
+/// It is deliberately not GenerationStatus. An attempt is never queued — the
+/// row is written by `start`, at the moment the work begins — and cancelling is
+/// a decision about the task, not about a try.
+enum GenerationAttemptStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+
+  @@map("generation_attempt_status")
+}
+
+/// The eight categories of CLAUDE.md §7, mirrored from `ERROR_CATEGORIES` in
+/// @calepin/shared/errors and pinned to it by schema.test.ts.
+///
+/// The category is an enum and the code beside it is not: §7 makes adding a
+/// code a one-line diff in `errors/codes.ts`, and an enum would turn every such
+/// line into a migration. The category list is closed, which is what makes the
+/// operations dashboard's "taux d'erreur et causes principales" (CAL-067) a
+/// typed group-by rather than a count of free-text strings.
+enum ErrorCategory {
+  VALIDATION
+  NOT_FOUND
+  FORBIDDEN
+  CONFLICT
+  RATE_LIMIT
+  PROVIDER
+  TIMEOUT
+  INTERNAL
+
+  @@map("error_category")
+}
+
+/// One call to a model, from the point of view of the product: what was asked,
+/// what it is for, and how to ask again.
+///
+/// **The row is the trace, and the trace is what makes a failure replayable.**
+/// CLAUDE.md §7 states the guarantee — *a failed generation leaves the project
+/// valid and replayable* — and `runGenerationAttempt` in
+/// @calepin/shared/generation is the sequence that honours it. This table is
+/// the persistence side of that port: `start` writes an attempt, `succeed`
+/// appends the revision and completes the generation in one transaction, `fail`
+/// completes it having written no result at all.
+///
+/// **What is not here is as deliberate as what is.** No token count, no cost,
+/// no model and no duration: a generation that failed twice before succeeding
+/// spent tokens three times, on possibly three different models once CAL-064's
+/// fallback exists, so those columns are true of an *attempt* and would be a
+/// lie here. The number of attempts is `MAX(attempt)` and the cost of a project
+/// is a `SUM` over the attempts of its generations, failures included — which
+/// is the only way indicator §17.8, average cost per project, is not an
+/// undercount. A stored counter beside them would be the copy able to drift
+/// that this schema refuses everywhere else.
+///
+/// **The indicators of specification §17 this table has to make computable**:
+/// average cost per project (sum over attempts, grouped by `projectId`); the
+/// average time between a project's creation and its first chapter (the
+/// earliest `completedAt` of a succeeded WRITE_SCENE against
+/// `Project.createdAt`); the full-regeneration rate (more than one succeeded
+/// generation for one `(mission, targetId)`, or a project-wide mission run
+/// twice). The others are read from the narrative tables and from QualityIssue.
+model Generation {
+  id        String @id @default(cuid())
+  projectId String
+
+  mission  GenerationMission
+  /// The entity the mission produces or rewrites, in the kind its mission
+  /// implies — a chapter for WRITE_SCENE, a character for
+  /// CREATE_CHARACTER_SHEET — and null for a mission that targets the project
+  /// as a whole, such as PROPOSE_DIRECTIONS.
+  ///
+  /// **Deliberately not a foreign key.** A generation row is an accounting and
+  /// audit record: it has to survive the deletion of the chapter it wrote, or
+  /// the cost already charged to a project changes retroactively when the
+  /// author deletes a chapter. A typed reference would also mean one nullable
+  /// column per entity kind — CAL-146 lists nine — and a nine-branch CHECK to
+  /// keep exactly one of them set.
+  targetId String?
+
+  /// The replay payload — *charge utile de reprise*. What business code passed
+  /// to the mission: resolved identifiers, the options chosen, the author's own
+  /// instruction. **Not** the composed prompt and **not** the model's answer.
+  ///
+  /// Replaying re-invokes the mission with this payload so the context composer
+  /// (CLAUDE.md §5.8) recomposes against the *current* bible; a frozen prompt
+  /// would replay a stale one and reproduce the failure it was meant to
+  /// survive. It is one opaque column rather than readable fields on purpose:
+  /// it may carry the author's instructions to the system, which §9 counts as
+  /// literary content, so it is product data and must never reach a log line,
+  /// an error payload or the operations view (CAL-067).
+  input Json
+
+  status GenerationStatus @default(QUEUED)
+
+  /// Set exactly when the status is terminal — generations_completion_check.
+  /// The wall-clock duration of the task is this minus createdAt, and the wait
+  /// in the queue is the first attempt's startedAt minus createdAt; neither is
+  /// stored, for the reason the missing counters above give.
+  completedAt DateTime?
+
+  /// The failure, classified and never described: the stable code and its
+  /// category, the two fields §9 allows a failure to carry. Set together and
+  /// only on a failure — generations_failure_check. The technical message and
+  /// the provider payload stay out of the database entirely.
+  errorCode     String?
+  errorCategory ErrorCategory?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  attempts                 GenerationAttempt[]
+  /// What this generation produced, when it produced a versioned entity.
+  analysisSectionRevisions AnalysisSectionRevision[]
+  chapterRevisions         ChapterRevision[]
+  /// The quality issues this generation surfaced, when it was a CHECK_COHERENCE
+  /// run (CAL-021).
+  qualityIssues            QualityIssue[]
+
+  // Cost and regeneration counting, both grouped on the leading columns; the
+  // recent generations of a project are served by this index's first column
+  // alone only for equality, which is why the listing gets its own below.
+  @@index([projectId, mission, targetId])
+  // The operations view (CAL-070) and the generation list: a project's
+  // generations, newest first.
+  @@index([projectId, createdAt])
+  // The reconciliation task (CAL-060): everything still QUEUED or RUNNING past
+  // its deadline, across every project.
+  @@index([status, createdAt])
+  @@map("generations")
+}
+
+/// One try at a generation — the row `runGenerationAttempt` writes before the
+/// model is called, and completes after.
+///
+/// `@@unique([generationId, attempt])` is the constraint the shared port's
+/// contract asks for in words: *`succeed` and `fail` are idempotent for a given
+/// `(generationId, attempt)`*. BullMQ redelivers a job whose work already
+/// completed, and here that redelivery collides with a unique violation instead
+/// of writing a second cost line — which is CAL-064's own acceptance criterion,
+/// that replaying a failed generation must not charge twice, expressed as a
+/// database constraint rather than as care in the caller.
+///
+/// This is also where the model actually used is recorded, rather than on the
+/// generation: a fallback (CAL-064) runs attempt 2 on another model, so one
+/// column upstream would be false for one of the two. ADR-001's requirement
+/// that a generation record its model and its prompt version is met here, and
+/// met more finely.
+model GenerationAttempt {
+  id           String @id @default(cuid())
+  generationId String
+
+  /// 1 for the first try, as `AttemptContext.attempt` is.
+  attempt Int
+
+  /// The provider's model identifier, as it was called. Free text, and not an
+  /// enum: the list belongs to the providers, changes without warning, and is
+  /// declared per mission by CAL-051's registry.
+  model         String
+  /// The version of the prompt that ran (CAL-053). Null until that registry
+  /// exists; ADR-001 wants it recorded so a quality regression can be traced to
+  /// a prompt change rather than guessed at.
+  promptVersion Int?
+
+  /// Usage as the provider reported it, null while the attempt runs and when a
+  /// call failed before returning any. Both non-negative —
+  /// generation_attempts_usage_check.
+  inputTokens      Int?
+  outputTokens     Int?
+  /// The cost this attempt is accounted for, in US dollars: the tokens above
+  /// priced by the registry at the time of the call. `Decimal`, never a float —
+  /// money summed in binary floating point stops adding up — and six decimals,
+  /// finer than any provider's per-token rounding.
+  estimatedCostUsd Decimal? @db.Decimal(12, 6)
+
+  /// The duration the runner measured, from its injected clock, as
+  /// `AttemptContext.durationMs` carries it. Kept beside the two timestamps
+  /// rather than derived from them because it is what the runner observed:
+  /// the timestamps are written by two separate statements, and their
+  /// difference is the database's view of the attempt, not the attempt's.
+  durationMs Int?
+
+  status        GenerationAttemptStatus @default(RUNNING)
+  errorCode     String?
+  errorCategory ErrorCategory?
+
+  startedAt   DateTime  @default(now())
+  /// Set exactly when the attempt is no longer running —
+  /// generation_attempts_completion_check.
+  completedAt DateTime?
+
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  // The idempotency key. Also the index that reads a generation's attempts in
+  // order, and that answers "how many attempts" without a scan.
+  @@unique([generationId, attempt])
+  // Cost and token totals per period, and per model, for the operations
+  // dashboard (CAL-067).
+  @@index([startedAt])
+  @@map("generation_attempts")
+}
+
+/// The five families of check the coherence engine runs (CAL-135), in the
+/// specification's own order. Closed and pinned by schema.test.ts: a sixth
+/// family is a decision about the product, not a convenience.
+enum QualityIssueCategory {
+  FACTUAL_CONTINUITY // continuité factuelle
+  PSYCHOLOGICAL_CONTINUITY // continuité psychologique
+  STRUCTURE // structure
+  STYLE // style
+  ORIGINALITY // originalité
+
+  @@map("quality_issue_category")
+}
+
+/// How much an issue matters, in decreasing order — the order the audit report
+/// is ranked by (CAL-141) and the threshold the batch writer stops on
+/// (CAL-198's *arrêt automatique en cas d'incohérence grave*).
+///
+/// The specification names no list, so this one is CAL-021's design, the
+/// position RelationshipType already took. Three levels and not five: a scale
+/// finer than "must be fixed / should be fixed / worth knowing" cannot be
+/// applied consistently by five different check families, and an unusable
+/// distinction becomes noise in the filter it exists to serve.
+///
+/// It is a rank, never a score. The specification forbids presenting a computed
+/// number as a measure of quality or originality, and this column is a
+/// three-valued judgement about one issue, not a total over a manuscript.
+enum QualityIssueSeverity {
+  CRITICAL // bloquant
+  MAJOR // important
+  MINOR // mineur
+
+  @@map("quality_issue_severity")
+}
+
+/// The five statuses of the specification, which CAL-021's acceptance criterion
+/// names one by one. Closed and pinned by schema.test.ts.
+///
+/// ACCEPTED and IGNORED are not the same thing and neither deletes the row: the
+/// author accepts an issue as a deliberate choice they stand by, or sets it
+/// aside without ruling on it. Keeping both is what lets the next audit
+/// deduplicate against what has already been decided instead of proposing it
+/// forever — the reasoning CanonFactStatus.REJECTED already records.
+enum QualityIssueStatus {
+  DETECTED // détecté
+  ACCEPTED // accepté
+  TO_FIX // à corriger
+  FIXED // corrigé
+  IGNORED // ignoré
+
+  @@map("quality_issue_status")
+}
+
+/// One problem a check reported (CAL-135) — the *problème qualité* of the
+/// backlog, which CLAUDE.md §4.3 named `Finding` before the model existed. The
+/// backlog's identifier stands and the glossary row was amended, the way
+/// CAL-016 resolved `CharacterSheet` into `Character`: one concept takes one
+/// English word.
+///
+/// It hangs off the project, not off a chapter: the structure and originality
+/// families judge the manuscript as a whole, and CAL-099 checks the bible
+/// before a single chapter exists. What an issue is *about* is its passages,
+/// which may be none.
+///
+/// Indicator §17.6, the number of contradictions detected, is a count over this
+/// table; the filterable screen (CAL-142) reads the three enums, which is why
+/// all three are columns and none is buried in prose.
+model QualityIssue {
+  id        String @id @default(cuid())
+  projectId String
+
+  category QualityIssueCategory
+  severity QualityIssueSeverity
+  status   QualityIssueStatus   @default(DETECTED)
+
+  /// The identifier of the check that produced it, owned by CAL-135's registry
+  /// of pluggable checks. Free text for the reason `errorCode` is: the list
+  /// grows with the engine, in the engine's own file. It is what lets an
+  /// incremental audit (CAL-141) recognise an issue it has already reported,
+  /// and what makes a check's false-positive rate measurable.
+  checkId String
+
+  /// Why it is a problem, in the project's language. The specification forbids
+  /// a bare verdict: every remark is argued and tied to a precise element.
+  explanation String
+  /// The correction the check proposes. Optional — a structural remark
+  /// ("this chapter has no consequence") has no mechanical fix, and CAL-110's
+  /// audit exists to surface the gap rather than to have it unstorable.
+  proposedFix String?
+
+  /// The CHECK_COHERENCE run that surfaced it, null for a deterministic check
+  /// computed from the narrative memory without a model. It is the link that
+  /// makes an issue traceable to the prompt version and the model that produced
+  /// it, and it is enough until CAL-135 introduces the audit run itself.
+  detectedByGenerationId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  detectedByGeneration Generation? @relation(fields: [detectedByGenerationId], references: [id], onDelete: SetNull)
+
+  passages QualityIssuePassage[]
+
+  // The screen's own filter (CAL-142), and the count indicator §17.6 reads.
+  @@index([projectId, status, severity])
+  // The same list filtered by family, and the per-family audit summary.
+  @@index([projectId, category])
+  // The issues one run produced. PostgreSQL does not index a foreign key on its
+  // own, and the SET NULL on generation deletion walks this path.
+  @@index([detectedByGenerationId])
+  @@map("quality_issues")
+}
+
+/// A passage an issue points at — *les passages concernés*, one row each.
+///
+/// **An anchor, never a copy of the prose.** The row names the chapter and, when
+/// the check found a range rather than a whole chapter, the `ChapterRevision`
+/// the range was found in and its character offsets into that revision's
+/// content. Anchoring into a revision rather than into "the chapter" is what
+/// keeps the offsets meaning what they meant: revisions are append-only, so the
+/// text the check read is still there after the author edits, and a stale
+/// anchor is visible as an old revision instead of silently sliding onto other
+/// words. Storing the excerpt itself would be a second copy of the novel able
+/// to drift from the first.
+///
+/// Three shapes, all intended: no passage row at all for an issue about the
+/// manuscript or the bible as a whole; a row with null offsets for an issue
+/// about a whole chapter, which is what a structural check reports (CAL-138);
+/// a row with offsets for a located one, which is what opens the editor at the
+/// right place on a click (CAL-142).
+///
+/// `chapterId` is not a copy able to drift from the revision's own: it is part
+/// of the composite key referencing ChapterRevision(chapterId, id), so a
+/// passage naming one chapter and a revision of another is rejected by
+/// PostgreSQL.
+model QualityIssuePassage {
+  id      String @id @default(cuid())
+  issueId String
+
+  chapterId         String
+  chapterRevisionId String?
+  /// Character offsets into that revision's content, start inclusive and end
+  /// exclusive. Set together, only alongside a revision, non-negative and
+  /// ordered — quality_issue_passages_offsets_check.
+  startOffset       Int?
+  endOffset         Int?
+
+  createdAt DateTime @default(now())
+
+  issue           QualityIssue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  chapter         Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapterRevision ChapterRevision? @relation(fields: [chapterId, chapterRevisionId], references: [chapterId, id], onDelete: Cascade)
+
+  // The issues attached to one chapter — what the incremental audit (CAL-141)
+  // reads to leave an unchanged chapter alone, and what the chapter screen
+  // shows beside the text.
+  @@index([chapterId])
+  // A passage is added or removed with its issue, never edited, so it carries
+  // no updatedAt — the reasoning ChapterOutlineCharacter and ThreadContinuation
+  // already record.
+  @@map("quality_issue_passages")
+}
+
+/// The formats the export engine renders (CAL-154). Markdown and DOCX are the
+/// MVP (CAL-155, CAL-156); the other four are named now because CAL-154's whole
+/// design constraint is that adding one costs a renderer and nothing else, and
+/// a format the column cannot hold would cost a migration on top.
+enum ExportFormat {
+  MARKDOWN
+  DOCX
+  PDF
+  EPUB
+  HTML
+  PLAIN_TEXT
+
+  @@map("export_format")
+}
+
+/// The life of an asynchronous export (CAL-160). There is deliberately no
+/// EXPIRED member: expiry is `expiresAt` compared to the current time, and a
+/// status able to disagree with that timestamp would become the one consumers
+/// trust — the reading Analysis and Bible already apply to their validation.
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  READY
+  FAILED
+
+  @@map("export_status")
+}
+
+/// One export of a manuscript (CAL-160, CAL-161).
+///
+/// It is not a `Generation`: no model is called, nothing is priced in tokens,
+/// and the file it produces is the point. It is a background job with its own
+/// small lifecycle, and sharing an enum with generations would have made every
+/// later query about cost or missions have to exclude it.
+///
+/// Indicator §17.7, the export rate, is the share of projects with at least one
+/// READY row here.
+model Export {
+  id            String @id @default(cuid())
+  projectId     String
+  requestedById String
+
+  format ExportFormat
+  status ExportStatus @default(QUEUED)
+
+  /// The nine options of CAL-154 — title, author, chapter selection, table of
+  /// contents, chapter numbers, title page, page breaks, metadata, notes — as
+  /// the composer received them. Opaque here for the reason Generation.input
+  /// is: the selection and the title are the author's, and the export engine
+  /// owns their shape.
+  options Json @default("{}")
+
+  /// The object in the private bucket. Null until the file exists, and null
+  /// again once it is purged (CAL-165) — which is why no CHECK ties it to
+  /// READY: a purged export stays a READY export that can no longer be
+  /// downloaded, and the history says so (CAL-161).
+  storageKey String?
+  /// Size and length of what was produced. Both are counts, the two measures §9
+  /// explicitly allows beside identifiers, and both non-negative —
+  /// exports_size_check.
+  byteSize   Int?
+  wordCount  Int?
+
+  /// When the file stops being downloadable. Compared to the current time; see
+  /// ExportStatus for why it is not a status.
+  expiresAt DateTime?
+
+  /// Set exactly when the export is no longer pending — exports_completion_check.
+  completedAt DateTime?
+  /// The failure, classified and never described, as a generation's is. Only on
+  /// a failure — exports_failure_check.
+  errorCode   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Restrict, as every other author column in this schema is: who asked for a
+  // copy of the manuscript is the audit trail. Deleting the project still
+  // works — this table cascades away before the reference is checked.
+  requestedBy User    @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  // The export history of a project, newest first (CAL-161).
+  @@index([projectId, createdAt])
+  // Indicator §17.7: has this project ever produced a READY export.
+  @@index([projectId, status])
+  // PostgreSQL does not index a foreign key on its own, and the Restrict check
+  // on user deletion walks this path (CAL-031).
+  @@index([requestedById])
+  @@map("exports")
+}
+
+/// Who can reach a published novel (CAL-202). PRIVATE is the default and the
+/// state an unpublish returns to, which is what makes "la publication n'est
+/// jamais automatique" the schema's default rather than a rule someone has to
+/// remember.
+enum PublicationVisibility {
+  PRIVATE // privé
+  UNLISTED // non répertorié
+  PUBLIC // public
+
+  @@map("publication_visibility")
+}
+
+/// The web publication of a novel (CAL-202, CAL-203) — one per project, since
+/// the specification asks for a stable public address per novel.
+///
+/// The row existing does not mean the novel is published: `visibility` says
+/// that, and it starts PRIVATE. Unpublishing sets it back to PRIVATE and stamps
+/// `unpublishedAt`; it never deletes the row, because the address has to stay
+/// reserved so a later republication does not hand someone else's novel the
+/// link readers already have.
+///
+/// The presentation fields are here rather than read from the project: the
+/// title and the author name shown to a reader are a publication decision, and
+/// an author who renames their working project must not thereby rename a novel
+/// that is already public.
+model Publication {
+  id        String @id @default(cuid())
+  projectId String @unique
+
+  /// The public address, stable for the life of the novel. Lowercase
+  /// alphanumerics and single hyphens, 3 to 80 characters —
+  /// publications_slug_check — so a link cannot be minted that a router or a
+  /// share card would have to escape.
+  slug String @unique
+
+  visibility PublicationVisibility @default(PRIVATE)
+
+  title           String
+  authorName      String
+  /// Résumé de présentation, and the cover in the private bucket.
+  blurb           String?
+  coverStorageKey String?
+
+  /// The date the presentation page shows. Stamped the first time the novel
+  /// leaves PRIVATE and never rewritten, so republishing after an unpublish
+  /// does not silently redate a novel readers have already seen. A visible
+  /// publication always has one — publications_published_check.
+  firstPublishedAt DateTime?
+  /// When it was last withdrawn. Kept beside the visibility rather than instead
+  /// of it: the visibility is the access decision, this is the audit trail of
+  /// the last withdrawal.
+  unpublishedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // The public catalogue, newest first — the listing UNLISTED exists to be
+  // excluded from.
+  @@index([visibility, firstPublishedAt])
+  @@map("publications")
 }
