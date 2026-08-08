@@ -19,6 +19,7 @@ model User {
   analysesValidated        Analysis[]
   analysisRevisionsCreated AnalysisSectionRevision[]
   analysisAnnotations      AnalysisAnnotation[]
+  biblesValidated          Bible[]
 
   @@map("users")
 }
@@ -82,6 +83,7 @@ model Project {
   sourceText         SourceText?
   analysis           Analysis?
   creativeDirections CreativeDirection[]
+  bible              Bible?
 
   // The dashboard lists one user's projects, most recently modified first
   // (CAL-065), and filters that list by status. No index on userId alone:
@@ -337,4 +339,359 @@ model CreativeDirection {
 
   @@index([projectId])
   @@map("creative_directions")
+}
+
+/// The narrative bible — the reference every later generation reads from. One
+/// per project.
+///
+/// It holds no content of its own. The identity and style sections are their
+/// own rows, and characters, places and world rules are their own tables,
+/// because a generation context is composed of the few elements it needs and
+/// never of the whole bible (CLAUDE.md §5.8). One row per element, and typed
+/// markers to filter rows on, are what make that selection possible without
+/// reading the prose first; a JSON section column would have forced reading all
+/// of a section to obtain one field of it.
+model Bible {
+  id String @id @default(cuid())
+
+  projectId     String    @unique
+  /// The validation status is this timestamp. It is set together with
+  /// validatedById and never one without the other — bibles_validation_check,
+  /// which Prisma cannot express, see the add_narrative_bible migration. Same
+  /// shape as Analysis: a status enum beside these two columns could only
+  /// contradict them. CAL-100 owns the action and the named version it creates.
+  validatedAt   DateTime?
+  validatedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Restrict, as Analysis.validatedBy already is: nulling validatedById while
+  // validatedAt stands would break bibles_validation_check, so the delete would
+  // fail anyway — with a check violation instead of the referential error that
+  // names the cause.
+  validatedBy User?   @relation(fields: [validatedById], references: [id], onDelete: Restrict)
+
+  identity      BibleIdentity?
+  style         BibleStyle?
+  characters    Character[]
+  relationships Relationship[]
+  places        Place[]
+  worldRules    WorldRule[]
+
+  @@map("bibles")
+}
+
+/// The identity section of the bible (CAL-088).
+///
+/// Its own row rather than nine more columns on Bible: it is produced by its
+/// own mission, regenerated alone and locked alone, and a row that exists means
+/// a section that has been produced — which is what lets every column be NOT
+/// NULL instead of nine nulls each reader would have to interpret.
+///
+/// Two of the eleven fields CAL-088 names are deliberately absent. Longueur
+/// cible and public already live on Project, chosen by the author before any
+/// generation; restating them here would create the second column able to
+/// contradict the first that CAL-012 recorded as a lesson. The mission reads
+/// them from the project and stays consistent with them.
+model BibleIdentity {
+  id      String @id @default(cuid())
+  bibleId String @unique
+
+  workingTitle     String // titre de travail
+  genre            String // genre
+  subGenre         String // sous-genre
+  tone             String // tonalité
+  narrativePromise String // promesse narrative
+  themes           String[] @default([]) // thèmes
+  counterThemes    String[] @default([]) // contre-thèmes
+  centralQuestion  String // question centrale
+  /// CAL-088 calls it "type de fin"; the identifier is the one
+  /// CreativeDirection already uses for the same concept one stage earlier.
+  endingNature     String
+
+  /// The lock. A timestamp is the state — there is no isLocked boolean beside
+  /// it able to disagree. CAL-095 makes it bite before a generation runs.
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  @@map("bible_identities")
+}
+
+/// The style section of the bible (CAL-089), and the section a chapter-writing
+/// context reads most often — which is the other reason it is a row of its own
+/// rather than nine columns on a wider table.
+///
+/// Every field holds an operational constraint, not a decorative adjective:
+/// that requirement is CAL-089's and it is about the wording the mission
+/// produces, so the column type is the same free text as the rest.
+model BibleStyle {
+  id      String @id @default(cuid())
+  bibleId String @unique
+
+  pointOfView        String // point de vue
+  focalization       String // focalisation
+  tense              String // temps verbal
+  languageRegister   String // niveau de langue
+  descriptiveDensity String // densité descriptive
+  pacing             String // rythme
+  dialogueBalance    String // place du dialogue
+  recurringMotifs    String[] @default([]) // motifs récurrents
+  elementsToAvoid    String[] @default([]) // éléments stylistiques à éviter
+
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  @@map("bible_styles")
+}
+
+/// How much of the cast a character is. Not a duplicate of `role`, which stays
+/// the specification's free-text field naming the narrative function: this is
+/// the typed marker rows are filtered on.
+///
+/// Without it CAL-090's own acceptance criterion — every *main* character has
+/// an explicit contradiction and a need distinct from their desire — is not
+/// checkable, and the context composer has no way to choose whose sheet to read
+/// short of reading every sheet.
+enum CharacterImportance {
+  MAIN // personnage principal
+  SECONDARY // personnage secondaire
+  MINOR // personnage mineur
+
+  @@map("character_importance")
+}
+
+/// One member per field of the character sheet, so that a single field can be
+/// locked (CAL-095, CAL-097) without a lock naming a field no column answers
+/// to. schema.test.ts pins this list against Character's own fields, so the two
+/// cannot drift.
+enum CharacterField {
+  NAME
+  AGE
+  ROLE
+  IMPORTANCE
+  APPEARANCE
+  INITIAL_SITUATION
+  APPARENT_DESIRE
+  DEEP_NEED
+  FEAR
+  CONTRADICTION
+  SECRET
+  PAST
+  PLANNED_ARC
+  SPEECH_STYLE
+  HELD_KNOWLEDGE
+  ELEMENTS_TO_PRESERVE
+
+  @@map("character_field")
+}
+
+/// One character, which is also their sheet. CLAUDE.md §4.3 named the concept
+/// `CharacterSheet`; the identifier is `Character`, fixed by the backlog's own
+/// content line and by CAL-016's command, and the glossary row was amended
+/// rather than left to carry two names for one thing.
+///
+/// Every field but the name is optional. The acceptance criterion is that a
+/// complete sheet is *persistable*, not that an incomplete one is refused: the
+/// sheet is filled progressively and CAL-097 saves as the author types. What a
+/// generated sheet must contain is a narrative rule and belongs to CAL-090's
+/// output schema, the same boundary AnalysisElement draws with CAL-070.
+model Character {
+  id      String @id @default(cuid())
+  bibleId String
+
+  name               String // nom
+  /// An integer, not free text: CAL-093 must reject an impossible age
+  /// arithmetically ("34 years old, and 12 thirty years ago") and CAL-017
+  /// computes an age at an event. Nullable, because it can be genuinely unknown
+  /// while the bible is being written; bounded below by characters_age_check
+  /// and deliberately not above, since a character can be eight hundred.
+  age                Int?
+  role               String? // rôle
+  importance         CharacterImportance @default(SECONDARY)
+  appearance         String? // apparence utile au récit
+  initialSituation   String? // situation initiale
+  apparentDesire     String? // désir apparent
+  deepNeed           String? // besoin profond
+  fear               String? // peur
+  contradiction      String? // contradiction
+  secret             String? // secret
+  past               String? // passé
+  plannedArc         String? // évolution prévue
+  speechStyle        String? // manière de parler
+  /// Connaissances détenues, as the author writes them on the sheet. The
+  /// checkable form — which character knows which atomic fact — is CAL-018's
+  /// CanonFact, derived from here by CAL-094; this column is its source, not a
+  /// competing copy of it.
+  heldKnowledge      String[]            @default([])
+  /// Éléments à ne pas modifier: what the author declares must not change. It
+  /// states the intent; `lockedAt` and `lockedFields` below enforce it. Both
+  /// exist because the specification asks for both, and they are not
+  /// interchangeable — a declaration no mechanism reads would be decoration.
+  elementsToPreserve String[]            @default([])
+
+  /// The whole sheet is locked when this is set.
+  lockedAt     DateTime?
+  /// The fields locked individually (CAL-097). An enum array rather than a
+  /// child table: it travels with the row, so the context composer and
+  /// CAL-095's guard read the lock state on a read they were making anyway,
+  /// where a child table would put a join in front of the query the product
+  /// runs most. A field is locked when the row is locked or the field is listed
+  /// here.
+  lockedFields CharacterField[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  outgoingRelationships Relationship[] @relation("RelationshipSource")
+  incomingRelationships Relationship[] @relation("RelationshipTarget")
+
+  // The target of Relationship's two composite foreign keys. It is what makes a
+  // relationship between two bibles unstorable rather than merely unlikely.
+  @@unique([bibleId, id])
+  // A model may name a character; business code resolves the primary key
+  // (CLAUDE.md §6). That resolution needs the name to be unique inside a bible,
+  // so it is a constraint rather than a hope — and it also means a rerun of the
+  // character mission cannot silently produce a second sheet for the same name.
+  @@unique([bibleId, name])
+  // "The main characters of this bible", without reading a single sheet.
+  @@index([bibleId, importance])
+  @@map("characters")
+}
+
+/// The nature of a tie. The specification names no list, so this one is
+/// CAL-016's design: broad enough that a novel's ties land in it, with OTHER
+/// and the free-text label carrying what it does not name. Adding a member
+/// later is a one-line migration; loosening the column to free text would not
+/// be.
+enum RelationshipType {
+  FAMILY // famille
+  ROMANTIC // amour
+  FRIENDSHIP // amitié
+  PROFESSIONAL // travail
+  MENTORSHIP // mentorat
+  ALLIANCE // alliance
+  RIVALRY // rivalité
+  HOSTILITY // hostilité
+  OTHER // autre, précisé par label
+
+  @@map("relationship_type")
+}
+
+/// A directed edge between two characters of the same bible: one row per
+/// direction, and the reverse direction is a second row that may say something
+/// else. That is what makes "A knows about B what B ignores" representable
+/// (CAL-091).
+///
+/// The mirror row is never created automatically, and that is a decision rather
+/// than an omission: CAL-099 has to *detect a missing symmetric relation*, and
+/// a schema that writes the mirror itself can never produce one to detect.
+///
+/// bibleId is not a copy able to drift from the characters' own. It is part of
+/// both foreign keys, which reference Character(bibleId, id), so a row whose
+/// bible disagrees with its characters — or whose two characters come from
+/// different bibles — is rejected by PostgreSQL. It is carried here so that the
+/// relationship graph of a bible is one query rather than a join through
+/// characters.
+model Relationship {
+  id      String @id @default(cuid())
+  bibleId String
+
+  fromCharacterId String
+  toCharacterId   String
+  type            RelationshipType
+  /// The tie in the project's language, written from the source character's
+  /// side: "père de", "ancienne associée de".
+  label           String
+  /// What holds from the source character's side only — what A believes, knows
+  /// or feels about B. The asymmetry is written here; its checkable form is
+  /// CAL-018's per-character knowledge of an atomic fact.
+  description     String?
+
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible         Bible     @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+  fromCharacter Character @relation("RelationshipSource", fields: [bibleId, fromCharacterId], references: [bibleId, id], onDelete: Cascade)
+  toCharacter   Character @relation("RelationshipTarget", fields: [bibleId, toCharacterId], references: [bibleId, id], onDelete: Cascade)
+
+  // Two characters may be tied in several ways at once — family and rivalry —
+  // so the type is part of the key. It also turns a rerun of the relationship
+  // mission into a unique violation instead of a duplicated edge.
+  @@unique([fromCharacterId, toCharacterId, type])
+  // The relations pointing *at* a character. Its outgoing ones are already
+  // served by the unique index above, whose leading column they are.
+  @@index([toCharacterId])
+  // The whole graph of a bible, in one query.
+  @@index([bibleId])
+  @@map("relationships")
+}
+
+/// A place of the novel. Named uniquely inside its bible for the same reason a
+/// character is: a chapter outline will reference a place the model named, and
+/// business code resolves that name to a primary key (CLAUDE.md §6, CAL-102).
+model Place {
+  id      String @id @default(cuid())
+  bibleId String
+
+  name        String // nom
+  description String?
+
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  @@unique([bibleId, name])
+  @@map("places")
+}
+
+/// A rule of the novel's world.
+///
+/// `limits` is required of anything marked supernatural —
+/// world_rules_supernatural_limits_check, hand-written in the migration —
+/// because CAL-092's imperative is that no out-of-norm capability may be
+/// declared without explicit boundaries. That requirement is not decorative: a
+/// power with no stated limit, cost or failure condition is exactly what makes
+/// a resolution by convenience undetectable later (CAL-159).
+model WorldRule {
+  id      String @id @default(cuid())
+  bibleId String
+
+  /// A short handle, so a locked rule can be cited by name when it blocks a
+  /// generation (CAL-095, CAL-115).
+  name              String
+  statement         String
+  /// Covers any out-of-norm capability, not only the supernatural in the strict
+  /// sense — CAL-092's own wording is "élément surnaturel ou capacité hors
+  /// norme".
+  isSupernatural    Boolean  @default(false)
+  limits            String[] @default([]) // limites — non-empty whenever isSupernatural
+  costs             String[] @default([]) // coûts
+  failureConditions String[] @default([]) // conditions d'échec
+
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  @@unique([bibleId, name])
+  @@map("world_rules")
 }

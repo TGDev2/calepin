@@ -34,6 +34,24 @@ function modelBlock(name: string): string {
   return block[1];
 }
 
+/**
+ * The names of a model's fields, scalars and relations alike, in declaration
+ * order. Doc comments (`///`), plain comments and block attributes (`@@`) are
+ * not fields and never start with a lowercase letter, so the shape of the line
+ * is enough to recognise one.
+ */
+function modelFields(name: string): string[] {
+  return modelBlock(name)
+    .split("\n")
+    .map((line) => line.replace(/\/\/.*$/, "").trim())
+    .map((line) => /^([a-z][A-Za-z0-9]*)\s+\S/.exec(line)?.[1])
+    .filter((field): field is string => field !== undefined);
+}
+
+function toScreamingSnake(field: string): string {
+  return field.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
+}
+
 describe("prisma schema", () => {
   // The specification fixes this list and CAL-012's acceptance criterion is that
   // the schema matches it exactly. The French labels are the specification's own
@@ -245,6 +263,281 @@ describe("prisma schema", () => {
 
     it("maps to a snake_case plural table", () => {
       expect(modelBlock("CreativeDirection")).toMatch(/@@map\("creative_directions"\)/);
+    });
+  });
+
+  describe("narrative bible", () => {
+    // Everything about a bible element other than its own content: what
+    // identifies it, what owns it, its lock, its timestamps and its relations.
+    // Whatever a model holds beyond this list is one of its content fields.
+    const NON_SHEET_CHARACTER_FIELDS = [
+      "id",
+      "bibleId",
+      "lockedAt",
+      "lockedFields",
+      "createdAt",
+      "updatedAt",
+      "bible",
+      "outgoingRelationships",
+      "incomingRelationships",
+    ];
+
+    const characterSheetFields = modelFields("Character").filter(
+      (field) => !NON_SHEET_CHARACTER_FIELDS.includes(field),
+    );
+
+    describe("identity and style", () => {
+      // CAL-088's eleven fields, less the two that already live on Project.
+      it("carries the identity fields of the specification", () => {
+        const identity = modelBlock("BibleIdentity");
+
+        for (const field of [
+          "workingTitle",
+          "genre",
+          "subGenre",
+          "tone",
+          "narrativePromise",
+          "themes",
+          "counterThemes",
+          "centralQuestion",
+          "endingNature",
+        ]) {
+          expect(identity).toMatch(new RegExp(`^\\s*${field}\\s+\\S`, "m"));
+        }
+      });
+
+      // CAL-012's lesson: a second column able to contradict the first becomes
+      // the one consumers trust. The target length and the audience are the
+      // author's, chosen on the project before any generation runs.
+      it("does not restate the target length or the audience the project holds", () => {
+        const identity = modelBlock("BibleIdentity");
+
+        expect(identity).not.toMatch(/^\s*(targetLength|targetWordCount|targetAudience)\s/m);
+        expect(modelBlock("Project")).toMatch(/^\s*targetLength\s/m);
+      });
+
+      it("carries the nine style fields of the specification", () => {
+        const style = modelBlock("BibleStyle");
+
+        for (const field of [
+          "pointOfView",
+          "focalization",
+          "tense",
+          "languageRegister",
+          "descriptiveDensity",
+          "pacing",
+          "dialogueBalance",
+          "recurringMotifs",
+          "elementsToAvoid",
+        ]) {
+          expect(style).toMatch(new RegExp(`^\\s*${field}\\s+\\S`, "m"));
+        }
+      });
+
+      // Two sections, two missions (CAL-088, CAL-089), two rows: a section that
+      // has not been produced has no row, which is what lets its columns be
+      // non-null instead of nine nulls each reader has to interpret.
+      it("holds each section in its own row, one per bible", () => {
+        expect(modelBlock("BibleIdentity")).toMatch(/bibleId\s+String\s+@unique/);
+        expect(modelBlock("BibleStyle")).toMatch(/bibleId\s+String\s+@unique/);
+        expect(modelBlock("Bible")).not.toMatch(/^\s*(workingTitle|pointOfView)\s/m);
+      });
+
+      // The same shape Analysis uses: the timestamp is the status, and the pair
+      // moves together under bibles_validation_check.
+      it("carries the validation as a timestamp and its author, and no status enum", () => {
+        const bible = modelBlock("Bible");
+
+        expect(bible).toMatch(/validatedAt\s+DateTime\?/);
+        expect(bible).toMatch(/validatedById\s+String\?/);
+        expect(bible).not.toMatch(/^\s*status\s/m);
+      });
+    });
+
+    describe("the character sheet", () => {
+      it("carries every field the specification names", () => {
+        const character = modelBlock("Character");
+
+        for (const field of [
+          "name", // nom
+          "age", // âge
+          "role", // rôle
+          "appearance", // apparence utile au récit
+          "initialSituation", // situation initiale
+          "apparentDesire", // désir apparent
+          "deepNeed", // besoin profond
+          "fear", // peur
+          "contradiction", // contradiction
+          "secret", // secret
+          "past", // passé
+          "plannedArc", // évolution prévue
+          "speechStyle", // manière de parler
+          "heldKnowledge", // connaissances détenues
+          "elementsToPreserve", // éléments à ne pas modifier
+        ]) {
+          expect(character).toMatch(new RegExp(`^\\s*${field}\\s+\\S`, "m"));
+        }
+      });
+
+      // CAL-090's acceptance criterion is about *main* characters, so which
+      // characters are principal has to be a typed marker and not a reading of
+      // the free-text role.
+      it("marks importance with an enum, distinct from the free-text role", () => {
+        expect(enumMembers("CharacterImportance")).toEqual([
+          "MAIN", // personnage principal
+          "SECONDARY", // personnage secondaire
+          "MINOR", // personnage mineur
+        ]);
+        expect(modelBlock("Character")).toMatch(
+          /importance\s+CharacterImportance\s+@default\(SECONDARY\)/,
+        );
+        expect(modelBlock("Character")).toMatch(/^\s*role\s+String\?/m);
+      });
+
+      // The age is numeric so CAL-093 can reject an impossible chronology and
+      // CAL-017 can compute an age at an event.
+      it("holds the age as a nullable integer", () => {
+        expect(modelBlock("Character")).toMatch(/^\s*age\s+Int\?/m);
+      });
+
+      // The lock mechanism and the sheet field that declares an intent are two
+      // different things, and the specification asks for both.
+      it("keeps the declared elements to preserve beside the lock that enforces them", () => {
+        const character = modelBlock("Character");
+
+        expect(character).toMatch(/^\s*elementsToPreserve\s+String\[\]/m);
+        expect(character).toMatch(/^\s*lockedFields\s+CharacterField\[\]/m);
+      });
+    });
+
+    // The drift guard. A column added to the sheet without a matching enum
+    // member — or an enum member naming a field no column answers to — fails
+    // here, so "every sheet field is individually lockable" stays true by
+    // construction rather than by care.
+    describe("field-level locking", () => {
+      it("declares exactly one lockable field per sheet field, in the same order", () => {
+        expect(enumMembers("CharacterField")).toEqual(
+          characterSheetFields.map((field) => toScreamingSnake(field)),
+        );
+      });
+
+      it("locks by an enum, so a field name no column answers to is unstorable", () => {
+        expect(modelBlock("Character")).toMatch(/lockedFields\s+CharacterField\[\]/);
+        expect(modelBlock("Character")).not.toMatch(/lockedFields\s+String\[\]/);
+      });
+    });
+
+    // A timestamp is the lock state. A boolean beside it could disagree with
+    // it, which is the same reason Analysis has no status enum and
+    // AnalysisSectionRevision has no isCurrent flag.
+    describe("element-level locking", () => {
+      const LOCKABLE_MODELS = [
+        "BibleIdentity",
+        "BibleStyle",
+        "Character",
+        "Relationship",
+        "Place",
+        "WorldRule",
+      ];
+
+      it("makes every bible element lockable on its own row", () => {
+        for (const model of LOCKABLE_MODELS) {
+          expect(modelBlock(model)).toMatch(/^\s*lockedAt\s+DateTime\?/m);
+        }
+      });
+
+      it("keeps no boolean able to disagree with the lock timestamp", () => {
+        for (const model of LOCKABLE_MODELS) {
+          expect(modelBlock(model)).not.toMatch(/^\s*(isLocked|locked)\s/m);
+        }
+      });
+    });
+
+    describe("relationships", () => {
+      it("types the tie with a closed list", () => {
+        expect(enumMembers("RelationshipType")).toEqual([
+          "FAMILY",
+          "ROMANTIC",
+          "FRIENDSHIP",
+          "PROFESSIONAL",
+          "MENTORSHIP",
+          "ALLIANCE",
+          "RIVALRY",
+          "HOSTILITY",
+          "OTHER",
+        ]);
+        expect(modelBlock("Relationship")).toMatch(/type\s+RelationshipType(?!\?)/);
+      });
+
+      // Oriented: one row per direction, and the reverse is another row that may
+      // say something else. Nothing marks a row as the mirror of another,
+      // because no row is generated from another.
+      it("is a directed edge with both ends named", () => {
+        const relationship = modelBlock("Relationship");
+
+        expect(relationship).toMatch(/^\s*fromCharacterId\s+String/m);
+        expect(relationship).toMatch(/^\s*toCharacterId\s+String/m);
+        expect(relationship).not.toMatch(/^\s*(mirrorOf|reciprocal|inverseOf)\w*\s/m);
+      });
+
+      // Both foreign keys carry the bible, so a row whose two characters come
+      // from different bibles cannot exist and bibleId cannot contradict them.
+      it("references its characters through the bible, not by id alone", () => {
+        const references = modelBlock("Relationship").match(/references: \[bibleId, id\]/g);
+
+        expect(references).toHaveLength(2);
+        expect(modelBlock("Character")).toMatch(/@@unique\(\[bibleId, id\]\)/);
+      });
+
+      it("allows several ties between the same two characters, one per type", () => {
+        expect(modelBlock("Relationship")).toMatch(
+          /@@unique\(\[fromCharacterId, toCharacterId, type\]\)/,
+        );
+      });
+
+      it("indexes the relations pointing at a character, and the graph of a bible", () => {
+        const relationship = modelBlock("Relationship");
+
+        expect(relationship).toMatch(/@@index\(\[toCharacterId\]\)/);
+        expect(relationship).toMatch(/@@index\(\[bibleId\]\)/);
+        // Outgoing relations are served by the leading column of the unique
+        // index above, so a second index on it would be dead weight — the rule
+        // Project already follows for userId.
+        expect(relationship).not.toMatch(/@@index\(\[fromCharacterId\]\)/);
+      });
+    });
+
+    describe("places and world rules", () => {
+      // A model may name a place or a character; business code resolves the
+      // primary key (CLAUDE.md §6). That resolution needs the name to be unique
+      // inside the bible.
+      it("makes a name resolvable inside its bible", () => {
+        expect(modelBlock("Character")).toMatch(/@@unique\(\[bibleId, name\]\)/);
+        expect(modelBlock("Place")).toMatch(/@@unique\(\[bibleId, name\]\)/);
+        expect(modelBlock("WorldRule")).toMatch(/@@unique\(\[bibleId, name\]\)/);
+      });
+
+      // CAL-092's imperative. The column exists here; the constraint that makes
+      // a supernatural rule without limits unstorable is hand-written in the
+      // add_narrative_bible migration and asserted by the integration suite.
+      it("gives a world rule its limits, costs and failure conditions", () => {
+        const rule = modelBlock("WorldRule");
+
+        expect(rule).toMatch(/^\s*isSupernatural\s+Boolean\s+@default\(false\)/m);
+        expect(rule).toMatch(/^\s*limits\s+String\[\]/m);
+        expect(rule).toMatch(/^\s*costs\s+String\[\]/m);
+        expect(rule).toMatch(/^\s*failureConditions\s+String\[\]/m);
+      });
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      expect(modelBlock("Bible")).toMatch(/@@map\("bibles"\)/);
+      expect(modelBlock("BibleIdentity")).toMatch(/@@map\("bible_identities"\)/);
+      expect(modelBlock("BibleStyle")).toMatch(/@@map\("bible_styles"\)/);
+      expect(modelBlock("Character")).toMatch(/@@map\("characters"\)/);
+      expect(modelBlock("Relationship")).toMatch(/@@map\("relationships"\)/);
+      expect(modelBlock("Place")).toMatch(/@@map\("places"\)/);
+      expect(modelBlock("WorldRule")).toMatch(/@@map\("world_rules"\)/);
     });
   });
 });
