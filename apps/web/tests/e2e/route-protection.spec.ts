@@ -23,7 +23,7 @@ function postedCallbackUrl(postData: string | null): string | null {
 }
 
 test.describe("the public allowlist", () => {
-  for (const path of ["/", "/sign-in", "/sign-in/check-email"]) {
+  for (const path of ["/", "/sign-in", "/sign-in/check-email", "/account/deleted"]) {
     test(`does not redirect an anonymous visitor away from ${path}`, async ({ page }) => {
       await page.goto(path);
       expect(new URL(page.url()).pathname).toBe(path);
@@ -33,9 +33,24 @@ test.describe("the public allowlist", () => {
 
 test.describe("an anonymous visitor of a non-public route", () => {
   test("is redirected to sign in, preserving the exact destination", async ({ page }) => {
-    // `/account/delete` (CAL-031) does not exist as a page yet — proving the
-    // allowlist is default-deny for any unlisted path, not just the one
-    // protected route this task's own screens happen to build.
+    // A path no page answers — proving the allowlist is default-deny for any
+    // unlisted route, not only the ones this application happens to build.
+    // (`/account/delete` was that path until CAL-031 built it; the deletion
+    // suite asserts the same redirect on the real screen.)
+    await page.goto("/projects/not-a-real-project");
+
+    await page.waitForURL((url) => url.pathname === "/sign-in");
+    expect(new URL(page.url()).searchParams.get("callbackUrl")).toBe(
+      "/projects/not-a-real-project",
+    );
+  });
+
+  // `/account/deleted` is public and `/account/delete` is not, and the two
+  // differ by two characters. A prefix match on the allowlist would have
+  // opened the deletion screen to anyone.
+  test("is still redirected away from the deletion screen beside the public one", async ({
+    page,
+  }) => {
     await page.goto("/account/delete");
 
     await page.waitForURL((url) => url.pathname === "/sign-in");

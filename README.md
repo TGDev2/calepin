@@ -85,6 +85,7 @@ calepin/
 │
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
+│   │   ├── src/account/       recensement et suppression d'un compte (`@calepin/shared/account`)
 │   │   ├── src/audit/         registre des modèles audités, portée d'acteur, extension Prisma (`@calepin/shared/audit`)
 │   │   ├── src/auth/          adaptateur Auth.js et durées de session (`@calepin/shared/auth`)
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)

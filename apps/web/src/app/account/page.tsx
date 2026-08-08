@@ -17,8 +17,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 /**
  * The account page (CAL-029): address, linked sign-in methods, sign-out, and
- * an entry point toward account deletion (CAL-031 — not built here; the link
- * below is only the door to a page that task will add).
+ * an entry point toward account deletion — the screen CAL-031 added behind the
+ * link below.
  *
  * A visitor with no session has nothing to see here — the mirror image of
  * the sign-in page's own "already authenticated → redirect home" (CAL-028).

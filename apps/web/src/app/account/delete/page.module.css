@@ -1,0 +1,113 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.screen {
+  max-width: 32rem;
+  margin: var(--space-4) auto;
+  padding: 0 var(--space-2);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.warning,
+.error {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+}
+
+.error {
+  margin: var(--space-2) 0;
+}
+
+.warningIcon,
+.errorIcon {
+  flex: none;
+  color: var(--color-danger);
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.census {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-1);
+}
+
+.census li {
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.9rem;
+}
+
+.count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.censusNote {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.form {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+}
+
+.address {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.input {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font: inherit;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.cancel {
+  margin: 0;
+}

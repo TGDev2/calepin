@@ -65,12 +65,18 @@ export async function openSignedInSession(): Promise<SignedInSession> {
   }
 }
 
-/** Removes the account the fixture created, and its session with it. */
+/**
+ * Removes the account the fixture created, and its session with it.
+ *
+ * `deleteMany`, not `delete`: since CAL-031 a spec can legitimately have
+ * deleted the account already, and a `finally` block that threw `P2025` would
+ * fail the test that just proved the feature works.
+ */
 export async function closeSignedInSession(session: SignedInSession): Promise<void> {
   const prisma = new PrismaClient();
 
   try {
-    await prisma.user.delete({ where: { id: session.userId } });
+    await prisma.user.deleteMany({ where: { id: session.userId } });
   } finally {
     await prisma.$disconnect();
   }
@@ -101,6 +107,24 @@ export async function sessionExists(sessionToken: string): Promise<boolean> {
   try {
     const session = await prisma.session.findUnique({ where: { sessionToken } });
     return session !== null;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Whether the account row is still there — CAL-031's proof, in the database
+ * rather than in the browser.
+ *
+ * The screen saying "votre compte a été supprimé" is what the visitor sees;
+ * this is what says it is true. A deletion asserted only through the interface
+ * would pass just as happily against a sign-out.
+ */
+export async function userExists(userId: string): Promise<boolean> {
+  const prisma = new PrismaClient();
+
+  try {
+    return (await prisma.user.count({ where: { id: userId } })) > 0;
   } finally {
     await prisma.$disconnect();
   }

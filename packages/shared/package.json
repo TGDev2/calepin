@@ -8,6 +8,10 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./account": {
+      "types": "./src/account/index.ts",
+      "default": "./src/account/index.ts"
+    },
     "./audit": {
       "types": "./src/audit/index.ts",
       "default": "./src/audit/index.ts"

@@ -14,7 +14,17 @@
  * where there is no database to check a session against.
  */
 
-const PUBLIC_ROUTES: readonly string[] = ["/", "/sign-in", "/sign-in/check-email", "/favicon.ico"];
+const PUBLIC_ROUTES: readonly string[] = [
+  "/",
+  "/sign-in",
+  "/sign-in/check-email",
+  // The acknowledgement an account deletion lands on (CAL-031). It is public
+  // by necessity, not by exception: the account it confirms the deletion of no
+  // longer exists, so the visitor arriving here can never have a session. Its
+  // content is a fixed sentence — it reads nothing and names nobody.
+  "/account/deleted",
+  "/favicon.ico",
+];
 const PUBLIC_PREFIXES: readonly string[] = ["/api/auth/"];
 
 export function isPublicRoute(pathname: string): boolean {
@@ -35,8 +45,14 @@ export function isPublicRoute(pathname: string): boolean {
  * with the real adapter, can. This check only decides whether a visitor gets
  * a chance to reach that page at all; `account/page.tsx`'s own check is what
  * catches a cookie that turns out not to name a live session.
+ *
+ * Exported since CAL-031: account deletion destroys the session *rows*, and
+ * the browser is left holding a cookie naming one of them. The action clears
+ * exactly the names the proxy looks for, from this one list — two lists would
+ * drift into a visitor the proxy keeps turning away from a page that would
+ * have let them in.
  */
-const SESSION_COOKIE_NAMES: readonly string[] = [
+export const SESSION_COOKIE_NAMES: readonly string[] = [
   "authjs.session-token",
   "__Secure-authjs.session-token",
 ];
