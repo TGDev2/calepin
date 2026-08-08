@@ -1,6 +1,8 @@
-import { AnalysisSection, PrismaClient } from "@prisma/client";
+import { AnalysisSection } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const VALIDATION_CHECK = /analyses_validation_check/;
 const REVISION_NUMBER_CHECK = /analysis_section_revisions_revision_number_check/;
@@ -14,7 +16,8 @@ const POSITION_CHECK = /analysis_elements_position_check/;
 const FIXTURE_STATEMENT = "fixture statement";
 
 describe("analysis schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let userId: string;
   let sequence = 0;
 
@@ -46,10 +49,11 @@ describe("analysis schema", () => {
   }
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
     const user = await prisma.user.create({
       data: { email: "analysis-schema@example.test", name: "Test User" },
     });
+    setActor(user.id);
     userId = user.id;
   });
 

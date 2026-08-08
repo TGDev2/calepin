@@ -11,10 +11,19 @@ import type { Prisma } from "@prisma/client";
  * will pass straight to `prisma.thread.findMany`, kept in one place so
  * nobody restates it or the include by hand.
  */
-export function openThreadsQuery(outlineId: string): Prisma.ThreadFindManyArgs {
+const OPEN_THREADS_INCLUDE = { openingChapter: true } as const satisfies Prisma.ThreadInclude;
+
+/** What the query returns: a thread, with the chapter it opened at. */
+export type OpenThread = Prisma.ThreadGetPayload<{ include: typeof OPEN_THREADS_INCLUDE }>;
+
+export function openThreadsQuery(outlineId: string) {
+  // `satisfies`, not an annotation. Annotating the return as
+  // `Prisma.ThreadFindManyArgs` widens it, and the include stops reaching the
+  // result type — `findMany(openThreadsQuery(...))` then hands back a bare
+  // `Thread` and the chapter this query exists to carry is not there.
   return {
     where: { outlineId, status: { not: "CLOSED" } },
-    include: { openingChapter: true },
+    include: OPEN_THREADS_INCLUDE,
     orderBy: { createdAt: "asc" },
-  };
+  } satisfies Prisma.ThreadFindManyArgs;
 }

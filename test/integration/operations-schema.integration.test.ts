@@ -1,5 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 /**
  * CAL-021, against the real server. Two acceptance criteria drive this suite:
@@ -12,7 +13,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
  * under test is what a row records about a call, never what the call produced.
  */
 describe("operations schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createProjectFixture() {
@@ -20,6 +22,7 @@ describe("operations schema", () => {
     const user = await prisma.user.create({
       data: { email: `operations-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `operations-${sequence}`, userId: user.id },
     });
@@ -64,7 +67,7 @@ describe("operations schema", () => {
   const REPLAY_PAYLOAD = { chapterOrderKey: "i", targetWordCount: 1200, freedomLevel: "balanced" };
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {

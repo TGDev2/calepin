@@ -43,6 +43,14 @@ export const ERROR_CODES = [
 
   // internal
   "INTERNAL_ERROR",
+  /**
+   * A write reached an audited model with no actor in scope (CAL-022). It is a
+   * programming error — a call site that forgot to open an actor scope — so it
+   * throws rather than being returned as a value, and it is `internal` rather
+   * than `forbidden`: the writer is not being refused a right, the code failed
+   * to say on whose behalf it was writing.
+   */
+  "AUDIT_ACTOR_REQUIRED",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -66,4 +74,5 @@ export const CATEGORY_BY_CODE = {
   PROVIDER_REJECTED: "provider",
   TIMEOUT: "timeout",
   INTERNAL_ERROR: "internal",
+  AUDIT_ACTOR_REQUIRED: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

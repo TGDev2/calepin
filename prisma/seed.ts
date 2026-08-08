@@ -1,11 +1,16 @@
+import { auditExtension, runWithActor } from "@calepin/shared/audit";
 import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// The seed is the first caller shaped like production: it opens an actor scope
+// once, and every audited write underneath is credited to it without a single
+// call site naming the author (CAL-022).
+const prisma = new PrismaClient().$extends(auditExtension());
 
 async function main() {
   console.log("Seeding demo data...");
 
-  // Upsert demo user.
+  // Upsert demo user. `User` is outside the audit set — the author of a change
+  // to an account is the account holder — so this one write needs no scope.
   const demoUser = await prisma.user.upsert({
     where: { email: "demo@calepin.local" },
     update: {},
@@ -16,6 +21,12 @@ async function main() {
   });
   console.log(`User: ${demoUser.email}`);
 
+  await runWithActor(demoUser.id, () => seedProjectData(demoUser.id));
+
+  console.log("Seeding complete.");
+}
+
+async function seedProjectData(demoUserId: string) {
   // Upsert three projects at different statuses. One carries a custom target
   // length so the demo data covers both shapes the schema allows: a preset with
   // no word count, and CUSTOM with one.
@@ -54,7 +65,7 @@ async function main() {
       create: {
         id: proj.id,
         title: proj.title,
-        userId: demoUser.id,
+        userId: demoUserId,
         language: "fr",
         targetLength: proj.targetLength,
         targetWordCount: proj.targetWordCount,
@@ -128,12 +139,10 @@ Marc continua son chemin, sa valise à la main, se demandant ce que son propre r
       content: storyContent,
       wordCount,
       language: "fr",
-      editedById: demoUser.id,
+      editedById: demoUserId,
     },
   });
   console.log("Source text: version 1 created/updated");
-
-  console.log("Seeding complete.");
 }
 
 main()

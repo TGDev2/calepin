@@ -5,9 +5,10 @@ import {
   orderKeyAt,
   orderKeysBetween,
 } from "@calepin/outline";
-import { PrismaClient } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const PART_ORDER_KEY_CHECK = /parts_order_key_check/;
 const CHAPTER_ORDER_KEY_CHECK = /chapters_order_key_check/;
@@ -23,7 +24,8 @@ const WORD_COUNT_CHECK = /chapter_revisions_word_count_check/;
  * where a chapter sits and what may reference it, never what happens in it.
  */
 describe("outline schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createPlanFixture() {
@@ -31,6 +33,7 @@ describe("outline schema", () => {
     const user = await prisma.user.create({
       data: { email: `outline-schema-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `outline-schema-${sequence}`, userId: user.id },
     });
@@ -95,7 +98,7 @@ describe("outline schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -126,8 +129,11 @@ describe("outline schema", () => {
       await expect(createChapter(plan, "a0")).rejects.toThrow(CHAPTER_ORDER_KEY_CHECK);
       await expect(
         rawQuery(
-          `INSERT INTO "chapters" ("id", "outlineId", "bibleId", "partId", "orderKey", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, now())`,
+          // `updatedById` is NOT NULL since CAL-022, and a raw insert is one of
+          // the two paths the extension cannot see.
+          `INSERT INTO "chapters" ("id", "outlineId", "bibleId", "partId", "orderKey", "updatedAt", "updatedById")
+           VALUES ($1, $2, $3, $4, $5, now(),
+                   (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $3))`,
           ["raw-trailing-zero", plan.outlineId, plan.bibleId, plan.partId, "a10"],
         ),
       ).rejects.toThrow(CHAPTER_ORDER_KEY_CHECK);

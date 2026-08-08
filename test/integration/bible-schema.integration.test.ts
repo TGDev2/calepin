@@ -1,6 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const AGE_CHECK = /characters_age_check/;
 const DISTINCT_CHARACTERS_CHECK = /relationships_distinct_characters_check/;
@@ -29,10 +31,14 @@ const COMPLETE_SHEET = {
   speechStyle: "fixture speech style",
   heldKnowledge: ["fixture knowledge a", "fixture knowledge b"],
   elementsToPreserve: ["fixture element to preserve"],
-} as const;
+  // `satisfies`, not `as const`. `as const` froze the two list columns into
+  // readonly tuples, which Prisma's create input refuses; this keeps the
+  // literal types the enum column needs without making the arrays readonly.
+} satisfies Omit<Prisma.CharacterUncheckedCreateInput, "bibleId">;
 
 describe("bible schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createBibleFixture() {
@@ -40,6 +46,7 @@ describe("bible schema", () => {
     const user = await prisma.user.create({
       data: { email: `bible-schema-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `bible-schema-${sequence}`, userId: user.id },
     });
@@ -64,7 +71,7 @@ describe("bible schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -202,8 +209,12 @@ describe("bible schema", () => {
 
       await expect(
         rawQuery(
-          `INSERT INTO "characters" ("id", "bibleId", "name", "lockedFields", "updatedAt")
-           VALUES ($1, $2, 'fixture invalid lock', ARRAY['NOT_A_SHEET_FIELD']::"character_field"[], now())`,
+          // `updatedById` is NOT NULL since CAL-022 and no client extension
+          // sees a raw insert, so the statement supplies it — otherwise this
+          // test would fail on the audit column instead of on the enum it names.
+          `INSERT INTO "characters" ("id", "bibleId", "name", "lockedFields", "updatedAt", "updatedById")
+           VALUES ($1, $2, 'fixture invalid lock', ARRAY['NOT_A_SHEET_FIELD']::"character_field"[], now(),
+                   (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-invalid-lock", bibleId],
         ),
       ).rejects.toThrow(/invalid input value for enum character_field/);
@@ -520,8 +531,9 @@ describe("bible schema", () => {
 
       await expect(
         rawQuery(
-          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural", "updatedAt")
-           VALUES ($1, $2, 'fixture raw unmentioned limits', 'fixture statement', true, now())`,
+          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural", "updatedAt", "updatedById")
+           VALUES ($1, $2, 'fixture raw unmentioned limits', 'fixture statement', true, now(),
+                   (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-raw-rule", bibleId],
         ),
       ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
@@ -535,8 +547,9 @@ describe("bible schema", () => {
 
       await expect(
         rawQuery(
-          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "limits", "updatedAt")
-           VALUES ($1, $2, 'fixture null limits', 'fixture statement', NULL, now())`,
+          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "limits", "updatedAt", "updatedById")
+           VALUES ($1, $2, 'fixture null limits', 'fixture statement', NULL, now(),
+                   (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-null-limits", bibleId],
         ),
       ).rejects.toThrow(/null value in column "limits"/);

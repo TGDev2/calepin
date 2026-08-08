@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { openThreadsQuery } from "../../prisma/queries/open-threads";
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 /**
  * Every fixture string here is technical. §9 forbids literary content in a
@@ -10,7 +10,8 @@ import { openThreadsQuery } from "../../prisma/queries/open-threads";
  * is about.
  */
 describe("thread schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createPlanFixture() {
@@ -18,6 +19,7 @@ describe("thread schema", () => {
     const user = await prisma.user.create({
       data: { email: `thread-schema-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `thread-schema-${sequence}`, userId: user.id },
     });
@@ -53,7 +55,7 @@ describe("thread schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {

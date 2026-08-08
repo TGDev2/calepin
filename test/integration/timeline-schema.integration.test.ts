@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const PLACEMENT_CHECK = /timeline_events_placement_check/;
 const ABSOLUTE_DATE_CHECK = /timeline_events_absolute_date_check/;
@@ -15,7 +16,8 @@ const DECLARED_AGE_CHECK = /timeline_event_participants_declared_age_check/;
  * test is where an event may be placed, never what happens in it.
  */
 describe("timeline schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createBibleFixture() {
@@ -23,6 +25,7 @@ describe("timeline schema", () => {
     const user = await prisma.user.create({
       data: { email: `timeline-schema-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `timeline-schema-${sequence}`, userId: user.id },
     });
@@ -50,7 +53,7 @@ describe("timeline schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -228,8 +231,11 @@ describe("timeline schema", () => {
 
         await expect(
           rawQuery(
-            `INSERT INTO "timeline_events" ("id", "bibleId", "name", "category", "absoluteDay", "updatedAt")
-             VALUES ($1, $2, $3, 'NARRATED', 5, now())`,
+            // `updatedById` is NOT NULL since CAL-022, and a raw insert is one
+            // of the two paths the extension cannot see.
+            `INSERT INTO "timeline_events" ("id", "bibleId", "name", "category", "absoluteDay", "updatedAt", "updatedById")
+             VALUES ($1, $2, $3, 'NARRATED', 5, now(),
+                     (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
             [`raw-${sequence}`, bibleId, "raw-imprecise"],
           ),
         ).rejects.toThrow(ABSOLUTE_DATE_CHECK);

@@ -1,13 +1,15 @@
-import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 // The database is the one `global-setup.ts` started and migrated, so this suite
 // exercises the committed schema instead of a copy of it maintained by hand.
 describe("source text word limit", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -16,6 +18,7 @@ describe("source text word limit", () => {
 
   async function createProject(email: string) {
     const user = await prisma.user.create({ data: { email, name: "Test User" } });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: "Test Project", userId: user.id },
     });

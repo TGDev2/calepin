@@ -1,6 +1,8 @@
-import { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const CANONICAL_PER_PROJECT_KEY = /creative_directions_canonical_per_project_key/;
 
@@ -9,7 +11,16 @@ const CANONICAL_PER_PROJECT_KEY = /creative_directions_canonical_per_project_key
  * content in any committed artefact, and a schema test needs none: what is
  * under test is the shape, never the prose it will one day hold.
  */
-function fixtureDirection(overrides: Partial<Record<string, unknown>> = {}) {
+// `projectId` is required and the rest is optional, stated rather than left to
+// a `Record<string, unknown>` spread — that shape erased `projectId` from the
+// result type, so a call missing it compiled and only failed at runtime.
+type DirectionOverrides = Partial<Prisma.CreativeDirectionUncheckedCreateInput> & {
+  projectId: string;
+};
+
+function fixtureDirection(
+  overrides: DirectionOverrides,
+): Prisma.CreativeDirectionUncheckedCreateInput {
   return {
     workingTitle: "fixture title",
     developedPremise: "fixture premise",
@@ -29,7 +40,8 @@ function fixtureDirection(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("creative direction schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createProjectFixture() {
@@ -40,6 +52,7 @@ describe("creative direction schema", () => {
         name: "Test User",
       },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `creative-direction-schema-${sequence}`, userId: user.id },
     });
@@ -48,7 +61,7 @@ describe("creative direction schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -126,12 +139,13 @@ describe("creative direction schema", () => {
                ("id", "projectId", "workingTitle", "developedPremise", "dominantGenre",
                 "mainConflict", "protagonistArc", "newStakes", "charactersToIntroduce",
                 "endingNature", "mainRisks", "elementsKeptFromSource", "elementsTransformed",
-                "novelPotentialAssessment", "isCanonical", "origin", "updatedAt")
+                "novelPotentialAssessment", "isCanonical", "origin", "updatedAt", "updatedById")
              VALUES
                ($1, $2, 'fixture title', 'fixture premise', 'fixture genre',
                 'fixture conflict', 'fixture arc', '{}', '{}',
                 'fixture ending', '{}', '{}', '{}',
-                'fixture assessment', true, 'PROPOSED', now())`,
+                'fixture assessment', true, 'PROPOSED', now(),
+                (SELECT "userId" FROM "projects" WHERE "id" = $2))`,
             ["raw-insert-fixture", projectId],
           ),
         ).rejects.toThrow(CANONICAL_PER_PROJECT_KEY);

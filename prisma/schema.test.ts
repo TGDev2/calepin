@@ -1,6 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import {
+  AUDIT_AUTHOR_FIELD,
+  AUDIT_AUTHOR_RELATION,
+  AUDIT_UNATTRIBUTED,
+  AUDIT_VERSION_FIELD,
+  AUDITED_MODEL_NAMES,
+  AUDITED_MODELS,
+  UNAUDITED_MUTABLE_MODELS,
+} from "@calepin/shared/audit";
 import { describe, expect, it } from "vitest";
 
 const schema = readFileSync(fileURLToPath(new URL("./schema.prisma", import.meta.url)), "utf8");
@@ -46,6 +55,23 @@ function modelFields(name: string): string[] {
     .map((line) => line.replace(/\/\/.*$/, "").trim())
     .map((line) => /^([a-z][A-Za-z0-9]*)\s+\S/.exec(line)?.[1])
     .filter((field): field is string => field !== undefined);
+}
+
+/**
+ * A model's mandatory scalar fields — what a caller must supply to write a row,
+ * which is what "required" means in the assertions below.
+ *
+ * The audit block (CAL-022) is excluded. `updatedById` and `version` are NOT
+ * NULL, but they are bookkeeping the extension and the column default fill in;
+ * counting them among a model's narrative requirements would say that a chapter
+ * plan has five mandatory attributes when the product says it has three.
+ */
+function requiredScalarFields(name: string): string[] {
+  return modelBlock(name)
+    .split("\n")
+    .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+(String|Int|Boolean)(?!\?)/.exec(line)?.[1])
+    .filter((field): field is string => field !== undefined)
+    .filter((field) => field !== AUDIT_AUTHOR_FIELD && field !== AUDIT_VERSION_FIELD);
 }
 
 function toScreamingSnake(field: string): string {
@@ -301,6 +327,12 @@ describe("prisma schema", () => {
       "lockedFields",
       "createdAt",
       "updatedAt",
+      // The audit block (CAL-022). Bookkeeping, not the sheet: nobody locks
+      // "who last saved this", and a lockable field the author cannot write is
+      // a member of CharacterField that means nothing.
+      AUDIT_AUTHOR_FIELD,
+      AUDIT_AUTHOR_RELATION,
+      AUDIT_VERSION_FIELD,
       "bible",
       "outgoingRelationships",
       "incomingRelationships",
@@ -987,10 +1019,7 @@ describe("prisma schema", () => {
       // reports a chapter with no dramatic function, and a NOT NULL would make
       // the finding unstorable instead of visible.
       it("makes every planning attribute optional", () => {
-        const required = modelBlock("ChapterOutline")
-          .split("\n")
-          .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+(String|Int|Boolean)(?!\?)/.exec(line)?.[1])
-          .filter((field): field is string => field !== undefined);
+        const required = requiredScalarFields("ChapterOutline");
 
         expect(required).toEqual(["id", "bibleId", "chapterId"]);
       });
@@ -1119,10 +1148,7 @@ describe("prisma schema", () => {
     // A thread cannot exist without the chapter it was raised in; it may well
     // never be paid off, so only the opening reference is required.
     it("requires the opening chapter and nothing else", () => {
-      const required = modelBlock("Thread")
-        .split("\n")
-        .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+(String|Int|Boolean)(?!\?)/.exec(line)?.[1])
-        .filter((field): field is string => field !== undefined);
+      const required = requiredScalarFields("Thread");
 
       expect(required).toEqual([
         "id",
@@ -1556,5 +1582,143 @@ describe("prisma schema", () => {
       expect(modelBlock("Export")).toMatch(/@@map\("exports"\)/);
       expect(modelBlock("Publication")).toMatch(/@@map\("publications"\)/);
     });
+  });
+});
+
+/**
+ * CAL-022 — traceability, and above all its coverage.
+ *
+ * The hard part of this task is not the stamping logic, it is not missing a
+ * table. So the rule is mechanical and asserted rather than hand-kept: a model
+ * carrying `updatedAt` is a model that can be modified, and a model that can be
+ * modified carries the audit block. A model added later with `updatedAt` and no
+ * block fails here, in the `unit` project, without a database.
+ */
+describe("audit fields (CAL-022)", () => {
+  /** Every model declared in the schema, in declaration order. */
+  function declaredModels(): string[] {
+    return [...schema.matchAll(/^model (\w+) \{/gm)]
+      .map((match) => match[1])
+      .filter((name): name is string => name !== undefined);
+  }
+
+  const mutableModels = declaredModels().filter((name) =>
+    modelFields(name).includes("updatedAt"),
+  );
+
+  it("registers every model that can be modified, and nothing else", () => {
+    expect([...mutableModels].sort()).toEqual(
+      [...AUDITED_MODEL_NAMES, ...UNAUDITED_MUTABLE_MODELS].sort(),
+    );
+  });
+
+  it("keeps User outside the set, deliberately", () => {
+    // The author of a change to an account is the account holder, which is the
+    // row's own id. A self-referencing column would add a cycle and no
+    // information — so the exception is asserted rather than tolerated.
+    expect(UNAUDITED_MUTABLE_MODELS).toEqual(["User"]);
+    expect(modelFields("User")).not.toContain(AUDIT_AUTHOR_FIELD);
+  });
+
+  // An append-only row is written once: its author is its creator and there is
+  // no second state to count. Naming them here is what keeps "no updatedAt"
+  // from being an oversight nobody notices.
+  it.each([
+    "SourceTextVersion",
+    "AnalysisSectionRevision",
+    "AnalysisElement",
+    "ChapterOutlineCharacter",
+    "ChapterOutlineFact",
+    "ChapterRevision",
+    "ThreadContinuation",
+    "GenerationAttempt",
+    "QualityIssuePassage",
+  ])("leaves the append-only %s alone", (model) => {
+    const fields = modelFields(model);
+
+    expect(fields).not.toContain("updatedAt");
+    expect(fields).not.toContain(AUDIT_AUTHOR_FIELD);
+    expect(fields).not.toContain(AUDIT_VERSION_FIELD);
+  });
+
+  describe.each(AUDITED_MODEL_NAMES)("%s", (model) => {
+    const fields = modelFields(model);
+    const block = modelBlock(model);
+
+    it("carries the identifier and both timestamps", () => {
+      expect(block).toMatch(/^\s*id\s+String\s+@id @default\(cuid\(\)\)/m);
+      expect(fields).toContain("createdAt");
+      expect(fields).toContain("updatedAt");
+    });
+
+    it("carries the author of the last modification, and it is mandatory", () => {
+      // `String`, not `String?`. The column is what makes an unattributed row
+      // unwritable even through raw SQL, which no client extension can police.
+      //
+      // The sentinel default is what keeps the column out of the caller's
+      // contract: without one Prisma would demand it in every create input, and
+      // an extension filling a field the compiler already demands is
+      // decoration. It is never storable — the foreign key refuses it.
+      expect(block).toMatch(
+        new RegExp(
+          `^\\s*${AUDIT_AUTHOR_FIELD}\\s+String\\s+@default\\("${AUDIT_UNATTRIBUTED}"\\)`,
+          "m",
+        ),
+      );
+      expect(block).not.toMatch(new RegExp(`^\\s*${AUDIT_AUTHOR_FIELD}\\s+String\\?`, "m"));
+    });
+
+    it("points that author at a user, without orphaning the trail", () => {
+      const relation = new RegExp(
+        `^\\s*${AUDIT_AUTHOR_RELATION}\\s+User\\s+@relation\\(([^)]*)\\)`,
+        "m",
+      ).exec(block);
+
+      expect(relation?.[1]).toContain(`"${model}UpdatedBy"`);
+      expect(relation?.[1]).toContain("fields: [updatedById]");
+      // NoAction rather than Restrict — probed, and recorded in the schema
+      // header: RESTRICT is checked immediately and refuses the deletion of an
+      // account over rows the account's own cascade is about to remove.
+      expect(relation?.[1]).toContain("onDelete: NoAction");
+    });
+
+    it("counts its states from one", () => {
+      expect(block).toMatch(
+        new RegExp(`^\\s*${AUDIT_VERSION_FIELD}\\s+Int\\s+@default\\(1\\)`, "m"),
+      );
+    });
+
+    it("maps to the table the registry names", () => {
+      expect(block).toMatch(new RegExp(`@@map\\("${AUDITED_MODELS[model].table}"\\)`));
+    });
+
+    it("declares its status field, or declares that it has none", () => {
+      const { status, statusKind, statusless } = AUDITED_MODELS[model];
+
+      if (status === null) {
+        // CAL-022 does not invent a lifecycle the product has not defined. What
+        // it refuses is an undeclared gap: a model with no status says why.
+        expect(statusKind).toBeNull();
+        expect(statusless).toBeTruthy();
+        return;
+      }
+
+      expect(statusless).toBeNull();
+      expect(fields).toContain(status);
+      // A timestamp-as-status is nullable by construction: the state is whether
+      // it is set. An enum status carries a default, so a row is never in no
+      // state at all.
+      const declaration = new RegExp(`^\\s*${status}\\s+(\\S+)`, "m").exec(block)?.[1];
+      expect(declaration).toBeDefined();
+      expect(declaration?.endsWith("?")).toBe(statusKind === "timestamp");
+    });
+  });
+
+  it("gives the back-relation on User one field per audited model", () => {
+    const user = modelBlock("User");
+
+    for (const model of AUDITED_MODEL_NAMES) {
+      expect(user).toContain(`@relation("${model}UpdatedBy")`);
+    }
   });
 });

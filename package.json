@@ -13,7 +13,7 @@
     "build": "pnpm --filter @calepin/web build",
     "start": "pnpm --filter @calepin/web start",
     "postinstall": "prisma generate",
-    "typecheck": "tsc -p prisma/tsconfig.json --noEmit && pnpm -r typecheck",
+    "typecheck": "tsc -p prisma/tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit && pnpm -r typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@calepin/outline": "workspace:*",
+    "@calepin/shared": "workspace:*",
     "@playwright/test": "^1.62.1",
     "@testcontainers/postgresql": "^12.1.0",
     "@types/pg": "^8.21.0",

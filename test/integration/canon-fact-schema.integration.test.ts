@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const VALIDITY_CHECK = /canon_facts_validity_check/;
 const FROM_PRECISION_CHECK = /canon_facts_valid_from_precision_check/;
@@ -17,7 +18,8 @@ const EXACTLY_ONE_CHECK = /canon_fact_subjects_exactly_one_check/;
  * already practices.
  */
 describe("canon fact schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let sequence = 0;
 
   async function createBibleFixture() {
@@ -25,6 +27,7 @@ describe("canon fact schema", () => {
     const user = await prisma.user.create({
       data: { email: `canon-fact-schema-${sequence}@example.test`, name: "Test User" },
     });
+    setActor(user.id);
     const project = await prisma.project.create({
       data: { title: `canon-fact-schema-${sequence}`, userId: user.id },
     });
@@ -66,7 +69,7 @@ describe("canon fact schema", () => {
   }
 
   beforeAll(() => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
   });
 
   afterAll(async () => {
@@ -260,8 +263,11 @@ describe("canon fact schema", () => {
 
         await expect(
           rawQuery(
-            `INSERT INTO "canon_facts" ("id", "bibleId", "statement", "isTrue", "validity", "source", "updatedAt")
-             VALUES ($1, $2, 'fixture statement', true, 'DURING_PERIOD', 'USER', now())`,
+            // `updatedById` is NOT NULL since CAL-022, and a raw insert is one
+            // of the two paths the extension cannot see.
+            `INSERT INTO "canon_facts" ("id", "bibleId", "statement", "isTrue", "validity", "source", "updatedAt", "updatedById")
+             VALUES ($1, $2, 'fixture statement', true, 'DURING_PERIOD', 'USER', now(),
+                     (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
             [`raw-${sequence}`, bibleId],
           ),
         ).rejects.toThrow(VALIDITY_CHECK);

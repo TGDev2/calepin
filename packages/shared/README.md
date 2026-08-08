@@ -12,6 +12,7 @@ them; an import in the other direction is a cycle.
 | Import | What it holds |
 |---|---|
 | `@calepin/shared` | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS` |
+| `@calepin/shared/audit` | the audited-model registry, the actor scope and the Prisma extension that fills `updatedById` and `version` (CAL-022) |
 | `@calepin/shared/config` | the Zod environment schema and the single validated `process.env` read (CAL-006) |
 | `@calepin/shared/errors` | the `AppError` hierarchy, `Result`, the HTTP mapping, the French user messages (CAL-010) |
 | `@calepin/shared/generation` | the generation attempt lifecycle and its append-only guarantee (CAL-010) |
@@ -22,7 +23,10 @@ They are separate entry points on purpose: importing `@calepin/shared` for
 `BUSINESS_DOMAINS` must not drag in environment validation, and importing the
 logger must not require a complete environment.
 
-`@calepin/shared/logging` is server-side only — it reads `node:async_hooks`.
+`@calepin/shared/logging` and `@calepin/shared/audit` are server-side only — both
+read `node:async_hooks`. `audit` describes the Prisma extension structurally and
+imports nothing from `@prisma/client`, not even a type, so the registry stays
+readable by the `unit` test project without a generated client.
 
 Nothing in the backlog owns `shared` as an epic. It grows from tasks that
 explicitly demand one implementation used in several runtimes — for example the

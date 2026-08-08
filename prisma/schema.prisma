@@ -7,6 +7,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// The audit block (CAL-022)
+//
+// Every model below that carries `updatedAt` also carries `updatedById`,
+// `updatedBy` and `version`. The three go together and the rule behind them is
+// mechanical rather than a judgement call: a row that can be modified must
+// record who modified it last, and a counter is only meaningful where there is
+// a second state to count. A model *without* `updatedAt` is append-only — it is
+// written once, and its author is already its creator
+// (`AnalysisSectionRevision.createdById`, `ChapterRevision.createdById`,
+// `SourceTextVersion.editedById`) or it is a join row asserting nothing of its
+// own. `prisma/schema.test.ts` pins that rule against
+// `@calepin/shared/audit`'s registry, so a model added later with `updatedAt`
+// and no audit block fails there instead of shipping untraceable.
+//
+// `User` is the one deliberate exception: the author of a change to an account
+// is the account holder, which is the row's own `id`.
+//
+// `updatedById` is NOT NULL, which is what makes an unattributed row unwritable
+// even through raw SQL or a nested write — neither of which a Prisma client
+// extension can see. The extension in `@calepin/shared/audit` fills the column
+// from the request context and fails early and readably; this column is what
+// makes the guarantee unconditional.
+//
+// **The `"unattributed"` default is a sentinel, and it is deliberate.** Without
+// a default, Prisma makes `updatedById` a required member of every model's
+// create input, so no business code could ever *not* name the author — and an
+// extension that fills a field the compiler already demands is decoration. The
+// default takes the column out of the caller's contract. It can never be
+// stored: no `User` has that id, the foreign key refuses it, and
+// `users_id_attributable_check` keeps one from being created. A write that
+// escapes the extension therefore fails on the foreign key, naming the sentinel
+// — a better message than a NOT NULL violation, since it says what went wrong
+// rather than only that something is missing.
+//
+// **`onDelete: NoAction`, and the foreign key is DEFERRABLE INITIALLY DEFERRED
+// in the migration** — probed, not assumed, and the first two answers were
+// wrong. RESTRICT is checked immediately and refused the deletion of an account
+// over rows the account's own `projects` cascade was about to remove. NO ACTION
+// defers to the end of the *statement*, which holds at one level of cascade and
+// breaks at two (`users` → `projects` → `bibles`): the deeper cascade is queued
+// behind the check that reads the rows it is about to delete. Deferring to
+// COMMIT is the only form that holds at any depth, and it is the honest one —
+// "no row names an author who does not exist" is an invariant of the
+// transaction. A row written by *another* user inside someone else's project is
+// still refused, which is the property that matters: an audit trail must not be
+// silently orphaned. Prisma cannot express deferrability, so the migration
+// writes those foreign keys by hand; introspection ignores it, so there is no
+// drift.
+// ---------------------------------------------------------------------------
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -14,14 +65,44 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects                 Project[]
+  projects                 Project[]                 @relation("ProjectOwner")
   sourceTextVersionsEdited SourceTextVersion[]
-  analysesValidated        Analysis[]
+  analysesValidated        Analysis[]                @relation("AnalysisValidatedBy")
   analysisRevisionsCreated AnalysisSectionRevision[]
-  analysisAnnotations      AnalysisAnnotation[]
-  biblesValidated          Bible[]
+  analysisAnnotations      AnalysisAnnotation[]      @relation("AnalysisAnnotationAuthor")
+  biblesValidated          Bible[]                   @relation("BibleValidatedBy")
   chapterRevisionsCreated  ChapterRevision[]
-  exportsRequested         Export[]
+  exportsRequested         Export[]                  @relation("ExportRequestedBy")
+
+  /// The audit trail (CAL-022): every mutable row this account last modified.
+  /// One field per audited model, because Prisma requires the opposite side of
+  /// every relation to be declared; nothing reads them individually.
+  projectsUpdated                  Project[]                  @relation("ProjectUpdatedBy")
+  sourceTextsUpdated               SourceText[]               @relation("SourceTextUpdatedBy")
+  analysesUpdated                  Analysis[]                 @relation("AnalysisUpdatedBy")
+  analysisAnnotationsUpdated       AnalysisAnnotation[]       @relation("AnalysisAnnotationUpdatedBy")
+  creativeDirectionsUpdated        CreativeDirection[]        @relation("CreativeDirectionUpdatedBy")
+  biblesUpdated                    Bible[]                    @relation("BibleUpdatedBy")
+  bibleIdentitiesUpdated           BibleIdentity[]            @relation("BibleIdentityUpdatedBy")
+  bibleStylesUpdated               BibleStyle[]               @relation("BibleStyleUpdatedBy")
+  charactersUpdated                Character[]                @relation("CharacterUpdatedBy")
+  relationshipsUpdated             Relationship[]             @relation("RelationshipUpdatedBy")
+  placesUpdated                    Place[]                    @relation("PlaceUpdatedBy")
+  worldRulesUpdated                WorldRule[]                @relation("WorldRuleUpdatedBy")
+  timelineEventsUpdated            TimelineEvent[]            @relation("TimelineEventUpdatedBy")
+  timelineEventParticipantsUpdated TimelineEventParticipant[] @relation("TimelineEventParticipantUpdatedBy")
+  canonFactsUpdated                CanonFact[]                @relation("CanonFactUpdatedBy")
+  canonFactBeliefsUpdated          CanonFactBelief[]          @relation("CanonFactBeliefUpdatedBy")
+  canonFactSubjectsUpdated         CanonFactSubject[]         @relation("CanonFactSubjectUpdatedBy")
+  outlinesUpdated                  Outline[]                  @relation("OutlineUpdatedBy")
+  partsUpdated                     Part[]                     @relation("PartUpdatedBy")
+  chaptersUpdated                  Chapter[]                  @relation("ChapterUpdatedBy")
+  chapterOutlinesUpdated           ChapterOutline[]           @relation("ChapterOutlineUpdatedBy")
+  threadsUpdated                   Thread[]                   @relation("ThreadUpdatedBy")
+  generationsUpdated               Generation[]               @relation("GenerationUpdatedBy")
+  qualityIssuesUpdated             QualityIssue[]             @relation("QualityIssueUpdatedBy")
+  exportsUpdated                   Export[]                   @relation("ExportUpdatedBy")
+  publicationsUpdated              Publication[]              @relation("PublicationUpdatedBy")
 
   @@map("users")
 }
@@ -80,8 +161,11 @@ model Project {
   status          ProjectStatus @default(DRAFT)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  updatedById     String        @default("unattributed")
+  version         Int           @default(1)
+  updatedBy       User          @relation("ProjectUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                @relation("ProjectOwner", fields: [userId], references: [id], onDelete: Cascade)
   sourceText         SourceText?
   analysis           Analysis?
   creativeDirections CreativeDirection[]
@@ -103,10 +187,13 @@ model Project {
 }
 
 model SourceText {
-  id        String   @id @default(cuid())
-  projectId String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  projectId   String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("SourceTextUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project  Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions SourceTextVersion[]
@@ -194,13 +281,16 @@ model Analysis {
   validatedById String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  updatedById   String    @default("unattributed")
+  version       Int       @default(1)
+  updatedBy     User      @relation("AnalysisUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Restrict, not Prisma's SetNull default for an optional relation: nulling
   // validatedById while validatedAt stands would break
   // analyses_validation_check, so deleting the author would fail anyway — with
   // a check violation instead of the referential error that names the cause.
-  validatedBy User?   @relation(fields: [validatedById], references: [id], onDelete: Restrict)
+  validatedBy User?   @relation("AnalysisValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
 
   sectionRevisions AnalysisSectionRevision[]
 
@@ -293,15 +383,18 @@ model AnalysisElement {
 /// A free note the author attaches to one element. Mutable, unlike everything
 /// above it, so it carries its own timestamps.
 model AnalysisAnnotation {
-  id        String   @id @default(cuid())
-  elementId String
-  authorId  String
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  elementId   String
+  authorId    String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("AnalysisAnnotationUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   element AnalysisElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
-  author  User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  author  User            @relation("AnalysisAnnotationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
 
   @@index([elementId])
   @@map("analysis_annotations")
@@ -351,8 +444,11 @@ model CreativeDirection {
   isCanonical Boolean         @default(false)
   origin      DirectionOrigin
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("CreativeDirectionUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -382,15 +478,18 @@ model Bible {
   validatedAt   DateTime?
   validatedById String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("BibleUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Restrict, as Analysis.validatedBy already is: nulling validatedById while
   // validatedAt stands would break bibles_validation_check, so the delete would
   // fail anyway — with a check violation instead of the referential error that
   // names the cause.
-  validatedBy User?   @relation(fields: [validatedById], references: [id], onDelete: Restrict)
+  validatedBy User?   @relation("BibleValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
 
   identity      BibleIdentity?
   style         BibleStyle?
@@ -444,8 +543,11 @@ model BibleIdentity {
   /// it able to disagree. CAL-095 makes it bite before a generation runs.
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("BibleIdentityUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
@@ -475,8 +577,11 @@ model BibleStyle {
 
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("BibleStyleUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
@@ -583,8 +688,11 @@ model Character {
   /// here.
   lockedFields CharacterField[] @default([])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("CharacterUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
@@ -666,8 +774,11 @@ model Relationship {
 
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("RelationshipUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible         Bible     @relation(fields: [bibleId], references: [id], onDelete: Cascade)
   fromCharacter Character @relation("RelationshipSource", fields: [bibleId, fromCharacterId], references: [bibleId, id], onDelete: Cascade)
@@ -697,8 +808,11 @@ model Place {
 
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("PlaceUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
@@ -741,8 +855,11 @@ model WorldRule {
 
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("WorldRuleUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
@@ -848,8 +965,11 @@ model TimelineEvent {
   /// The lock, same convention as every other bible element (CAL-095).
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("TimelineEventUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible           Bible           @relation(fields: [bibleId], references: [id], onDelete: Cascade)
   // NoAction, and above all not Prisma's SetNull default for an optional
@@ -910,8 +1030,11 @@ model TimelineEventParticipant {
   /// deliberately not above, as characters_age_check already is.
   declaredAge Int?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("TimelineEventParticipantUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   event     TimelineEvent @relation(fields: [bibleId, eventId], references: [bibleId, id], onDelete: Cascade)
   character Character     @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
@@ -1046,8 +1169,11 @@ model CanonFact {
   /// The lock, same convention as every other bible element (CAL-095).
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("CanonFactUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   bible              Bible          @relation(fields: [bibleId], references: [id], onDelete: Cascade)
   // NoAction, never Prisma's SetNull default for an optional relation:
@@ -1098,8 +1224,11 @@ model CanonFactBelief {
   characterId String
   state       CanonFactBeliefState
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("CanonFactBeliefUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   fact      CanonFact @relation(fields: [bibleId, factId], references: [bibleId, id], onDelete: Cascade)
   character Character @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
@@ -1136,8 +1265,11 @@ model CanonFactSubject {
   characterId String?
   placeId     String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("CanonFactSubjectUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   fact      CanonFact  @relation(fields: [bibleId, factId], references: [bibleId, id], onDelete: Cascade)
   character Character? @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
@@ -1167,8 +1299,11 @@ model Outline {
   projectId String @unique
   bibleId   String @unique
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("OutlineUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   bible   Bible   @relation(fields: [bibleId], references: [id], onDelete: Cascade)
@@ -1210,8 +1345,11 @@ model Part {
   tippingPoint      String? // basculement
   finalState        String? // état final
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("PartUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   outline  Outline   @relation(fields: [outlineId], references: [id], onDelete: Cascade)
   chapters Chapter[]
@@ -1284,8 +1422,11 @@ model Chapter {
   orderKey String
   status   ChapterStatus @default(PLANNED)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("ChapterUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   outline Outline @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
   // NoAction, never Cascade: deleting a part that still holds chapters would
@@ -1377,8 +1518,11 @@ model ChapterOutline {
   /// alone. The lock on the written chapter is Chapter.status = LOCKED.
   lockedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("ChapterOutlineUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   chapter        Chapter    @relation(fields: [bibleId, chapterId], references: [bibleId, id], onDelete: Cascade)
   // SET NULL **on one column only** — `ON DELETE SET NULL ("focalCharacterId")`,
@@ -1585,8 +1729,11 @@ model Thread {
 
   status ThreadStatus @default(OPEN)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("ThreadUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   outline        Outline  @relation(fields: [bibleId, outlineId], references: [bibleId, id], onDelete: Cascade)
   // NoAction, the pattern chapters_outlineId_partId_fkey already sets:
@@ -1795,8 +1942,11 @@ model Generation {
   errorCode     String?
   errorCategory ErrorCategory?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("GenerationUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -1986,8 +2136,11 @@ model QualityIssue {
   /// it, and it is enough until CAL-135 introduces the audit run itself.
   detectedByGenerationId String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("QualityIssueUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project              Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   detectedByGeneration Generation? @relation(fields: [detectedByGenerationId], references: [id], onDelete: SetNull)
@@ -2127,14 +2280,17 @@ model Export {
   /// a failure — exports_failure_check.
   errorCode   String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("ExportUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   // Restrict, as every other author column in this schema is: who asked for a
   // copy of the manuscript is the audit trail. Deleting the project still
   // works — this table cascades away before the reference is checked.
-  requestedBy User    @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  requestedBy User    @relation("ExportRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
 
   // The export history of a project, newest first (CAL-161).
   @@index([projectId, createdAt])
@@ -2199,8 +2355,11 @@ model Publication {
   /// the last withdrawal.
   unpublishedAt    DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("PublicationUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 

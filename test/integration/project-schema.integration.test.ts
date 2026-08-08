@@ -1,18 +1,21 @@
-import { PrismaClient } from "@prisma/client";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const CHECK_CONSTRAINT = /projects_custom_target_word_count_check/;
 
 describe("project schema", () => {
-  let prisma: PrismaClient;
+  let prisma: AuditedClient;
+  let setActor: (id: string) => void;
   let userId: string;
 
   beforeAll(async () => {
-    prisma = new PrismaClient();
+    ({ prisma, setActor } = createAuditedClient());
     const user = await prisma.user.create({
       data: { email: "project-schema@example.test", name: "Test User" },
     });
+    setActor(user.id);
     userId = user.id;
   });
 
