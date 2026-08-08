@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import { Client } from "pg";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 describe("source text word limit", () => {

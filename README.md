@@ -46,7 +46,8 @@ Autres scripts à la racine : `pnpm typecheck` (tous les paquets), `pnpm start`
 (sert le build de production), `pnpm build` (build de production), `pnpm test`
 (Vitest, unitaire), `pnpm test:integration` (Vitest, base PostgreSQL isolée par
 exécution via Testcontainers — nécessite Docker), `pnpm test:e2e` (Playwright,
-`apps/web`).
+`apps/web`), `pnpm db:seed` (peuple la base de données locale avec un utilisateur
+de démonstration, trois projets et un texte source de nouvelle courte).
 
 ## Arborescence
 
@@ -67,6 +68,8 @@ calepin/
 ├── docs/
 │   └── adr/                  décisions d'architecture — ADR-001 : forme du
 │                             backend, frontière couche IA / couche métier
+│
+├── prisma/                   schéma Prisma, migrations et seed
 │
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
@@ -178,7 +181,6 @@ et ne sont pas créés à vide.
 | Emplacement | Tâche |
 |---|---|
 | `apps/worker/` | CAL-060 — worker BullMQ, `pnpm worker` |
-| `prisma/` | CAL-011 et suivantes — schéma et `prisma/seed.ts` |
 
 ## Conventions
 
