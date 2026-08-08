@@ -7,7 +7,10 @@
  * the client half reads `useSession`, and they are shown side by side so a
  * mismatch between them is visible instead of theoretical.
  *
- * CAL-029 replaces this with the real account screen.
+ * It turned out to be worth keeping rather than replacing: CAL-028 and
+ * CAL-029 gave it a link to the sign-in screen and the account screen
+ * instead of retiring it, the same way a persistent header would in any
+ * other app.
  */
 
 import Link from "next/link";
@@ -26,7 +29,7 @@ export async function AccountBar() {
         Session serveur&nbsp;: <strong>{user ? user.email : "aucune"}</strong>
       </p>
       <SessionIndicator />
-      {user ? null : <Link href="/sign-in">Se connecter</Link>}
+      {user ? <Link href="/account">Mon compte</Link> : <Link href="/sign-in">Se connecter</Link>}
     </header>
   );
 }

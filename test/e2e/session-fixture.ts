@@ -75,3 +75,33 @@ export async function closeSignedInSession(session: SignedInSession): Promise<vo
     await prisma.$disconnect();
   }
 }
+
+/**
+ * Links an OAuth provider to a fixture user (CAL-029), the way
+ * `resolveOAuthAccountLink` (CAL-026/027) would after a real sign-in. Only
+ * the fields the account page reads matter here — `provider` — so the rest
+ * is filled with the minimum the schema requires.
+ */
+export async function linkAccount(userId: string, provider: string): Promise<void> {
+  const prisma = new PrismaClient();
+
+  try {
+    await prisma.account.create({
+      data: { userId, provider, providerAccountId: randomUUID(), type: "oauth" },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Whether a session row is still live — CAL-029's proof that sign-out invalidates it. */
+export async function sessionExists(sessionToken: string): Promise<boolean> {
+  const prisma = new PrismaClient();
+
+  try {
+    const session = await prisma.session.findUnique({ where: { sessionToken } });
+    return session !== null;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
