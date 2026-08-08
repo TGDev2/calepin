@@ -26,9 +26,10 @@ pnpm dev             # http://localhost:3000
 (`docker compose up -d`) ; `docker compose ps` montre leur état une fois
 `healthy`. Les données vivent dans des volumes Docker nommés et survivent à un
 `docker compose down` (sans `-v`). `apps/web/.env` est validé au démarrage par
-`@calepin/shared/config` (schéma Zod, `packages/shared/src/config`) ; aucun
-code applicatif ne se connecte encore aux services eux-mêmes — CAL-011
-(schéma Prisma) et CAL-060 (worker) sont les tâches qui les câbleront.
+`@calepin/shared/config` (schéma Zod, `packages/shared/src/config`) ; le `.env`
+de la racine ne porte que `DATABASE_URL`, pour la CLI Prisma qui ne lit que
+celui-là. PostgreSQL est câblé par le schéma Prisma (`prisma/`) ; Redis attend
+encore le worker (CAL-060) et S3 son premier export (E18).
 
 | Service | Port hôte | Identifiants locaux |
 |---|---|---|
@@ -42,12 +43,17 @@ courantes. Les identifiants ci-dessus sont des valeurs de développement local
 en clair, sans portée au-delà de cette machine — `apps/web/.env.example` les
 reprend telles quelles.
 
-Autres scripts à la racine : `pnpm typecheck` (tous les paquets), `pnpm start`
-(sert le build de production), `pnpm build` (build de production), `pnpm test`
-(Vitest, unitaire), `pnpm test:integration` (Vitest, base PostgreSQL isolée par
-exécution via Testcontainers — nécessite Docker), `pnpm test:e2e` (Playwright,
-`apps/web`), `pnpm db:seed` (peuple la base de données locale avec un utilisateur
-de démonstration, trois projets et un texte source de nouvelle courte).
+Autres scripts à la racine : `pnpm typecheck` (tous les paquets, plus
+`prisma/`), `pnpm start` (sert le build de production), `pnpm build` (build de
+production), `pnpm test` (Vitest, unitaire), `pnpm test:integration` (Vitest,
+base PostgreSQL isolée par exécution via Testcontainers, migrations appliquées —
+nécessite Docker), `pnpm test:e2e` (Playwright, `apps/web`), `pnpm db:seed`
+(peuple la base de données locale avec un utilisateur de démonstration, trois
+projets et un texte source de nouvelle courte).
+
+Le client Prisma est généré par le `postinstall` de la racine : pnpm 10 bloque
+les scripts d'installation des dépendances, donc sans cela un clone neuf et la
+CI importeraient un client jamais généré.
 
 ## Arborescence
 
