@@ -249,6 +249,17 @@ export async function createProjectGraph(
     },
   });
 
+  // The graph writes its rows directly, so the counters CAL-033 maintains at
+  // write time never moved. They are set to what the graph actually seeded —
+  // one chapter carrying one revision of one word — rather than reconciled,
+  // because this fixture must not depend on the seam being registered before it
+  // runs, and because an isolation suite asserting on an aggregate should be
+  // asserting on a number this file put there.
+  await prisma.project.update({
+    where: { id: project.id },
+    data: { writtenChapterCount: 1, totalWordCount: 1 },
+  });
+
   return {
     ownerId: user.id,
     projectId: project.id,

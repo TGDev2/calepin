@@ -50,6 +50,20 @@ function withWritePolicy(base: PrismaClient) {
 export type DatabaseClient = ReturnType<typeof withWritePolicy>;
 
 /**
+ * The client handed to an interactive transaction — the same delegates minus
+ * the ones a transaction cannot run, and with the write policy still applied.
+ *
+ * Read off `$transaction`'s own signature rather than written out, for the
+ * reason `DatabaseClient` is inferred: the shape is Prisma's, it changes with
+ * the extension, and naming it by hand would mean a cast at the one seam that
+ * has to be airtight. `$transaction` is overloaded — the array form and the
+ * interactive one — and `Parameters` reads the last declared overload, which is
+ * the interactive one; a Prisma release reordering them would fail here, at the
+ * type level, rather than somewhere downstream.
+ */
+export type TransactionClient = Parameters<Parameters<DatabaseClient["$transaction"]>[0]>[0];
+
+/**
  * The registration lives on `globalThis`, not in a module variable.
  *
  * `apps/web` compiles `packages/*` from source into more than one chunk graph:

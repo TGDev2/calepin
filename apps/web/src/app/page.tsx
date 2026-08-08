@@ -18,9 +18,11 @@ const NUMBER_FORMAT = new Intl.NumberFormat("fr-FR");
  * du processus" (`Project.status`), so it is shown once, as a status badge —
  * see `@/lib/project-status-label`.
  *
- * Aggregates are computed live by `listProjectDashboardRows`, in one query
- * (CLAUDE.md §3.5) — CAL-033 owns replacing this with write-time,
- * denormalized counters.
+ * The written-chapter count and the word total are read off the project row
+ * (CAL-033): they are maintained by the write that moves them, so this screen
+ * displays a number rather than computing one. The planned count is still
+ * counted — chapter creation belongs to E10 and has no write path to maintain
+ * it yet. One query either way (CLAUDE.md §3.5).
  *
  * The mirror image of `/account`'s own "no session → redirect" (CAL-029):
  * `proxy.ts` already turns away a visitor with no session cookie, and this is

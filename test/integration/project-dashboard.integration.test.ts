@@ -8,10 +8,21 @@
  * require), and a separate bare `PrismaClient` registered on the seam — the
  * one the repository function itself reads through, and the one this suite
  * listens to for query events.
+ *
+ * Since CAL-033 two of the three aggregates are stored on the row, so the seed
+ * writes its revisions directly and then reconciles — which is also what makes
+ * the "latest revision only" claim below still a claim about the aggregate
+ * itself rather than about numbers this file typed in.
+ * `project-aggregates.integration.test.ts` owns the other half: that the write
+ * paths keep those columns exact in the first place.
  */
 
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
-import { listProjectDashboardRows } from "@calepin/shared/repository";
+import {
+  listProjectDashboardRows,
+  openProjectScope,
+  reconcileProjectAggregates,
+} from "@calepin/shared/repository";
 import { type Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -146,6 +157,18 @@ describe("listProjectDashboardRows (CAL-032)", () => {
     const thirdProject = await prisma.project.create({
       data: { userId: user.id, title: "Third project" },
     });
+
+    // The rows above were written directly, so the stored counters are still at
+    // their default. Reconciling recomputes them from those rows — the same
+    // statement a real write path runs, applied here to a seed that bypassed
+    // one.
+    for (const projectId of [firstProject.id, secondProject.id, thirdProject.id]) {
+      const scope = await openProjectScope({ ownerId: user.id, projectId });
+      if (!scope.ok) throw new Error("the fixture could not open a scope on its own project");
+
+      const reconciled = await reconcileProjectAggregates(scope.value);
+      expect(reconciled.ok).toBe(true);
+    }
 
     queryLog.length = 0;
     const rows = await listProjectDashboardRows(user.id);

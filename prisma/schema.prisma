@@ -282,6 +282,29 @@ model Project {
   targetAudience  String        @default("Grand public")
   freedomLevel    FreedomLevel  @default(BALANCED)
   status          ProjectStatus @default(DRAFT)
+
+  /// Chapters carrying at least one ChapterRevision (CAL-033). Denormalised and
+  /// maintained by the write, never recomputed by the screen that shows it:
+  /// every path that appends, restores or removes a chapter's text goes through
+  /// `withProjectAggregates`, which rewrites both counters from the rows
+  /// themselves inside the same transaction. Derived state, so it stays outside
+  /// the audit block below — a counter has no author, and burning the project's
+  /// `version` on it would make a chapter write collide with an unrelated edit
+  /// of the project's own attributes.
+  ///
+  /// There is deliberately no third counter for the *planned* chapters: its
+  /// write path is chapter creation, which E10 owns and which does not exist
+  /// yet, and a denormalised number nothing maintains is worse than a computed
+  /// one. The dashboard still joins for that one.
+  ///
+  /// Both counters are non-negative, enforced by
+  /// projects_aggregates_non_negative_check — see the add_project_aggregates
+  /// migration.
+  writtenChapterCount Int @default(0)
+  /// The sum of each written chapter's *latest* revision — never every revision
+  /// (CAL-033). Same maintenance, same statement, so the two can never disagree.
+  totalWordCount      Int @default(0)
+
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   updatedById     String        @default("unattributed")

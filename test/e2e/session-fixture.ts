@@ -172,6 +172,17 @@ export async function seedProjectWithChapters(
       },
     });
 
+    // The two counters CAL-033 stores on the row are maintained by the write
+    // paths in `@calepin/manuscript`, which this fixture bypasses — it writes
+    // its revision directly. They are set to what it actually seeded: one
+    // written chapter, worth 250 words. Reconciling instead would mean
+    // registering the database seam inside a Playwright fixture, which is a
+    // dependency this file exists to avoid.
+    await prisma.project.update({
+      where: { id: project.id },
+      data: { writtenChapterCount: 1, totalWordCount: 250, updatedById: userId },
+    });
+
     return { projectId: project.id, title };
   } finally {
     await prisma.$disconnect();

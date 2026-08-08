@@ -20,7 +20,9 @@
 
 import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
+import { succeed } from "@calepin/shared/errors";
 import {
+  computeProjectAggregates,
   createProject,
   delegateName,
   deleteProject,
@@ -31,10 +33,12 @@ import {
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  reconcileProjectAggregates,
   requireOwnedRow,
   scopedWhere,
   updateProject,
   type UpdateProjectInput,
+  withProjectAggregates,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -44,14 +48,17 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
 
 /** The repository's data entry points — every export that touches the database. */
 const ENTRY_POINTS = [
+  "computeProjectAggregates",
   "createProject",
   "deleteProject",
   "getProjectForOwner",
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "openProjectScope",
+  "reconcileProjectAggregates",
   "requireOwnedRow",
   "updateProject",
+  "withProjectAggregates",
 ];
 
 /** Its pure helpers: they build or check a value and reach nothing. */
@@ -306,6 +313,39 @@ describe("owner access policy", () => {
       if (!deleted.ok) expect(deleted.error.code).toBe("NOT_FOUND");
       expect((await getProjectForOwner({ ownerId: alice.ownerId, projectId: alice.projectId })).ok) //
         .toBe(true);
+    });
+
+    // CAL-033's three entry points, all of which reach `projects` through a
+    // statement naming the owner — the `FOR UPDATE` that opens the transaction
+    // for two of them, and the aggregate query itself for the third. The
+    // counters they maintain are asserted in
+    // `project-aggregates.integration.test.ts`; what is asserted here is that
+    // another owner moves none of them.
+    it("the aggregate entry points refuse a scope forged for another owner's project", async () => {
+      const forged = forgedScope(bob.ownerId, alice.projectId);
+
+      const computed = await computeProjectAggregates(forged);
+      expect(computed.ok).toBe(false);
+      if (!computed.ok) expect(computed.error.code).toBe("NOT_FOUND");
+
+      const reconciled = await reconcileProjectAggregates(forged);
+      expect(reconciled.ok).toBe(false);
+      if (!reconciled.ok) expect(reconciled.error.code).toBe("NOT_FOUND");
+
+      let mutated = false;
+      const wrapped = await withProjectAggregates(forged, async () => {
+        mutated = true;
+        return succeed();
+      });
+
+      expect(wrapped.ok).toBe(false);
+      // The lock is taken before the mutation, so the mutation never ran.
+      expect(mutated).toBe(false);
+
+      // And the owner's own counters are exactly what the fixture seeded.
+      const mine = await computeProjectAggregates(aliceScope);
+      expect(mine.ok).toBe(true);
+      if (mine.ok) expect(mine.value).toEqual({ writtenChapterCount: 1, totalWordCount: 1 });
     });
 
     it("requireOwnedRow refuses a row from another owner's project", async () => {

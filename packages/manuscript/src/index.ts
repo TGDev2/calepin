@@ -7,4 +7,15 @@
  * Backlog: E11 — CAL-112 to CAL-125
  */
 
-export {};
+export {
+  type AppendChapterRevisionInput,
+  appendEditedChapterRevision,
+  appendGeneratedChapterRevision,
+  type AppendGeneratedChapterRevisionInput,
+  type ChapterRevisionOrigin,
+  type ChapterRevisionSummary,
+  deleteChapter,
+  type DeleteChapterInput,
+  restoreChapterRevision,
+  type RestoreChapterRevisionInput,
+} from "./chapter/revision";

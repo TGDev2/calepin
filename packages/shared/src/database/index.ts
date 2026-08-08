@@ -11,4 +11,5 @@ export {
   type DatabaseClient,
   getDatabaseClient,
   resetDatabaseClient,
+  type TransactionClient,
 } from "./client";

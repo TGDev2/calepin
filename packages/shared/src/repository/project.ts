@@ -86,11 +86,11 @@ export interface ProjectDashboardRow {
   readonly title: string;
   readonly status: ProjectStatus;
   readonly updatedAt: Date;
-  /** Every chapter of the project's plan, written or not. */
+  /** Every chapter of the project's plan, written or not. Counted on read. */
   readonly plannedChapterCount: number;
-  /** Chapters carrying at least one `ChapterRevision` — text actually drafted. */
+  /** Chapters carrying at least one `ChapterRevision` — stored, maintained at write. */
   readonly writtenChapterCount: number;
-  /** The sum of each written chapter's *latest* revision — never every revision. */
+  /** The sum of each written chapter's *latest* revision — stored, maintained at write. */
   readonly totalWordCount: number;
 }
 
@@ -98,16 +98,20 @@ export interface ProjectDashboardRow {
  * The dashboard's read (CAL-032): one user's projects, most recently modified
  * first, each carrying its chapter and word-count aggregates.
  *
- * One `findMany`, `relationLoadStrategy: "join"` so the nested
- * `outline.chapters.revisions` read compiles to a single SQL statement (a
- * LATERAL join) rather than one query per relation or per row — there is no
- * second round trip to aggregate over. "Written" is derived from revision
- * presence rather than `ChapterStatus`, so the written count and the word sum
- * below are read from the exact same join and can never disagree with each
- * other.
+ * Two of the three come off the row itself. `writtenChapterCount` and
+ * `totalWordCount` are maintained by the write that moved them (CAL-033,
+ * `./aggregates`), so displaying them costs a column rather than a join and a
+ * sum over every revision of every chapter of every project.
  *
- * Live-computed, not stored: CAL-033 owns denormalized, write-time
- * aggregates. This is the naive, always-correct read they will replace.
+ * `plannedChapterCount` is still counted, and deliberately: a chapter is
+ * *created* by the outline domain, which E10 has not written yet, and a
+ * denormalised counter no write path maintains is worse than a computed one —
+ * it is wrong silently. It is a `_count` rather than a row set, so nothing but
+ * the number crosses the wire.
+ *
+ * Still one `findMany`, still `relationLoadStrategy: "join"`, so the whole
+ * dashboard is one SQL statement — asserted by
+ * `test/integration/project-dashboard.integration.test.ts`, not assumed.
  */
 export async function listProjectDashboardRows(ownerId: string): Promise<ProjectDashboardRow[]> {
   assertOwnerId(ownerId);
@@ -121,39 +125,21 @@ export async function listProjectDashboardRows(ownerId: string): Promise<Project
       title: true,
       status: true,
       updatedAt: true,
-      outline: {
-        select: {
-          chapters: {
-            select: {
-              revisions: {
-                orderBy: { revisionNumber: "desc" },
-                take: 1,
-                select: { wordCount: true },
-              },
-            },
-          },
-        },
-      },
+      writtenChapterCount: true,
+      totalWordCount: true,
+      outline: { select: { _count: { select: { chapters: true } } } },
     },
   });
 
-  return projects.map((project) => {
-    const chapters = project.outline?.chapters ?? [];
-    const writtenChapters = chapters.filter((chapter) => chapter.revisions.length > 0);
-
-    return {
-      id: project.id,
-      title: project.title,
-      status: project.status,
-      updatedAt: project.updatedAt,
-      plannedChapterCount: chapters.length,
-      writtenChapterCount: writtenChapters.length,
-      totalWordCount: writtenChapters.reduce(
-        (sum, chapter) => sum + (chapter.revisions[0]?.wordCount ?? 0),
-        0,
-      ),
-    };
-  });
+  return projects.map((project) => ({
+    id: project.id,
+    title: project.title,
+    status: project.status,
+    updatedAt: project.updatedAt,
+    plannedChapterCount: project.outline?._count.chapters ?? 0,
+    writtenChapterCount: project.writtenChapterCount,
+    totalWordCount: project.totalWordCount,
+  }));
 }
 
 export async function getProjectForOwner(input: { ownerId: string; projectId: string }) {

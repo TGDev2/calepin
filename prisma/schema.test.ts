@@ -177,6 +177,23 @@ describe("prisma schema", () => {
       expect(modelBlock("Project")).toMatch(/targetWordCount\s+Int\?/);
     });
 
+    // CAL-033. Both counters are NOT NULL with a zero default, so no caller has
+    // to know they exist: a project starts with nothing written, and the write
+    // paths maintain them from there.
+    it("stores the two aggregates the dashboard reads, defaulted to zero", () => {
+      const project = modelBlock("Project");
+
+      expect(project).toMatch(/writtenChapterCount\s+Int\s+@default\(0\)/);
+      expect(project).toMatch(/totalWordCount\s+Int\s+@default\(0\)/);
+    });
+
+    // The third dashboard number stays computed, deliberately: a chapter is
+    // created by the outline domain (E10), which has no write path yet, and a
+    // denormalised counter nothing maintains is wrong silently.
+    it("stores no counter for the planned chapters", () => {
+      expect(modelBlock("Project")).not.toMatch(/^\s*plannedChapterCount\s/m);
+    });
+
     it("indexes the dashboard listing by user, and never by user alone", () => {
       const project = modelBlock("Project");
 

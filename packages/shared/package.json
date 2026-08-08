@@ -20,6 +20,10 @@
       "types": "./src/auth/index.ts",
       "default": "./src/auth/index.ts"
     },
+    "./text": {
+      "types": "./src/text/index.ts",
+      "default": "./src/text/index.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"

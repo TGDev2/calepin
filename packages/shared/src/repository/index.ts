@@ -9,6 +9,13 @@
  */
 
 export {
+  computeProjectAggregates,
+  type ProjectAggregates,
+  reconcileProjectAggregates,
+  type TransactionClient,
+  withProjectAggregates,
+} from "./aggregates";
+export {
   delegateName,
   isProjectOwnedModel,
   PROJECT_OWNED_MODEL_NAMES,
