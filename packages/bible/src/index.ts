@@ -8,6 +8,13 @@
  */
 
 export {
+  beliefMatchesWorld,
+  type CanonFactBeliefState,
+  type CanonFactValidity,
+  type CanonFactWindow,
+  factInForceOn,
+} from "./canon-fact";
+export {
   type AgeRange,
   ageRangeAt,
   DAYS_PER_YEAR,

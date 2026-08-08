@@ -385,6 +385,8 @@ model Bible {
   /// else. The glossary row was amended rather than left to name a model that
   /// would exist only to be joined through.
   timeline      TimelineEvent[]
+  /// The atomic facts of the canon (CAL-018).
+  canonFacts    CanonFact[]
 
   @@map("bibles")
 }
@@ -569,6 +571,11 @@ model Character {
   incomingRelationships Relationship[]             @relation("RelationshipTarget")
   /// Every event of the chronology this character is present at (CAL-017).
   timelineAppearances   TimelineEventParticipant[]
+  /// This character's stance on each canonical fact (CAL-018) — the checkable
+  /// form of heldKnowledge above, derived from it by CAL-094.
+  factBeliefs           CanonFactBelief[]
+  /// The canonical facts this character is a subject of (CAL-018).
+  factSubjects          CanonFactSubject[]
 
   // The target of Relationship's two composite foreign keys. It is what makes a
   // relationship between two bibles unstorable rather than merely unlikely.
@@ -670,6 +677,13 @@ model Place {
 
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
+  /// The canonical facts this place is a subject of (CAL-018).
+  factSubjects CanonFactSubject[]
+
+  // The target of CanonFactSubject's composite key, the role Character and
+  // TimelineEvent already play for theirs: it is what keeps a fact's subjects
+  // inside the fact's own bible.
+  @@unique([bibleId, id])
   @@unique([bibleId, name])
   @@map("places")
 }
@@ -826,6 +840,9 @@ model TimelineEvent {
 
   participants TimelineEventParticipant[]
 
+  /// The canonical facts this event ends (CAL-018, UNTIL_EVENT).
+  invalidatedFacts CanonFact[]
+
   // The target of this model's own chain key and of the participants' event
   // key. It is what keeps a chronology inside one bible.
   @@unique([bibleId, id])
@@ -879,4 +896,229 @@ model TimelineEventParticipant {
   // check one character's ages across the whole chronology.
   @@index([characterId])
   @@map("timeline_event_participants")
+}
+
+/// The three temporal shapes of a canonical fact, in the specification's own
+/// terms: always true, true during a period, false after a given event. Closed
+/// and pinned by schema.test.ts — a fourth shape (a fact true *since* an
+/// event, say) is a decision about the product, one member and one column
+/// away, owned by the task that needs it.
+enum CanonFactValidity {
+  PERMANENT // permanent
+  DURING_PERIOD // vrai pendant une période
+  UNTIL_EVENT // faux après un événement donné
+
+  @@map("canon_fact_validity")
+}
+
+/// Where a fact came from — the four provenances the product actually has.
+/// Finer provenance (which chapter asserted it) belongs to the epic that
+/// writes chapters; a column for a table that does not exist is not added.
+enum CanonFactSource {
+  SOURCE_TEXT // extrait du texte source
+  BIBLE // dérivé d'une fiche de la bible (CAL-094)
+  CHAPTER // extrait d'un chapitre rédigé (E13)
+  USER // saisi par l'auteur
+
+  @@map("canon_fact_source")
+}
+
+/// The lifecycle of a fact. PROPOSED rows await the author; only CONFIRMED
+/// rows are canon — what the context composer sends and the coherence engine
+/// defends. REJECTED rows are kept, not deleted, so re-extraction can
+/// deduplicate against what the author already refused instead of re-proposing
+/// it forever. Status is not truth: the canon holds confirmed facts whose
+/// isTrue is false.
+enum CanonFactStatus {
+  PROPOSED // proposé
+  CONFIRMED // confirmé — entré dans le canon
+  REJECTED // rejeté — conservé pour la déduplication
+
+  @@map("canon_fact_status")
+}
+
+/// A character's stance on a fact's statement, deliberately independent of the
+/// fact's own truth value. There is no KNOWS member: knowing is believing what
+/// the world holds, so it is derived by comparing the two dimensions
+/// (beliefMatchesWorld in @calepin/bible), and a stored KNOWS would be a
+/// second column able to contradict isTrue — CAL-012's lesson applied to
+/// epistemics. The same derivation reads a belief the world contradicts as
+/// dramatic irony, a query instead of a feature.
+enum CanonFactBeliefState {
+  BELIEVES_TRUE // croit l'énoncé vrai
+  BELIEVES_FALSE // croit l'énoncé faux
+  UNAWARE // ignore la question
+
+  @@map("canon_fact_belief_state")
+}
+
+/// One atomic canonical fact (CAL-018) — the unit the coherence engine checks
+/// (CAL-099, E13) and the context composer selects (§5.8). Three independent
+/// dimensions, one per group of columns: the truth value in the world
+/// (`isTrue`), the temporal validity (`validity` and its bounds), and
+/// per-character knowledge (`CanonFactBelief` rows). The specification's three
+/// examples each isolate one dimension, and none is expressible through
+/// another.
+///
+/// The statement is written in affirmative form and the polarity lives in
+/// `isTrue`: the specification's negative example is stored as the affirmative
+/// statement marked false, never as a negated sentence. Polarity inside prose
+/// is invisible to a query; in a column it is what lets the detector surface
+/// two facts with comparable statements and opposite truth values, and what
+/// lets a planted rumour enter the canon as data without entering it as truth.
+/// The affirmative form is a convention for the missions and the UI — no CHECK
+/// can parse French negation, and one that tried would reject valid sentences.
+///
+/// There is no `name` handle, unlike WorldRule's: the statement is already the
+/// atomic, citable form, and a short label beside it would be a copy able to
+/// drift. Nor a unique on the statement — a semantic duplicate reworded is
+/// invisible to a btree; deduplication belongs to the extraction mission,
+/// which is also why REJECTED rows survive.
+model CanonFact {
+  id      String @id @default(cuid())
+  bibleId String
+
+  /// The assertion, in the project's language, in affirmative form.
+  statement String
+  /// The truth value in the world of the novel — not in any character's mind,
+  /// which is the belief rows' dimension. No default: a defaulted truth value
+  /// is a decision the author never made, stored as if they had.
+  isTrue    Boolean
+
+  /// The specification's three temporal cases. Which of the columns below may
+  /// be set follows from the mode — canon_facts_validity_check, which Prisma
+  /// cannot express; see the add_canon_facts migration.
+  validity CanonFactValidity @default(PERMANENT)
+
+  /// The period, on the timeline's own axis: days from the day the novel
+  /// opens, negative before it (CAL-017). Each bound is paired with the
+  /// precision it is known to (canon_facts_valid_from_precision_check and its
+  /// until twin) and carries the author's own wording beside the number, never
+  /// instead of it — a bound may be words alone, exactly as a timeline event
+  /// may, so a dated fact is representable before day 0 is anchored to any
+  /// calendar. A bound restating a date the timeline also carries is
+  /// declaredAge's pattern, not CAL-012's drifting copy: an independent
+  /// assertion by the canon, which the detector compares against the
+  /// chronology (CAL-093, CAL-099). Both ends inclusive; when both are
+  /// numbered, from never exceeds until (canon_facts_period_order_check).
+  validFromDay        Int?
+  validFromPrecision  TimelinePrecision?
+  validFromLabel      String?
+  validUntilDay       Int?
+  validUntilPrecision TimelinePrecision?
+  validUntilLabel     String?
+
+  /// UNTIL_EVENT's boundary: the fact holds strictly before this event's day
+  /// and no longer on it — the event is the moment the world changes, and the
+  /// day it happens already belongs to the changed world.
+  invalidatedByEventId String?
+
+  source CanonFactSource
+  status CanonFactStatus @default(PROPOSED)
+
+  /// The lock, same convention as every other bible element (CAL-095).
+  lockedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bible              Bible          @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+  // NoAction, never Prisma's SetNull default for an optional relation:
+  // PostgreSQL nulls every column of a composite key, bibleId included, where
+  // it hits a NOT NULL with an error naming neither the fact nor the cause —
+  // the add_timeline migration records the probe. Deleting an event a fact
+  // depends on is therefore refused, which is the intent: it would silently
+  // strip the boundary that gives the fact its meaning. Deleting the bible or
+  // the project still cascades — the facts go in the same statement, before
+  // the check runs.
+  invalidatedByEvent TimelineEvent? @relation(fields: [bibleId, invalidatedByEventId], references: [bibleId, id], onDelete: NoAction, onUpdate: NoAction)
+
+  beliefs  CanonFactBelief[]
+  subjects CanonFactSubject[]
+
+  // The target of the belief and subject composite keys, the role Character
+  // and TimelineEvent already play: it is what keeps a fact's rows inside the
+  // fact's own bible.
+  @@unique([bibleId, id])
+  // The canon of a bible — the read the composer and the checker make most:
+  // confirmed facts, without reading a statement.
+  @@index([bibleId, status])
+  // The facts an event ends. PostgreSQL does not index a foreign key on its
+  // own, and the NO ACTION check on event deletion walks this path.
+  @@index([bibleId, invalidatedByEventId])
+  @@map("canon_facts")
+}
+
+/// One character's stance on one fact — the specification's unaware example as
+/// a row, and the checkable form of the sheet's free-text heldKnowledge,
+/// derived from it by CAL-094.
+///
+/// No row means the author has not decided, which is weaker than UNAWARE: an
+/// explicit UNAWARE is canon a generation must respect — a scene through this
+/// character's eyes must not act on the fact — while an absent row constrains
+/// nothing. The two must not be conflated, and the composer reads the
+/// distinction from row presence.
+///
+/// bibleId is part of both foreign keys, as TimelineEventParticipant's is, so
+/// a belief tying a character to a fact of another bible is unstorable.
+model CanonFactBelief {
+  id      String @id @default(cuid())
+  bibleId String
+
+  factId      String
+  characterId String
+  state       CanonFactBeliefState
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fact      CanonFact @relation(fields: [bibleId, factId], references: [bibleId, id], onDelete: Cascade)
+  character Character @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
+
+  // One stance per character per fact. A rerun of the mission that derives
+  // beliefs collides here instead of doubling a stance.
+  @@unique([factId, characterId])
+  // Everything one character believes — the read the composer makes for a
+  // point of view.
+  @@index([characterId])
+  @@map("canon_fact_beliefs")
+}
+
+/// An entity a fact concerns — a character or a place, exactly one per row
+/// (canon_fact_subjects_exactly_one_check). CLAUDE.md §5.8 composes a context
+/// from "the canon facts actually concerned", and this is the marker that
+/// selects those facts without reading their prose: the facts about the
+/// scene's characters and place, in one query. Subjects carry aboutness,
+/// belief rows carry epistemic state — the specification's negative example
+/// concerns a place and needs no belief row; its unaware example concerns one
+/// character while the belief row names another.
+///
+/// Duplicate subjects are refused by two partial unique indexes, hand-written
+/// in the add_canon_facts migration since Prisma cannot express a partial
+/// index — the shape creative_directions' canonical index already uses. A
+/// timeline event is deliberately not a subject kind: the invalidating
+/// reference on the fact is the only event linkage the specification's cases
+/// require.
+model CanonFactSubject {
+  id      String @id @default(cuid())
+  bibleId String
+
+  factId      String
+  characterId String?
+  placeId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fact      CanonFact  @relation(fields: [bibleId, factId], references: [bibleId, id], onDelete: Cascade)
+  character Character? @relation(fields: [bibleId, characterId], references: [bibleId, id], onDelete: Cascade)
+  place     Place?     @relation(fields: [bibleId, placeId], references: [bibleId, id], onDelete: Cascade)
+
+  // The facts a character is concerned by, and a place's twin — the selection
+  // §5.8 runs. The duplicate guard is the pair of partial unique indexes in
+  // the migration, whose leading factId column serves the subjects-of-a-fact
+  // read.
+  @@index([characterId])
+  @@index([placeId])
+  @@map("canon_fact_subjects")
 }

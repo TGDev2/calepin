@@ -284,6 +284,11 @@ describe("prisma schema", () => {
       // not a sheet field: it is written on the event, not on the sheet, and
       // nothing about it is lockable on its own.
       "timelineAppearances",
+      // The character's stance on each canonical fact and the facts they are a
+      // subject of (CAL-018). Back-relations too, written on the fact's rows:
+      // the sheet's own free-text form of the first is heldKnowledge above.
+      "factBeliefs",
+      "factSubjects",
     ];
 
     const characterSheetFields = modelFields("Character").filter(
@@ -446,6 +451,9 @@ describe("prisma schema", () => {
         // generation from contradicting, so it follows the same convention
         // (CAL-017).
         "TimelineEvent",
+        // The backlog's own words for CAL-018: a lock preventing any automatic
+        // modification. Same convention; CAL-095 makes it bite.
+        "CanonFact",
       ];
 
       it("makes every bible element lockable on its own row", () => {
@@ -706,6 +714,172 @@ describe("prisma schema", () => {
       expect(modelBlock("TimelineEventParticipant")).toMatch(
         /@@map\("timeline_event_participants"\)/,
       );
+    });
+  });
+
+  describe("canonical facts", () => {
+    // The specification's three temporal cases, closed and in its own order.
+    // PERMANENT is the default: most facts are, and the other two modes each
+    // require columns of their own, checked by the migration.
+    it("declares the three temporal shapes of the specification, and only those", () => {
+      expect(enumMembers("CanonFactValidity")).toEqual([
+        "PERMANENT", // permanent
+        "DURING_PERIOD", // vrai pendant une période
+        "UNTIL_EVENT", // faux après un événement donné
+      ]);
+      expect(modelBlock("CanonFact")).toMatch(
+        /validity\s+CanonFactValidity\s+@default\(PERMANENT\)/,
+      );
+    });
+
+    it("declares the four provenances and the three lifecycle states", () => {
+      expect(enumMembers("CanonFactSource")).toEqual([
+        "SOURCE_TEXT", // extrait du texte source
+        "BIBLE", // dérivé d'une fiche de la bible (CAL-094)
+        "CHAPTER", // extrait d'un chapitre rédigé (E13)
+        "USER", // saisi par l'auteur
+      ]);
+      expect(enumMembers("CanonFactStatus")).toEqual([
+        "PROPOSED", // proposé
+        "CONFIRMED", // confirmé
+        "REJECTED", // rejeté, conservé pour la déduplication
+      ]);
+      expect(modelBlock("CanonFact")).toMatch(/source\s+CanonFactSource(?!\?)/);
+      expect(modelBlock("CanonFact")).toMatch(/status\s+CanonFactStatus\s+@default\(PROPOSED\)/);
+    });
+
+    // The truth value in the world, beside an always-affirmative statement.
+    // Required and undefaulted: a defaulted truth value is a decision the
+    // author never made, stored as if they had.
+    it("requires the truth value and defaults it to nothing", () => {
+      const fact = modelBlock("CanonFact");
+
+      expect(fact).toMatch(/^\s*isTrue\s+Boolean\s*$/m);
+      expect(fact).not.toMatch(/isTrue\s+Boolean\?/);
+      expect(fact).not.toMatch(/isTrue\s+Boolean\s+@default/);
+    });
+
+    // No status timestamp beside the enum. Analysis' validatedAt pattern
+    // encodes a dated, authored, two-state validation; a fact's lifecycle is
+    // tri-state and no backlog line asks when or by whom — one column, one
+    // source of truth, the same lesson read from the other side.
+    it("keeps no timestamp able to contradict the status", () => {
+      expect(modelBlock("CanonFact")).not.toMatch(
+        /^\s*(validatedAt|confirmedAt|rejectedAt|proposedAt)\s/m,
+      );
+    });
+
+    describe("temporal validity", () => {
+      it("pairs each bound with the precision it is known to, words beside numbers", () => {
+        const fact = modelBlock("CanonFact");
+
+        for (const field of [
+          "validFromDay",
+          "validFromLabel",
+          "validUntilDay",
+          "validUntilLabel",
+          "invalidatedByEventId",
+        ]) {
+          expect(fact).toMatch(new RegExp(`^\\s*${field}\\s+\\S+\\?`, "m"));
+        }
+        expect(fact).toMatch(/^\s*validFromPrecision\s+TimelinePrecision\?/m);
+        expect(fact).toMatch(/^\s*validUntilPrecision\s+TimelinePrecision\?/m);
+      });
+
+      // Narrative time is the day axis, never a calendar date — the rule
+      // TimelineEvent established, for the same three reasons.
+      it("bounds validity on the day axis, never on a calendar date", () => {
+        const dateTimeFields = modelBlock("CanonFact")
+          .split("\n")
+          .map((line) => /^\s*([a-z][A-Za-z0-9]*)\s+DateTime/.exec(line)?.[1])
+          .filter((field): field is string => field !== undefined);
+
+        expect(dateTimeFields).toEqual(["lockedAt", "createdAt", "updatedAt"]);
+      });
+    });
+
+    describe("per-character knowledge", () => {
+      // The stance is deliberately independent of isTrue, and KNOWS is
+      // absent: knowing is derived by comparing the two dimensions
+      // (beliefMatchesWorld in @calepin/bible), and a stored KNOWS would be a
+      // second column able to contradict the first — CAL-012's lesson applied
+      // to epistemics.
+      it("declares the three belief states, and no KNOWS able to contradict isTrue", () => {
+        expect(enumMembers("CanonFactBeliefState")).toEqual([
+          "BELIEVES_TRUE", // croit l'énoncé vrai
+          "BELIEVES_FALSE", // croit l'énoncé faux
+          "UNAWARE", // ignore la question
+        ]);
+        expect(modelBlock("CanonFactBelief")).toMatch(/state\s+CanonFactBeliefState(?!\?)/);
+        expect(modelBlock("CanonFactBelief")).not.toMatch(/^\s*(knows|isAccurate|isKnown)\w*\s/m);
+      });
+
+      it("holds one stance per character per fact, and indexes a point of view", () => {
+        expect(modelBlock("CanonFactBelief")).toMatch(/@@unique\(\[factId, characterId\]\)/);
+        expect(modelBlock("CanonFactBelief")).toMatch(/@@index\(\[characterId\]\)/);
+      });
+    });
+
+    describe("subjects", () => {
+      // §5.8's selection marker: a character or a place, exactly one — the
+      // exactly-one check and the duplicate guard are both hand-written in
+      // the add_canon_facts migration, which is why no @@unique appears here.
+      it("names what a fact concerns, without a duplicate guard the DSL could express", () => {
+        const subject = modelBlock("CanonFactSubject");
+
+        expect(subject).toMatch(/^\s*characterId\s+String\?/m);
+        expect(subject).toMatch(/^\s*placeId\s+String\?/m);
+        expect(subject).toMatch(/@@index\(\[characterId\]\)/);
+        expect(subject).toMatch(/@@index\(\[placeId\]\)/);
+        expect(subject).not.toMatch(/@@unique/);
+      });
+    });
+
+    describe("staying inside one bible", () => {
+      it("ends a fact through an event of its own bible", () => {
+        expect(modelBlock("CanonFact")).toMatch(/references: \[bibleId, id\]/);
+        expect(modelBlock("CanonFact")).toMatch(/@@unique\(\[bibleId, id\]\)/);
+      });
+
+      it("ties a belief to a fact and a character of the same bible", () => {
+        expect(modelBlock("CanonFactBelief").match(/references: \[bibleId, id\]/g)).toHaveLength(2);
+      });
+
+      it("ties a subject to its fact and its entity through the bible too", () => {
+        expect(modelBlock("CanonFactSubject").match(/references: \[bibleId, id\]/g)).toHaveLength(
+          3,
+        );
+        expect(modelBlock("Place")).toMatch(/@@unique\(\[bibleId, id\]\)/);
+      });
+
+      // Deleting the event that ends a fact would silently strip the boundary
+      // that gives the fact its meaning — refused, the same NoAction the
+      // timeline chain uses, and never SetNull on a composite key.
+      it("refuses to delete the invalidating event, and never nulls the key", () => {
+        const relation = /invalidatedByEvent\s+TimelineEvent\?\s+@relation\(([^)]*)\)/.exec(
+          modelBlock("CanonFact"),
+        );
+
+        expect(relation?.[1]).toContain("onDelete: NoAction");
+      });
+
+      it("hangs the canon off the bible", () => {
+        expect(modelBlock("Bible")).toMatch(/^\s*canonFacts\s+CanonFact\[\]/m);
+      });
+    });
+
+    // The read the composer and the checker make most — the canon of a bible
+    // by status — and the facts an event ends, which the NO ACTION check on
+    // event deletion walks.
+    it("indexes the canon of a bible and the facts an event ends", () => {
+      expect(modelBlock("CanonFact")).toMatch(/@@index\(\[bibleId, status\]\)/);
+      expect(modelBlock("CanonFact")).toMatch(/@@index\(\[bibleId, invalidatedByEventId\]\)/);
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      expect(modelBlock("CanonFact")).toMatch(/@@map\("canon_facts"\)/);
+      expect(modelBlock("CanonFactBelief")).toMatch(/@@map\("canon_fact_beliefs"\)/);
+      expect(modelBlock("CanonFactSubject")).toMatch(/@@map\("canon_fact_subjects"\)/);
     });
   });
 });
