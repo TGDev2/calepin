@@ -6,6 +6,11 @@ const validEnv = {
   NODE_ENV: "development",
   DATABASE_URL: "postgresql://calepin:calepin@localhost:5434/calepin",
   AUTH_SECRET: "0123456789abcdef0123456789abcdef",
+  EMAIL_SERVER_HOST: "localhost",
+  EMAIL_SERVER_PORT: "1025",
+  EMAIL_SERVER_USER: "calepin",
+  EMAIL_SERVER_PASSWORD: "calepin_local",
+  EMAIL_FROM: "connexion@calepin.test",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",
   S3_REGION: "us-east-1",
@@ -33,17 +38,22 @@ describe("envSchema", () => {
     expect(result.success && result.data.NODE_ENV).toBe("development");
   });
 
-  it.each(["DATABASE_URL", "AUTH_SECRET"] as const)(
-    "fails with the missing variable's path when %s is absent",
-    (variable) => {
-      const result = envSchema.safeParse(envWithout(variable));
+  it.each([
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "EMAIL_SERVER_HOST",
+    "EMAIL_SERVER_PORT",
+    "EMAIL_SERVER_USER",
+    "EMAIL_SERVER_PASSWORD",
+    "EMAIL_FROM",
+  ] as const)("fails with the missing variable's path when %s is absent", (variable) => {
+    const result = envSchema.safeParse(envWithout(variable));
 
-      expect(result.success).toBe(false);
-      expect(
-        result.success || result.error.issues.some((issue) => issue.path.join(".") === variable),
-      ).toBe(true);
-    },
-  );
+    expect(result.success).toBe(false);
+    expect(
+      result.success || result.error.issues.some((issue) => issue.path.join(".") === variable),
+    ).toBe(true);
+  });
 
   it("refuses a signing key too short to be one", () => {
     // Auth.js signs and encrypts the session cookie with it (CAL-024). A key

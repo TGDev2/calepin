@@ -28,6 +28,16 @@ export const envSchema = z.object({
    * Thirty-two characters is the floor `openssl rand -base64 32` clears.
    */
   AUTH_SECRET: z.string().min(32),
+  /**
+   * The SMTP server the email sign-in link is sent through (CAL-025), and the
+   * address it is sent from. Read here rather than left to Auth.js's own
+   * `process.env` lookup, for the same reason as `AUTH_SECRET`.
+   */
+  EMAIL_SERVER_HOST: z.string().min(1),
+  EMAIL_SERVER_PORT: z.coerce.number().int().positive(),
+  EMAIL_SERVER_USER: z.string().min(1),
+  EMAIL_SERVER_PASSWORD: z.string().min(1),
+  EMAIL_FROM: z.email(),
   REDIS_URL: z.string().url(),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),

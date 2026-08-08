@@ -51,8 +51,16 @@ describe("the project-owned model registry", () => {
   // tables (CAL-024) are how a request finds out which owner is asking. None of
   // the four may silently acquire a project filter that would make no sense on
   // it: the project scope is opened *from* the answer they give.
+  // `EmailSignInRequest` (CAL-025) joins them for a different reason: it can
+  // be written before any `User` row exists.
   it("leaves the account models out, and says so out loud", () => {
-    expect(UNOWNED_MODELS).toEqual(["User", "Account", "Session", "VerificationToken"]);
+    expect(UNOWNED_MODELS).toEqual([
+      "User",
+      "Account",
+      "Session",
+      "VerificationToken",
+      "EmailSignInRequest",
+    ]);
     for (const model of UNOWNED_MODELS) expect(isProjectOwnedModel(model)).toBe(false);
     expect(isProjectOwnedModel(undefined)).toBe(false);
     expect(isProjectOwnedModel("Chapter")).toBe(true);

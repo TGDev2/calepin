@@ -23,6 +23,7 @@
 
 import {
   createAuthAdapter,
+  createEmailProvider,
   SESSION_MAX_AGE_SECONDS,
   SESSION_UPDATE_AGE_SECONDS,
 } from "@calepin/shared/auth";
@@ -33,12 +34,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
   adapter: createAuthAdapter(),
 
   /**
-   * No provider yet, deliberately. The email link is CAL-025, Google CAL-026,
-   * GitHub CAL-027; each adds one entry here and nothing else. Auth.js serves
-   * its session and sign-out endpoints with an empty list, which is what this
-   * task's own acceptance criterion exercises.
+   * The email link (CAL-025). Google (CAL-026) and GitHub (CAL-027) each add
+   * one entry here and nothing else, per the comment this one replaces.
    */
-  providers: [],
+  providers: [
+    createEmailProvider({
+      from: env.EMAIL_FROM,
+      server: {
+        host: env.EMAIL_SERVER_HOST,
+        port: env.EMAIL_SERVER_PORT,
+        auth: { user: env.EMAIL_SERVER_USER, pass: env.EMAIL_SERVER_PASSWORD },
+      },
+    }),
+  ],
 
   session: {
     strategy: "database",

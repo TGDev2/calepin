@@ -37,6 +37,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
  * among them: `global-setup.ts` points it at this run's own container.
  */
 process.env.AUTH_SECRET = "integration-secret-of-at-least-32-characters";
+process.env.EMAIL_SERVER_HOST ??= "localhost";
+process.env.EMAIL_SERVER_PORT ??= "1025";
+process.env.EMAIL_SERVER_USER ??= "calepin";
+process.env.EMAIL_SERVER_PASSWORD ??= "calepin_local";
+process.env.EMAIL_FROM ??= "connexion@calepin.test";
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.S3_ENDPOINT ??= "http://localhost:9000";
 process.env.S3_REGION ??= "us-east-1";

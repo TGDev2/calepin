@@ -211,6 +211,20 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+/// One row per email sign-in link requested, kept only to enforce the
+/// five-per-hour limit (CAL-025). Not `VerificationToken` itself: that
+/// table's three fields are the adapter's own contract (see the comment
+/// above the Auth.js tables), and this ledger needs a fourth, `createdAt`,
+/// that the adapter has no reason to ever write.
+model EmailSignInRequest {
+  id         String   @id @default(cuid())
+  identifier String
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+  @@map("email_sign_in_requests")
+}
+
 enum ProjectStatus {
   DRAFT
   ANALYSIS_IN_PROGRESS

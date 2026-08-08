@@ -108,12 +108,23 @@ export const PROJECT_OWNED_MODEL_NAMES = Object.keys(
  * The models that are not project data. Named rather than left implicit, so the
  * schema test asserts the exception instead of tolerating any gap.
  *
- * All four belong to an *account*, not to a project: `User` is the owner, and
- * the three Auth.js tables (CAL-024) are how a request finds out which owner is
- * asking. Scoping them to a project would be circular — the project scope is
- * opened from the answer they give.
+ * The first four belong to an *account*, not to a project: `User` is the
+ * owner, and the three Auth.js tables (CAL-024) are how a request finds out
+ * which owner is asking. Scoping them to a project would be circular — the
+ * project scope is opened from the answer they give.
+ *
+ * `EmailSignInRequest` (CAL-025) is unowned for a different reason: it can be
+ * written before any `User` row exists — the whole point is to rate-limit an
+ * address that has not signed in yet — so there is no account, let alone a
+ * project, for it to belong to.
  */
-export const UNOWNED_MODELS = ["User", "Account", "Session", "VerificationToken"] as const;
+export const UNOWNED_MODELS = [
+  "User",
+  "Account",
+  "Session",
+  "VerificationToken",
+  "EmailSignInRequest",
+] as const;
 
 /** The column on `Project` that names its owner. The only one in the schema. */
 export const PROJECT_OWNER_FIELD = "userId";
