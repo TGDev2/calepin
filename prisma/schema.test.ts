@@ -61,12 +61,16 @@ function modelBlock(name: string): string {
  * order. Doc comments (`///`), plain comments and block attributes (`@@`) are
  * not fields and never start with a lowercase letter, so the shape of the line
  * is enough to recognise one.
+ *
+ * The underscore in the pattern is for `Account` alone (CAL-024): the Auth.js
+ * adapter's field names are the provider's, not §4.2's. Without it those seven
+ * fields are invisible to every assertion here — which is how they were found.
  */
 function modelFields(name: string): string[] {
   return modelBlock(name)
     .split("\n")
     .map((line) => line.replace(/\/\/.*$/, "").trim())
-    .map((line) => /^([a-z][A-Za-z0-9]*)\s+\S/.exec(line)?.[1])
+    .map((line) => /^([a-z][A-Za-z0-9_]*)\s+\S/.exec(line)?.[1])
     .filter((field): field is string => field !== undefined);
 }
 
@@ -1805,6 +1809,150 @@ describe("the project ownership graph", () => {
 
         return fieldType(current, segment) ?? current;
       }, model);
+    });
+  });
+});
+
+/**
+ * CAL-024 — the Auth.js tables.
+ *
+ * Their shape is the adapter's contract, so what is worth asserting is not that
+ * the schema is pretty but that it still matches what `@auth/prisma-adapter`
+ * reads and writes. A field renamed to satisfy §4.2, a compound key changed,
+ * a column made mandatory — each of those is a sign-in that fails at runtime
+ * with a Prisma error, and each of them fails here first.
+ *
+ * The second half pins the two rules this schema bends for them, so bending
+ * them stays a decision rather than a precedent.
+ */
+describe("the Auth.js tables (CAL-024)", () => {
+  const AUTH_MODELS = ["Account", "Session", "VerificationToken"] as const;
+
+  it("maps to snake_case plural tables, as every model does", () => {
+    expect(modelBlock("Account")).toMatch(/@@map\("accounts"\)/);
+    expect(modelBlock("Session")).toMatch(/@@map\("sessions"\)/);
+    expect(modelBlock("VerificationToken")).toMatch(/@@map\("verification_tokens"\)/);
+  });
+
+  describe("Account", () => {
+    // Exactly the properties of `AdapterAccount`, in the spelling the adapter
+    // hands to `prisma.account.create({ data })`. Any other spelling and the
+    // provider's token response is written to nothing.
+    it("carries the adapter's field set, snake_case spellings included", () => {
+      expect(modelFields("Account")).toEqual([
+        "userId",
+        "type",
+        "provider",
+        "providerAccountId",
+        "refresh_token",
+        "access_token",
+        "expires_at",
+        "token_type",
+        "scope",
+        "id_token",
+        "session_state",
+        "user",
+      ]);
+    });
+
+    it("holds every provider-supplied token as optional", () => {
+      // The provider decides what it returns: an OIDC identity carries an
+      // `id_token` and no `refresh_token`, an OAuth2 one the reverse. A
+      // mandatory column here would refuse half the providers of E02.
+      for (const field of [
+        "refresh_token",
+        "access_token",
+        "expires_at",
+        "token_type",
+        "scope",
+        "id_token",
+        "session_state",
+      ]) {
+        expect(modelBlock("Account")).toMatch(new RegExp(`^\\s*${field}\\s+\\S+\\?`, "m"));
+      }
+    });
+
+    it("deduplicates an identity by provider and provider account id", () => {
+      // The key the adapter looks an identity up by is derived from this
+      // compound id — `provider_providerAccountId`. It is also what keeps a
+      // second sign-in with the same Google account from creating a second row.
+      expect(modelBlock("Account")).toMatch(/@@id\(\[provider, providerAccountId\]\)/);
+    });
+  });
+
+  describe("Session", () => {
+    it("is keyed by the token the browser presents", () => {
+      expect(modelBlock("Session")).toMatch(/^\s*sessionToken\s+String\s+@id/m);
+    });
+
+    it("carries its own expiry, and nothing that could disagree with it", () => {
+      // A boolean beside the date would be a second answer to "is this session
+      // still valid", and the one that goes stale is the boolean.
+      expect(modelFields("Session")).toEqual(["sessionToken", "userId", "expires", "user"]);
+      expect(modelBlock("Session")).toMatch(/^\s*expires\s+DateTime\s*$/m);
+    });
+
+    it("indexes the two scans that exist: by account, and by expiry", () => {
+      expect(modelBlock("Session")).toMatch(/@@index\(\[userId\]\)/);
+      expect(modelBlock("Session")).toMatch(/@@index\(\[expires\]\)/);
+    });
+  });
+
+  it("gives a verification token a single-use compound key", () => {
+    // The adapter deletes by `identifier_token` and treats a missing row as an
+    // already-used link. That is only single-use if the pair is the key.
+    expect(modelBlock("VerificationToken")).toMatch(/@@id\(\[identifier, token\]\)/);
+    expect(modelFields("VerificationToken")).toEqual(["identifier", "token", "expires"]);
+  });
+
+  it("deletes an account's identities and sessions with the account", () => {
+    for (const model of ["Account", "Session"]) {
+      expect(modelBlock(model)).toMatch(
+        /^\s*user\s+User\s+@relation\(fields: \[userId\], references: \[id\], onDelete: Cascade\)/m,
+      );
+    }
+  });
+
+  // The first bent rule, asserted: §4.3 says a row that can be modified records
+  // who modified it, and none of these three does. `Session.expires` is the
+  // only field that ever changes, extended by the framework on behalf of the
+  // account the row already names — the `User` exception, one level down.
+  it.each(AUTH_MODELS)("keeps %s outside the audit block, deliberately", (model) => {
+    const fields = modelFields(model);
+
+    expect(fields).not.toContain("updatedAt");
+    expect(fields).not.toContain(AUDIT_AUTHOR_FIELD);
+    expect(fields).not.toContain(AUDIT_VERSION_FIELD);
+  });
+
+  // The second: they are not project data, so they are classified as unowned
+  // rather than given a path to `Project` they could not honestly have.
+  it.each(AUTH_MODELS)("classifies %s as unowned, beside User", (model) => {
+    expect(UNOWNED_MODELS).toContain(model);
+    expect(PROJECT_OWNED_MODEL_NAMES).not.toContain(model);
+  });
+
+  describe("User, after authentication", () => {
+    it("lets an account exist before it has a name", () => {
+      // An email link knows an address and nothing else. A mandatory `name`
+      // would make the very first sign-in fail inside the adapter.
+      expect(modelBlock("User")).toMatch(/^\s*name\s+String\?/m);
+    });
+
+    it("records the address as proven by a timestamp, not by a boolean", () => {
+      expect(modelBlock("User")).toMatch(/^\s*emailVerified\s+DateTime\?/m);
+    });
+
+    it("keeps the address unique, since it is what identifies an account", () => {
+      // CAL-026 and CAL-027 attach a second and a third identity to an existing
+      // account by matching this column. Two rows with the same address would
+      // make that attachment pick one of them.
+      expect(modelBlock("User")).toMatch(/^\s*email\s+String\s+@unique/m);
+    });
+
+    it("owns both sides of the two new relations", () => {
+      expect(modelFields("User")).toContain("accounts");
+      expect(modelFields("User")).toContain("sessions");
     });
   });
 });

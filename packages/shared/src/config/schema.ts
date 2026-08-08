@@ -19,6 +19,15 @@ export const envSchema = z.object({
    */
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().url(),
+  /**
+   * The key Auth.js signs and encrypts with (CAL-024). Auth.js would read
+   * `AUTH_SECRET` from the environment on its own; it is declared here and
+   * passed explicitly instead, so a missing key fails at startup with every
+   * other missing variable rather than at the first sign-in attempt.
+   *
+   * Thirty-two characters is the floor `openssl rand -base64 32` clears.
+   */
+  AUTH_SECRET: z.string().min(32),
   REDIS_URL: z.string().url(),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),

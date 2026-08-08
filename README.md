@@ -65,9 +65,12 @@ calepin/
 │       ├── playwright.config.ts  configuration Playwright (E2E)
 │       ├── public/
 │       ├── src/app/          routes, layouts, styles, frontières d'erreur et page 404
-│       ├── src/components/   composants partagés — écran d'erreur en français
+│       ├── src/app/api/auth/ points d'entrée Auth.js (`/api/auth/*`)
+│       ├── src/components/   composants partagés — écran d'erreur, bandeau de session
 │       ├── src/lib/          câblage applicatif — corrélation, report des erreurs
 │       │                     serveur, composition du client Prisma
+│       ├── src/lib/auth.ts   l'instance Auth.js — sessions en base, durées, rappels
+│       ├── src/lib/current-user.ts  `getCurrentUser` / `requireCurrentUser`
 │       ├── src/lib/database.ts  le seul fichier de l'application qui nomme la base
 │       │                     de données ; tout le reste passe par `@calepin/shared/repository`
 │       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
@@ -83,6 +86,7 @@ calepin/
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
 │   │   ├── src/audit/         registre des modèles audités, portée d'acteur, extension Prisma (`@calepin/shared/audit`)
+│   │   ├── src/auth/          adaptateur Auth.js et durées de session (`@calepin/shared/auth`)
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
 │   │   ├── src/database/      point d'injection du client Prisma (`@calepin/shared/database`)
 │   │   ├── src/errors/        hiérarchie `AppError`, `Result`, codes HTTP (`@calepin/shared/errors`)
@@ -99,7 +103,9 @@ calepin/
 │   └── export/                @calepin/export — composition et rendu par format
 │
 ├── test/
-│   └── integration/          base PostgreSQL isolée par exécution (Testcontainers) et son globalSetup Vitest
+│   ├── integration/          base PostgreSQL isolée par exécution (Testcontainers) et son globalSetup Vitest
+│   └── e2e/                  fixtures Playwright qui écrivent en base — hors de `apps/web`,
+│                             que la règle de lint de la §3.5 tient à l'écart de la base
 │
 ├── tasks/
 │   ├── todo.md               le plan en cours

@@ -12,6 +12,10 @@
       "types": "./src/audit/index.ts",
       "default": "./src/audit/index.ts"
     },
+    "./auth": {
+      "types": "./src/auth/index.ts",
+      "default": "./src/auth/index.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "default": "./src/testing/index.ts"
@@ -45,6 +49,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
   },

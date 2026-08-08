@@ -97,12 +97,31 @@ jobs:
     name: Test (E2E)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Nothing opens a real DB/Redis/S3 connection yet (Prisma is CAL-011,
-    # BullMQ is CAL-060), so `next dev`'s startup env validation
-    # (apps/web/src/instrumentation.ts) only needs values that are
-    # shape-valid for packages/shared/src/config/schema.ts, not live services.
+    # The revisit CAL-007's review said would be needed "once CAL-011/CAL-060
+    # add a real connection": CAL-024 is it. The session suite signs a browser
+    # in and reloads twice, which is a session row in a real database — so the
+    # job now attaches Postgres and applies the committed migrations to it.
+    # Redis and S3 are still shape-valid values only; nothing connects to them
+    # until CAL-060.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: calepin
+          POSTGRES_PASSWORD: calepin
+          POSTGRES_DB: calepin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U calepin -d calepin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://calepin:calepin@localhost:5432/calepin
+      # Local-only, and deliberately not a secret: this key signs sessions that
+      # exist for the length of one job. A deployment reads its own.
+      AUTH_SECRET: ci-e2e-signing-key-of-at-least-32-characters
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1
@@ -117,6 +136,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma migrate deploy
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -136,6 +156,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    # Since CAL-024 the root layout reads the session, so the build evaluates
+    # `@calepin/shared/config` while collecting page data and needs a complete
+    # environment. Shape-valid values are enough: nothing connects, because
+    # nothing is prerendered once every route is dynamic.
+    env:
+      DATABASE_URL: postgresql://calepin:calepin@localhost:5432/calepin
+      AUTH_SECRET: ci-build-signing-key-of-at-least-32-characters
+      REDIS_URL: redis://localhost:6379
+      S3_ENDPOINT: http://localhost:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: calepin
+      S3_ACCESS_KEY_ID: calepin
+      S3_SECRET_ACCESS_KEY: calepin_local
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

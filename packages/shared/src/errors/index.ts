@@ -45,7 +45,13 @@ export {
   toErrorPayload,
 } from "./http";
 export { errorLogFields } from "./log-fields";
-export { GENERIC_ERROR_TITLE, NOT_FOUND_MESSAGE, NOT_FOUND_TITLE, USER_MESSAGES } from "./messages";
+export {
+  GENERIC_ERROR_TITLE,
+  NOT_FOUND_MESSAGE,
+  NOT_FOUND_TITLE,
+  UNAUTHENTICATED_MESSAGE,
+  USER_MESSAGES,
+} from "./messages";
 export {
   fromValidationIssues,
   toAppError,

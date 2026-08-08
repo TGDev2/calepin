@@ -59,11 +59,28 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Optional since CAL-024: an account created from an email link knows an
+  /// address and nothing else. The adapter writes whatever the provider
+  /// returned, and a required column would make the first sign-in fail.
+  name String?
+
+  /// When the address was proven to belong to the account holder — Auth.js
+  /// sets it, and CAL-026 reads it to decide whether an OAuth identity may be
+  /// attached to an existing account. A timestamp rather than a boolean, for
+  /// the reason `validatedAt` is one everywhere else in this schema.
+  emailVerified DateTime?
+
+  /// The avatar URL a provider supplied. Never fetched, never proxied.
+  image String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  accounts Account[]
+  sessions Session[]
 
   projects                 Project[]                 @relation("ProjectOwner")
   sourceTextVersionsEdited SourceTextVersion[]
@@ -105,6 +122,93 @@ model User {
   publicationsUpdated              Publication[]              @relation("PublicationUpdatedBy")
 
   @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// The Auth.js tables (CAL-024)
+//
+// Three models the `@auth/prisma-adapter` reads and writes by name. Their shape
+// is the adapter's contract, not a design of ours, and two of this repository's
+// own rules bend around that on purpose.
+//
+// **The field names are the adapter's, not §4.2's.** `refresh_token`,
+// `expires_at`, `token_type`, `id_token` and `session_state` are handed to
+// `prisma.account.create({ data })` exactly as the provider's token response
+// spelled them. Renaming them to camelCase would not rename what the adapter
+// passes — it would make the adapter write nothing. They are a wire format that
+// happens to be stored, so they keep the wire's spelling; every field this
+// repository chose itself is camelCase, as everywhere else.
+//
+// **They carry no audit block (CAL-022), and that is the `User` exception one
+// level down.** `updatedAt` is what makes a model audited, and none of the
+// three has one. `VerificationToken` is written once and consumed once.
+// `Account` is written at sign-in and deleted at unlink. `Session` is the only
+// one that changes, and the only thing that ever changes on it is its own
+// `expires`, extended by the framework on behalf of the very account the row
+// belongs to — so `updatedById` could only ever repeat `userId`. Recording an
+// author here would add a column and no information, exactly as it would on
+// `User`. `prisma/schema.test.ts` pins the exception rather than tolerating it.
+//
+// They are also outside `PROJECT_OWNED_MODELS`: an account is not project data,
+// it is how a project finds its owner. `UNOWNED_MODELS` names them.
+//
+// `Authenticator` — the adapter's fifth table — is deliberately absent. It
+// serves WebAuthn, which the backlog never asks for; the adapter only touches
+// it when a passkey provider is configured.
+// ---------------------------------------------------------------------------
+
+/// An identity at an external provider, attached to an account (CAL-026, CAL-027).
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The adapter looks an identity up by `provider_providerAccountId`, which is
+  /// the key Prisma derives from this compound id. It is also the deduplication
+  /// rule: one row per identity per provider.
+  @@id([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/// A signed-in session. The row *is* the session — see `SESSION_MAX_AGE_SECONDS`
+/// in `@calepin/shared/auth` for why this schema stores sessions rather than
+/// signing them into a token.
+model Session {
+  /// The primary key *is* the token the browser presents: the adapter reads a
+  /// session by it and by nothing else, so a second surrogate key would be a
+  /// column no query ever names.
+  sessionToken String   @id
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  /// An expired session is deleted, never read — Auth.js sweeps the one it
+  /// finds stale, and an operator sweeps the rest. Both scan by date.
+  @@index([expires])
+  @@map("sessions")
+}
+
+/// A single-use token behind an email sign-in link (CAL-025).
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
 }
 
 enum ProjectStatus {

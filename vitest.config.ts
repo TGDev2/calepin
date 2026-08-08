@@ -33,6 +33,17 @@ export default defineConfig({
           testTimeout: 30_000,
           hookTimeout: 60_000,
           fileParallelism: false,
+          server: {
+            deps: {
+              // `next-auth` imports `next/server` (CAL-024). Left external, it
+              // is resolved by Node's own ESM resolver from inside next-auth's
+              // package directory, where the extensionless specifier of a peer
+              // dependency does not resolve. Inlining hands it to Vite, which
+              // reads the `exports` map the same way the bundler does at
+              // runtime.
+              inline: ["next-auth"],
+            },
+          },
         },
       },
     ],

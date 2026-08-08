@@ -47,12 +47,13 @@ describe("the project-owned model registry", () => {
     for (const table of tables) expect(table).toMatch(/^[a-z][a-z0-9_]*$/);
   });
 
-  // An account is not project data — it is the owner. Reading one belongs to
-  // CAL-024 and to its own rule, so it must not silently acquire a project
-  // filter that would make no sense on it.
-  it("leaves User out, and says so out loud", () => {
-    expect(UNOWNED_MODELS).toEqual(["User"]);
-    expect(isProjectOwnedModel("User")).toBe(false);
+  // An account is not project data — it is the owner, and the three Auth.js
+  // tables (CAL-024) are how a request finds out which owner is asking. None of
+  // the four may silently acquire a project filter that would make no sense on
+  // it: the project scope is opened *from* the answer they give.
+  it("leaves the account models out, and says so out loud", () => {
+    expect(UNOWNED_MODELS).toEqual(["User", "Account", "Session", "VerificationToken"]);
+    for (const model of UNOWNED_MODELS) expect(isProjectOwnedModel(model)).toBe(false);
     expect(isProjectOwnedModel(undefined)).toBe(false);
     expect(isProjectOwnedModel("Chapter")).toBe(true);
   });

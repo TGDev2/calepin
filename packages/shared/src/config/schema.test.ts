@@ -5,6 +5,7 @@ import { envSchema } from "./schema";
 const validEnv = {
   NODE_ENV: "development",
   DATABASE_URL: "postgresql://calepin:calepin@localhost:5434/calepin",
+  AUTH_SECRET: "0123456789abcdef0123456789abcdef",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",
   S3_REGION: "us-east-1",
@@ -13,25 +14,10 @@ const validEnv = {
   S3_SECRET_ACCESS_KEY: "calepin_local",
 };
 
-const withoutNodeEnv = {
-  DATABASE_URL: validEnv.DATABASE_URL,
-  REDIS_URL: validEnv.REDIS_URL,
-  S3_ENDPOINT: validEnv.S3_ENDPOINT,
-  S3_REGION: validEnv.S3_REGION,
-  S3_BUCKET: validEnv.S3_BUCKET,
-  S3_ACCESS_KEY_ID: validEnv.S3_ACCESS_KEY_ID,
-  S3_SECRET_ACCESS_KEY: validEnv.S3_SECRET_ACCESS_KEY,
-};
-
-const withoutDatabaseUrl = {
-  NODE_ENV: validEnv.NODE_ENV,
-  REDIS_URL: validEnv.REDIS_URL,
-  S3_ENDPOINT: validEnv.S3_ENDPOINT,
-  S3_REGION: validEnv.S3_REGION,
-  S3_BUCKET: validEnv.S3_BUCKET,
-  S3_ACCESS_KEY_ID: validEnv.S3_ACCESS_KEY_ID,
-  S3_SECRET_ACCESS_KEY: validEnv.S3_SECRET_ACCESS_KEY,
-};
+/** The valid environment minus one variable, which is what each case tests. */
+function envWithout(variable: keyof typeof validEnv): Record<string, string> {
+  return Object.fromEntries(Object.entries(validEnv).filter(([key]) => key !== variable));
+}
 
 describe("envSchema", () => {
   it("parses a complete, valid environment", () => {
@@ -41,25 +27,42 @@ describe("envSchema", () => {
   });
 
   it("defaults NODE_ENV to development when absent", () => {
-    const result = envSchema.safeParse(withoutNodeEnv);
+    const result = envSchema.safeParse(envWithout("NODE_ENV"));
 
     expect(result.success).toBe(true);
     expect(result.success && result.data.NODE_ENV).toBe("development");
   });
 
-  it("fails with the missing variable's path when a required variable is absent", () => {
-    const result = envSchema.safeParse(withoutDatabaseUrl);
+  it.each(["DATABASE_URL", "AUTH_SECRET"] as const)(
+    "fails with the missing variable's path when %s is absent",
+    (variable) => {
+      const result = envSchema.safeParse(envWithout(variable));
+
+      expect(result.success).toBe(false);
+      expect(
+        result.success || result.error.issues.some((issue) => issue.path.join(".") === variable),
+      ).toBe(true);
+    },
+  );
+
+  it("refuses a signing key too short to be one", () => {
+    // Auth.js signs and encrypts the session cookie with it (CAL-024). A key
+    // short enough to be guessed is worse than a missing one, because startup
+    // succeeds.
+    const result = envSchema.safeParse({ ...validEnv, AUTH_SECRET: "trop-court" });
 
     expect(result.success).toBe(false);
-    expect(result.success || result.error.issues.some((issue) => issue.path.join(".") === "DATABASE_URL")).toBe(
-      true,
-    );
+    expect(
+      result.success || result.error.issues.some((issue) => issue.path.join(".") === "AUTH_SECRET"),
+    ).toBe(true);
   });
 
   it("fails when a variable is malformed", () => {
     const result = envSchema.safeParse({ ...validEnv, REDIS_URL: "not-a-url" });
 
     expect(result.success).toBe(false);
-    expect(result.success || result.error.issues.some((issue) => issue.path.join(".") === "REDIS_URL")).toBe(true);
+    expect(
+      result.success || result.error.issues.some((issue) => issue.path.join(".") === "REDIS_URL"),
+    ).toBe(true);
   });
 });

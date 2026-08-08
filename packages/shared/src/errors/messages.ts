@@ -38,6 +38,14 @@ export const USER_MESSAGES = {
 } as const satisfies Record<ErrorCategory, string>;
 
 /**
+ * `UNAUTHENTICATED` is the one code whose own message has to differ from its
+ * category's (CAL-024). It shares the `forbidden` category with `FORBIDDEN`,
+ * but the two say opposite things to a reader: one has no right to this, the
+ * other has no session yet — and only the second has something to do next.
+ */
+export const UNAUTHENTICATED_MESSAGE = "Vous devez vous connecter pour accéder à cette page.";
+
+/**
  * Shown by the React error boundaries, which receive an opaque error rather
  * than an `AppError` — React does not serialise class instances across the
  * server/client boundary, so a boundary can never learn the real category.

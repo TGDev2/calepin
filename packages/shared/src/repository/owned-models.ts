@@ -15,8 +15,9 @@
  * the model before it, and the last one must land on `Project`. A model added
  * later therefore fails there rather than shipping reachable by anyone.
  *
- * `User` is deliberately absent. An account is not project data — it is the
- * owner — and reading one is CAL-024's business, under its own rule.
+ * `User` is deliberately absent, and so are the three Auth.js tables CAL-024
+ * added beside it. An account is not project data — it is the owner — and
+ * reading one is authentication's business, under its own rule.
  *
  * This file imports nothing, on purpose, for the reason `audit/models.ts`
  * imports nothing: the `unit` Vitest project must stay free of a database and
@@ -106,8 +107,13 @@ export const PROJECT_OWNED_MODEL_NAMES = Object.keys(
 /**
  * The models that are not project data. Named rather than left implicit, so the
  * schema test asserts the exception instead of tolerating any gap.
+ *
+ * All four belong to an *account*, not to a project: `User` is the owner, and
+ * the three Auth.js tables (CAL-024) are how a request finds out which owner is
+ * asking. Scoping them to a project would be circular — the project scope is
+ * opened from the answer they give.
  */
-export const UNOWNED_MODELS = ["User"] as const;
+export const UNOWNED_MODELS = ["User", "Account", "Session", "VerificationToken"] as const;
 
 /** The column on `Project` that names its owner. The only one in the schema. */
 export const PROJECT_OWNER_FIELD = "userId";

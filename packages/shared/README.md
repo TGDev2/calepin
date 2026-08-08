@@ -13,6 +13,7 @@ them; an import in the other direction is a cycle.
 |---|---|
 | `@calepin/shared` | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS` |
 | `@calepin/shared/audit` | the audited-model registry, the actor scope and the Prisma extension that fills `updatedById` and `version` (CAL-022) |
+| `@calepin/shared/auth` | the Auth.js persistence adapter over the client seam, and the session lifetimes (CAL-024) |
 | `@calepin/shared/config` | the Zod environment schema and the single validated `process.env` read (CAL-006) |
 | `@calepin/shared/database` | the client seam — the process shell registers a `PrismaClient` here and the repository layer reads it (CAL-023). **Only a process shell may import it** |
 | `@calepin/shared/repository` | the owner access policy: the ownership registry, `ProjectScope`, the scoped `where` builder and the project repository (CAL-023) |
@@ -36,6 +37,12 @@ never as a value, so neither adds a runtime dependency on a generated client.
 The two are separate entry points so the lint rule of CLAUDE.md §3.5 can ban one
 by name and leave the other importable — the repository is what a route reaches
 for, the client is what only a process shell may hold.
+
+`auth` is there for the same reason (CAL-024). Auth.js needs a Prisma client and
+`apps/web` may not hold one, so the adapter is built here, over
+`getDatabaseClient()`, and the application receives an opaque `AuthAdapter`. It
+is the one module in this package with a runtime dependency on
+`@auth/prisma-adapter`; nothing else imports it, so nothing else pays for it.
 
 Nothing in the backlog owns `shared` as an epic. It grows from tasks that
 explicitly demand one implementation used in several runtimes — for example the
