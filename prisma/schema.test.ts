@@ -16,10 +16,15 @@ function enumMembers(name: string): string[] {
   const block = new RegExp(`enum ${name} \\{([^}]*)\\}`).exec(schema);
   if (!block?.[1]) throw new Error(`enum ${name} is not declared in schema.prisma`);
 
-  return block[1]
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => /^[A-Z][A-Z0-9_]*$/.test(line));
+  return (
+    block[1]
+      .split("\n")
+      // A member may carry a trailing `//` comment — AnalysisSection keeps the
+      // specification's French wording beside each identifier — so the comment is
+      // dropped before the member is recognised.
+      .map((line) => line.replace(/\/\/.*$/, "").trim())
+      .filter((line) => /^[A-Z][A-Z0-9_]*$/.test(line))
+  );
 }
 
 function modelBlock(name: string): string {
@@ -98,6 +103,95 @@ describe("prisma schema", () => {
     it("maps to a snake_case plural table, as every model does", () => {
       expect(modelBlock("Project")).toMatch(/@@map\("projects"\)/);
       expect(modelBlock("User")).toMatch(/@@map\("users"\)/);
+    });
+  });
+
+  describe("narrative analysis", () => {
+    // CAL-014's first acceptance criterion: every section of the specification
+    // is represented. The enum is that representation, so the list is pinned
+    // here in the specification's own order, with its wording beside each
+    // identifier — the same treatment ProjectStatus gets above.
+    it("declares the seventeen sections of the specification, in order", () => {
+      expect(enumMembers("AnalysisSection")).toEqual([
+        "FACTUAL_SUMMARY", // résumé factuel
+        "PREMISE", // prémisse
+        "MAIN_CONFLICT", // conflit principal
+        "NARRATIVE_PROMISE", // promesse du récit
+        "THEMES", // thèmes
+        "CHARACTERS", // personnages identifiés
+        "RELATIONSHIPS", // relations
+        "POINT_OF_VIEW", // point de vue
+        "TENSE", // temps verbal
+        "TONE", // tonalité
+        "SINGULAR_ELEMENTS", // éléments singuliers
+        "AMBIGUITIES", // ambiguïtés
+        "OPEN_QUESTIONS", // questions non résolues
+        "ELEMENTS_TO_PRESERVE", // éléments à préserver
+        "WEAKNESSES", // fragilités
+        "CLICHE_RISKS", // risques de clichés
+        "DEVELOPMENT_POTENTIAL", // potentiel de développement
+      ]);
+    });
+
+    // CAL-014's second acceptance criterion, and the glossary's own naming.
+    it("declares the two element markers of the glossary", () => {
+      expect(enumMembers("AnalysisElementKind")).toEqual([
+        "FACTUAL", // fait explicite
+        "INTERPRETATION", // interprétation
+      ]);
+    });
+
+    it("distinguishes a generated revision from an edited one", () => {
+      expect(enumMembers("AnalysisRevisionOrigin")).toEqual(["GENERATED", "EDITED"]);
+    });
+
+    it("marks every element, since the column admits no null", () => {
+      expect(modelBlock("AnalysisElement")).toMatch(/kind\s+AnalysisElementKind(?!\?)/);
+    });
+
+    it("versions by section, so one section can be regenerated alone", () => {
+      const revision = modelBlock("AnalysisSectionRevision");
+
+      expect(revision).toMatch(/section\s+AnalysisSection(?!\?)/);
+      expect(revision).toMatch(/@@unique\(\[analysisId, section, revisionNumber\]\)/);
+    });
+
+    // The current revision is the highest-numbered one, by definition of an
+    // append-only table. A flag beside it could point at revision 2 while
+    // revision 3 exists, and no constraint could forbid that.
+    it("keeps no denormalised marker of the current revision", () => {
+      expect(modelBlock("AnalysisSectionRevision")).not.toMatch(/^\s*(isCurrent|supersededAt)\s/m);
+    });
+
+    // The validation status is the timestamp. An enum beside it could only
+    // contradict it — the lesson CAL-012 recorded on targetWordCount.
+    it("carries the validation as a timestamp and its author, and nothing else", () => {
+      const analysis = modelBlock("Analysis");
+
+      expect(analysis).toMatch(/validatedAt\s+DateTime\?/);
+      expect(analysis).toMatch(/validatedById\s+String\?/);
+      expect(analysis).not.toMatch(/^\s*status\s/m);
+    });
+
+    it("holds one analysis per project", () => {
+      expect(modelBlock("Analysis")).toMatch(/projectId\s+String\s+@unique/);
+    });
+
+    // Revisions and elements are immutable, so an updatedAt on either could
+    // only be a copy of the revision's createdAt, free to drift from it.
+    it("timestamps the mutable rows only", () => {
+      expect(modelBlock("AnalysisSectionRevision")).not.toMatch(/^\s*updatedAt\s/m);
+      expect(modelBlock("AnalysisElement")).not.toMatch(/^\s*(updatedAt|createdAt)\s/m);
+      expect(modelBlock("AnalysisAnnotation")).toMatch(/^\s*updatedAt\s/m);
+    });
+
+    it("maps to snake_case plural tables, as every model does", () => {
+      expect(modelBlock("Analysis")).toMatch(/@@map\("analyses"\)/);
+      expect(modelBlock("AnalysisSectionRevision")).toMatch(
+        /@@map\("analysis_section_revisions"\)/,
+      );
+      expect(modelBlock("AnalysisElement")).toMatch(/@@map\("analysis_elements"\)/);
+      expect(modelBlock("AnalysisAnnotation")).toMatch(/@@map\("analysis_annotations"\)/);
     });
   });
 });

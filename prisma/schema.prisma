@@ -16,6 +16,9 @@ model User {
 
   projects                 Project[]
   sourceTextVersionsEdited SourceTextVersion[]
+  analysesValidated        Analysis[]
+  analysisRevisionsCreated AnalysisSectionRevision[]
+  analysisAnnotations      AnalysisAnnotation[]
 
   @@map("users")
 }
@@ -77,6 +80,7 @@ model Project {
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   sourceText SourceText?
+  analysis   Analysis?
 
   // The dashboard lists one user's projects, most recently modified first
   // (CAL-065), and filters that list by status. No index on userId alone:
@@ -108,9 +112,175 @@ model SourceTextVersion {
   editedById    String
   createdAt     DateTime @default(now())
 
-  sourceText SourceText @relation(fields: [sourceTextId], references: [id], onDelete: Cascade)
-  editedBy   User       @relation(fields: [editedById], references: [id], onDelete: Restrict)
+  sourceText        SourceText                @relation(fields: [sourceTextId], references: [id], onDelete: Cascade)
+  editedBy          User                      @relation(fields: [editedById], references: [id], onDelete: Restrict)
+  analysisRevisions AnalysisSectionRevision[]
 
   @@unique([sourceTextId, versionNumber])
   @@map("source_text_versions")
+}
+
+/// The seventeen sections of the narrative diagnostic, in the order the
+/// specification lists them. The list is closed and pinned by schema.test.ts:
+/// adding a section is a decision about the product, not a convenience.
+enum AnalysisSection {
+  FACTUAL_SUMMARY // résumé factuel
+  PREMISE // prémisse
+  MAIN_CONFLICT // conflit principal
+  NARRATIVE_PROMISE // promesse du récit
+  THEMES // thèmes
+  CHARACTERS // personnages identifiés
+  RELATIONSHIPS // relations
+  POINT_OF_VIEW // point de vue
+  TENSE // temps verbal
+  TONE // tonalité
+  SINGULAR_ELEMENTS // éléments singuliers
+  AMBIGUITIES // ambiguïtés
+  OPEN_QUESTIONS // questions non résolues
+  ELEMENTS_TO_PRESERVE // éléments à préserver
+  WEAKNESSES // fragilités
+  CLICHE_RISKS // risques de clichés
+  DEVELOPMENT_POTENTIAL // potentiel de développement
+
+  @@map("analysis_section")
+}
+
+/// Fait explicite versus interprétation, per the glossary in CLAUDE.md §4.3.
+/// The column is NOT NULL, which is what makes an unmarked element unstorable
+/// even through a direct SQL insert — the marker is carried by the data, never
+/// by the presentation.
+enum AnalysisElementKind {
+  FACTUAL
+  INTERPRETATION
+
+  @@map("analysis_element_kind")
+}
+
+/// Where a section revision came from. Two members, because that is the
+/// distinction the version history has to show (CAL-147): a generation, or a
+/// human edit. A section the author rewrote entirely is still EDITED.
+enum AnalysisRevisionOrigin {
+  GENERATED
+  EDITED
+
+  @@map("analysis_revision_origin")
+}
+
+/// The narrative diagnostic of a project's source text — one per project.
+/// The backlog's content line calls this NarrativeAnalysis; the identifier is
+/// Analysis, fixed by the glossary in CLAUDE.md §4.3, which also names
+/// AnalysisElement.kind. This model holds the validation and nothing else: the
+/// content lives in the section revisions.
+model Analysis {
+  id            String    @id @default(cuid())
+  projectId     String    @unique
+  /// The validation status is this timestamp. It is set together with
+  /// validatedById and never one without the other — analyses_validation_check,
+  /// which Prisma cannot express, see the add_narrative_analysis migration.
+  /// A status enum beside these two columns could only contradict them.
+  validatedAt   DateTime?
+  validatedById String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Restrict, not Prisma's SetNull default for an optional relation: nulling
+  // validatedById while validatedAt stands would break
+  // analyses_validation_check, so deleting the author would fail anyway — with
+  // a check violation instead of the referential error that names the cause.
+  validatedBy User?   @relation(fields: [validatedById], references: [id], onDelete: Restrict)
+
+  sectionRevisions AnalysisSectionRevision[]
+
+  @@map("analyses")
+}
+
+/// One version of one section. The section is the unit of regeneration
+/// (CAL-077), so it is the unit of versioning: a new revision of `THEMES`
+/// leaves the sixteen other sections' rows — and every annotation hanging off
+/// them — untouched, which a whole-analysis snapshot could not do.
+///
+/// The table is append-only. The current revision of a section is the one with
+/// the highest revisionNumber; there is deliberately no `isCurrent` column,
+/// since a flag can point at revision 2 while revision 3 exists and no
+/// constraint can forbid it.
+model AnalysisSectionRevision {
+  id                  String                 @id @default(cuid())
+  analysisId          String
+  section             AnalysisSection
+  revisionNumber      Int
+  origin              AnalysisRevisionOrigin
+  /// The version of the source text this revision was produced against. Held
+  /// per revision rather than per analysis: a section regenerated after the
+  /// author edited the source text read a different version from the sections
+  /// around it, and that is exactly what CAL-046 needs in order to name the
+  /// sections a source-text edit made obsolete.
+  sourceTextVersionId String
+  createdById         String
+  createdAt           DateTime               @default(now())
+
+  analysis          Analysis          @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  // Restrict on both references, as SourceTextVersion.editedBy already does:
+  // the record of which text a revision read, and of who asked for it, is the
+  // audit trail and must not be silently orphaned. Deleting a project still
+  // works — it cascades this table away before the references are checked.
+  sourceTextVersion SourceTextVersion @relation(fields: [sourceTextVersionId], references: [id], onDelete: Restrict)
+  createdBy         User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  elements AnalysisElement[]
+
+  // Also the index that answers "the current revision of each section of this
+  // analysis". Two concurrent regenerations of one section collide here as a
+  // unique violation instead of silently losing one of them.
+  @@unique([analysisId, section, revisionNumber])
+  @@map("analysis_section_revisions")
+}
+
+/// One assertion about the source text. The same shape carries all seventeen
+/// sections, whether the section produces a single element (résumé factuel,
+/// point de vue) or a list of them (thèmes, risques de clichés). How many
+/// elements a section may hold is a narrative rule and belongs to the domain's
+/// output schema (CAL-070), not to a database constraint.
+///
+/// Immutable, like the revision that owns it, so it carries no updatedAt and no
+/// author of its own: both would be copies of the revision's, able to drift
+/// from it and unable to be corrected.
+model AnalysisElement {
+  id                String              @id @default(cuid())
+  sectionRevisionId String
+  position          Int
+  kind              AnalysisElementKind
+  /// The short heading a listed section has and a paragraph section does not —
+  /// a theme's name, a character's name, the point of view, the tense.
+  label             String?
+  /// The element itself: one assertion, in the project's language.
+  statement         String
+  /// The passage of the source text that supports the element. CAL-071 owns
+  /// when it is mandatory; this column is its home. It is not enforced by a
+  /// CHECK here because the answer is section-dependent — a factual summary of
+  /// the whole text is supported by no single passage.
+  evidence          String?
+
+  sectionRevision AnalysisSectionRevision @relation(fields: [sectionRevisionId], references: [id], onDelete: Cascade)
+  annotations     AnalysisAnnotation[]
+
+  @@unique([sectionRevisionId, position])
+  @@map("analysis_elements")
+}
+
+/// A free note the author attaches to one element. Mutable, unlike everything
+/// above it, so it carries its own timestamps.
+model AnalysisAnnotation {
+  id        String   @id @default(cuid())
+  elementId String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  element AnalysisElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
+  author  User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([elementId])
+  @@map("analysis_annotations")
 }
