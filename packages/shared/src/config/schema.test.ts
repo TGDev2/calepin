@@ -13,6 +13,8 @@ const validEnv = {
   EMAIL_FROM: "connexion@calepin.test",
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
+  GITHUB_CLIENT_ID: "github-client-id",
+  GITHUB_CLIENT_SECRET: "github-client-secret",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",
   S3_REGION: "us-east-1",
@@ -50,6 +52,8 @@ describe("envSchema", () => {
     "EMAIL_FROM",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
   ] as const)("fails with the missing variable's path when %s is absent", (variable) => {
     const result = envSchema.safeParse(envWithout(variable));
 

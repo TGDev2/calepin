@@ -133,6 +133,10 @@ jobs:
       # sign-in yet (CAL-028 wires the sign-in screen).
       GOOGLE_CLIENT_ID: ci-e2e-google-client-id
       GOOGLE_CLIENT_SECRET: ci-e2e-google-client-secret
+      # Shape-valid only (CAL-027): nothing in the E2E suite drives GitHub
+      # sign-in yet (CAL-028 wires the sign-in screen).
+      GITHUB_CLIENT_ID: ci-e2e-github-client-id
+      GITHUB_CLIENT_SECRET: ci-e2e-github-client-secret
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1
@@ -181,6 +185,8 @@ jobs:
       EMAIL_FROM: connexion@calepin.test
       GOOGLE_CLIENT_ID: ci-build-google-client-id
       GOOGLE_CLIENT_SECRET: ci-build-google-client-secret
+      GITHUB_CLIENT_ID: ci-build-github-client-id
+      GITHUB_CLIENT_SECRET: ci-build-github-client-secret
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1

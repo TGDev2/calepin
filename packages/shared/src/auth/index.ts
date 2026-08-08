@@ -16,6 +16,7 @@ export {
   EMAIL_SIGN_IN_MAX_AGE_SECONDS,
   type EmailProviderOptions,
 } from "./email-provider";
+export { createGitHubProvider, type GitHubProviderOptions } from "./github-provider";
 export { createGoogleProvider, type GoogleProviderOptions } from "./google-provider";
 export {
   assertEmailSignInAllowed,

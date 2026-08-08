@@ -24,6 +24,7 @@
 import {
   createAuthAdapter,
   createEmailProvider,
+  createGitHubProvider,
   createGoogleProvider,
   resolveOAuthAccountLink,
   SESSION_MAX_AGE_SECONDS,
@@ -38,7 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   return {
     adapter,
 
-    /** The email link (CAL-025), Google (CAL-026). GitHub (CAL-027) adds one entry here. */
+    /** The email link (CAL-025), Google (CAL-026), GitHub (CAL-027). */
     providers: [
       createEmailProvider({
         from: env.EMAIL_FROM,
@@ -51,6 +52,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       createGoogleProvider({
         clientId: env.GOOGLE_CLIENT_ID,
         clientSecret: env.GOOGLE_CLIENT_SECRET,
+      }),
+      createGitHubProvider({
+        clientId: env.GITHUB_CLIENT_ID,
+        clientSecret: env.GITHUB_CLIENT_SECRET,
       }),
     ],
 
@@ -94,10 +99,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
 
       /**
        * Attaches an OAuth identity to an existing account when the address is
-       * verified and identical (CAL-026) — see `account-linking.ts` for the
-       * rule. Always returns `true`: linking is the only thing this callback
-       * decides, every other outcome (new user, refused unverified match) is
-       * Auth.js's own default behavior.
+       * verified and identical (CAL-026, CAL-027) — see `account-linking.ts`
+       * for the provider-agnostic rule both Google and GitHub go through
+       * unchanged. Always returns `true`: linking is the only thing this
+       * callback decides, every other outcome (new user, refused unverified
+       * match) is Auth.js's own default behavior.
        */
       async signIn({ account, user, profile }) {
         if (account) {

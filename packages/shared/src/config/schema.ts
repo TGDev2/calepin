@@ -45,6 +45,12 @@ export const envSchema = z.object({
    */
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
+  /**
+   * The OAuth client GitHub issues for the app (CAL-027). Same reasoning as
+   * `GOOGLE_CLIENT_ID`.
+   */
+  GITHUB_CLIENT_ID: z.string().min(1),
+  GITHUB_CLIENT_SECRET: z.string().min(1),
   REDIS_URL: z.string().url(),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
