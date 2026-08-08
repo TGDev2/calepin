@@ -1,4 +1,5 @@
 import { listProjectDashboardRows, type ProjectDashboardRow } from "@calepin/shared/repository";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
@@ -57,7 +58,14 @@ function ProjectCard({ project }: { project: ProjectDashboardRow }) {
   return (
     <article>
       <div className={styles.projectHeader}>
-        <h2 className={styles.projectTitle}>{project.title}</h2>
+        {/* Opening a project is a link, not an action (CAL-035): it changes
+            nothing, so it is a GET, it can be middle-clicked, and it is where
+            the four other actions live. */}
+        <h2 className={styles.projectTitle}>
+          <Link className={styles.projectLink} href={`/projects/${project.id}`}>
+            {project.title}
+          </Link>
+        </h2>
         <span className={styles.status}>{projectStatusLabel(project.status)}</span>
       </div>
 

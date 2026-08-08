@@ -1,0 +1,152 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.back {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 0.15rem var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.updatedAt {
+  margin: var(--space-1) 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.stats {
+  margin: var(--space-2) 0 0;
+  display: flex;
+  gap: var(--space-4);
+}
+
+.stat {
+  margin: 0;
+}
+
+.stat dt {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.error {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-danger);
+}
+
+.errorIcon {
+  flex-shrink: 0;
+}
+
+.sectionsTitle {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.action,
+.danger {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.danger {
+  border-color: var(--color-danger);
+}
+
+.actionTitle {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.actionNote {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.renameForm {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.input {
+  padding: var(--space-1);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.button {
+  justify-self: start;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--color-text-muted);
+}
+
+.dangerLink {
+  color: var(--color-danger);
+}

@@ -189,6 +189,51 @@ export async function seedProjectWithChapters(
   }
 }
 
+/**
+ * The titles of one account's projects, most recently modified first — what
+ * CAL-035's specs check a rename and a duplication against.
+ *
+ * In the database rather than on the screen, for the reason `userExists` gives:
+ * a duplication asserted only through the interface would pass just as happily
+ * against a page that re-rendered the original.
+ */
+export async function listProjectTitles(userId: string): Promise<string[]> {
+  const prisma = new PrismaClient();
+
+  try {
+    const projects = await prisma.project.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: { title: true },
+    });
+
+    return projects.map((project) => project.title);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** How many chapters a project holds — the copy's own, never the original's. */
+export async function countChapters(projectId: string): Promise<number> {
+  const prisma = new PrismaClient();
+
+  try {
+    return await prisma.chapter.count({ where: { outline: { projectId } } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function projectExists(projectId: string): Promise<boolean> {
+  const prisma = new PrismaClient();
+
+  try {
+    return (await prisma.project.count({ where: { id: projectId } })) > 0;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Whether a session row is still live — CAL-029's proof that sign-out invalidates it. */
 export async function sessionExists(sessionToken: string): Promise<boolean> {
   const prisma = new PrismaClient();
