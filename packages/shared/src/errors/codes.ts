@@ -51,6 +51,15 @@ export const ERROR_CODES = [
    * to say on whose behalf it was writing.
    */
   "AUDIT_ACTOR_REQUIRED",
+  /**
+   * A repository was reached without a proven `ProjectScope` (CAL-023) — the
+   * ownership parallel of `AUDIT_ACTOR_REQUIRED`. It is a programming error for
+   * the same reason: the caller is not being refused a right, the code failed
+   * to say whose data it was reading.
+   */
+  "PROJECT_SCOPE_REQUIRED",
+  /** No process shell registered a database client (CAL-023). Mis-wiring. */
+  "DATABASE_NOT_CONFIGURED",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -75,4 +84,6 @@ export const CATEGORY_BY_CODE = {
   TIMEOUT: "timeout",
   INTERNAL_ERROR: "internal",
   AUDIT_ACTOR_REQUIRED: "internal",
+  PROJECT_SCOPE_REQUIRED: "internal",
+  DATABASE_NOT_CONFIGURED: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

@@ -66,7 +66,10 @@ calepin/
 │       ├── public/
 │       ├── src/app/          routes, layouts, styles, frontières d'erreur et page 404
 │       ├── src/components/   composants partagés — écran d'erreur en français
-│       ├── src/lib/          câblage applicatif — corrélation, report des erreurs serveur
+│       ├── src/lib/          câblage applicatif — corrélation, report des erreurs
+│       │                     serveur, composition du client Prisma
+│       ├── src/lib/database.ts  le seul fichier de l'application qui nomme la base
+│       │                     de données ; tout le reste passe par `@calepin/shared/repository`
 │       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
 │       ├── src/instrumentation.ts  environnement, niveau du journal, `onRequestError`
 │       └── tests/e2e/        specs Playwright
@@ -79,10 +82,13 @@ calepin/
 │
 ├── packages/                 le métier, hors de toute application
 │   ├── shared/                @calepin/shared — primitives transverses
+│   │   ├── src/audit/         registre des modèles audités, portée d'acteur, extension Prisma (`@calepin/shared/audit`)
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
+│   │   ├── src/database/      point d'injection du client Prisma (`@calepin/shared/database`)
 │   │   ├── src/errors/        hiérarchie `AppError`, `Result`, codes HTTP (`@calepin/shared/errors`)
 │   │   ├── src/generation/    cycle de vie d'une tentative de génération (`@calepin/shared/generation`)
 │   │   ├── src/logging/       journal Pino, corrélation, liste blanche de champs (`@calepin/shared/logging`)
+│   │   ├── src/repository/    politique d'accès par propriétaire (`@calepin/shared/repository`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
 │   ├── direction/             @calepin/direction — directions romanesques divergentes

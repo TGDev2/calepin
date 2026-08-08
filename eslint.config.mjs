@@ -7,15 +7,7 @@ import tseslint from "typescript-eslint";
 
 // The seven business domains from CLAUDE.md §3.2 — kept in sync by hand,
 // same list as @calepin/shared's BUSINESS_DOMAINS.
-const DOMAINS = [
-  "analysis",
-  "direction",
-  "bible",
-  "outline",
-  "manuscript",
-  "coherence",
-  "export",
-];
+const DOMAINS = ["analysis", "direction", "bible", "outline", "manuscript", "coherence", "export"];
 
 // packages/<domain> may depend on @calepin/shared and @calepin/ai only —
 // never on another domain (CLAUDE.md §3.2, §5.3).
@@ -38,13 +30,7 @@ const domainBoundaryOverrides = DOMAINS.map((domain) => ({
 }));
 
 const eslintConfig = defineConfig([
-  globalIgnores([
-    "**/.next/**",
-    "**/out/**",
-    "**/build/**",
-    "**/dist/**",
-    "**/next-env.d.ts",
-  ]),
+  globalIgnores(["**/.next/**", "**/out/**", "**/build/**", "**/dist/**", "**/next-env.d.ts"]),
 
   {
     files: ["**/*.{ts,tsx}"],
@@ -114,6 +100,46 @@ const eslintConfig = defineConfig([
           property: "env",
           message:
             "Do not read process.env directly — import the validated config from @calepin/shared/config instead.",
+        },
+      ],
+    },
+  },
+
+  {
+    // The owner access policy (CLAUDE.md §3.5, CAL-023). Every read and write of
+    // project data goes through @calepin/shared/repository, which requires the
+    // owner id explicitly — so the interface layer never holds a database
+    // client it could query directly. The two exceptions are the composition
+    // root and the startup hook that imports it, named here the way the
+    // process.env rule above names its own.
+    //
+    // The base no-restricted-imports patterns are repeated: ESLint replaces a
+    // rule's options rather than merging them, so omitting them here would
+    // silently drop the "public entry point only" guard for apps/web.
+    files: ["apps/web/**/*.{ts,tsx}"],
+    ignores: ["apps/web/src/lib/database.ts", "apps/web/src/instrumentation.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@calepin/*/src/*", "@calepin/*/src"],
+              message: "Import a package's public entry point, not a path inside its src/.",
+            },
+            {
+              group: [
+                "@prisma/client",
+                "@prisma/*",
+                ".prisma/*",
+                "@calepin/shared/database",
+                "**/lib/database",
+                "**/lib/database.js",
+              ],
+              message:
+                "A route, a page or a server action never talks to the database. Read and write project data through @calepin/shared/repository, which requires the owner id (CLAUDE.md §3.5).",
+            },
+          ],
         },
       ],
     },

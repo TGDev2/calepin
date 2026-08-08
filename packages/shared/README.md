@@ -14,6 +14,8 @@ them; an import in the other direction is a cycle.
 | `@calepin/shared` | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS` |
 | `@calepin/shared/audit` | the audited-model registry, the actor scope and the Prisma extension that fills `updatedById` and `version` (CAL-022) |
 | `@calepin/shared/config` | the Zod environment schema and the single validated `process.env` read (CAL-006) |
+| `@calepin/shared/database` | the client seam — the process shell registers a `PrismaClient` here and the repository layer reads it (CAL-023). **Only a process shell may import it** |
+| `@calepin/shared/repository` | the owner access policy: the ownership registry, `ProjectScope`, the scoped `where` builder and the project repository (CAL-023) |
 | `@calepin/shared/errors` | the `AppError` hierarchy, `Result`, the HTTP mapping, the French user messages (CAL-010) |
 | `@calepin/shared/generation` | the generation attempt lifecycle and its append-only guarantee (CAL-010) |
 | `@calepin/shared/logging` | the Pino logger, the correlation context and the log field allowlist (CAL-009) |
@@ -27,6 +29,13 @@ logger must not require a complete environment.
 read `node:async_hooks`. `audit` describes the Prisma extension structurally and
 imports nothing from `@prisma/client`, not even a type, so the registry stays
 readable by the `unit` test project without a generated client.
+
+`database` and `repository` are server-side only too, and `@prisma/client` is a
+**dev** dependency of this package on purpose: both import it as a type and
+never as a value, so neither adds a runtime dependency on a generated client.
+The two are separate entry points so the lint rule of CLAUDE.md §3.5 can ban one
+by name and leave the other importable — the repository is what a route reaches
+for, the client is what only a process shell may hold.
 
 Nothing in the backlog owns `shared` as an epic. It grows from tasks that
 explicitly demand one implementation used in several runtimes — for example the

@@ -10,6 +10,12 @@ import {
   AUDITED_MODELS,
   UNAUDITED_MUTABLE_MODELS,
 } from "@calepin/shared/audit";
+import {
+  PROJECT_OWNED_MODEL_NAMES,
+  PROJECT_OWNED_MODELS,
+  PROJECT_OWNER_FIELD,
+  UNOWNED_MODELS,
+} from "@calepin/shared/repository";
 import { describe, expect, it } from "vitest";
 
 const schema = readFileSync(fileURLToPath(new URL("./schema.prisma", import.meta.url)), "utf8");
@@ -34,6 +40,13 @@ function enumMembers(name: string): string[] {
       .map((line) => line.replace(/\/\/.*$/, "").trim())
       .filter((line) => /^[A-Z][A-Z0-9_]*$/.test(line))
   );
+}
+
+/** Every model declared in the schema, in declaration order. */
+function declaredModels(): string[] {
+  return [...schema.matchAll(/^model (\w+) \{/gm)]
+    .map((match) => match[1])
+    .filter((name): name is string => name !== undefined);
 }
 
 function modelBlock(name: string): string {
@@ -1595,16 +1608,7 @@ describe("prisma schema", () => {
  * block fails here, in the `unit` project, without a database.
  */
 describe("audit fields (CAL-022)", () => {
-  /** Every model declared in the schema, in declaration order. */
-  function declaredModels(): string[] {
-    return [...schema.matchAll(/^model (\w+) \{/gm)]
-      .map((match) => match[1])
-      .filter((name): name is string => name !== undefined);
-  }
-
-  const mutableModels = declaredModels().filter((name) =>
-    modelFields(name).includes("updatedAt"),
-  );
+  const mutableModels = declaredModels().filter((name) => modelFields(name).includes("updatedAt"));
 
   it("registers every model that can be modified, and nothing else", () => {
     expect([...mutableModels].sort()).toEqual(
@@ -1720,5 +1724,87 @@ describe("audit fields (CAL-022)", () => {
     for (const model of AUDITED_MODEL_NAMES) {
       expect(user).toContain(`@relation("${model}UpdatedBy")`);
     }
+  });
+});
+
+/**
+ * The owner access policy's registry, pinned against the schema (CAL-023).
+ *
+ * `PROJECT_OWNED_MODELS` says how every model reaches the one row that names an
+ * owner. The filter builder trusts it blindly — a path that is wrong, stale or
+ * missing produces a `where` that constrains the wrong thing, and the query
+ * still looks right. So the path is checked here, segment by segment, against
+ * the schema itself.
+ */
+describe("the project ownership graph", () => {
+  /**
+   * The declared type of one field, relation fields included — `Character` for
+   * `bible Bible @relation(...)`, with the list and optional markers dropped so
+   * `Bible`, `Bible?` and `Bible[]` all answer `Bible`.
+   */
+  function fieldType(model: string, field: string): string | undefined {
+    const declaration = new RegExp(`^\\s*${field}\\s+(\\S+)`, "m").exec(modelBlock(model))?.[1];
+
+    return declaration?.replace(/[?[\]]/g, "");
+  }
+
+  it("classifies every model in the schema, with nothing left over", () => {
+    expect([...PROJECT_OWNED_MODEL_NAMES, ...UNOWNED_MODELS].sort()).toEqual(
+      declaredModels().sort(),
+    );
+  });
+
+  it("names the owner column on Project, and nowhere else", () => {
+    expect(fieldType("Project", PROJECT_OWNER_FIELD)).toBe("String");
+    expect(modelBlock("Project")).toMatch(
+      new RegExp(
+        `user\\s+User\\s+@relation\\("ProjectOwner", fields: \\[${PROJECT_OWNER_FIELD}\\]`,
+      ),
+    );
+
+    // Any second column called userId would be a second answer to "whose is
+    // this", and the filter builder would keep using the first.
+    const elsewhere = PROJECT_OWNED_MODEL_NAMES.filter(
+      (model) => model !== "Project" && fieldType(model, PROJECT_OWNER_FIELD) !== undefined,
+    );
+    expect(elsewhere).toEqual([]);
+  });
+
+  describe.each(PROJECT_OWNED_MODEL_NAMES)("%s", (model) => {
+    const { table, path } = PROJECT_OWNED_MODELS[model];
+
+    it("maps to the table the registry names", () => {
+      expect(modelBlock(model)).toMatch(new RegExp(`@@map\\("${table}"\\)`));
+    });
+
+    // The assertion the whole layer rests on: walking the registry's path from
+    // this model, one declared relation at a time, arrives at Project.
+    it("reaches Project through declared relations only", () => {
+      const arrival = path.reduce<string>((current, segment) => {
+        const target = fieldType(current, segment);
+
+        expect(target, `${current}.${segment} is not a declared field`).toBeDefined();
+        expect(modelBlock(current)).toMatch(
+          new RegExp(`^\\s*${segment}\\s+\\S+\\s+@relation`, "m"),
+        );
+
+        return target ?? current;
+      }, model);
+
+      expect(arrival).toBe("Project");
+    });
+
+    it("walks the mandatory side of every relation", () => {
+      // An optional segment would mean a row can exist attached to no project
+      // at all: invisible to the owner the filter looks for, and belonging to
+      // nobody. Requiring the mandatory side is what makes "every row belongs
+      // to exactly one project" a property of the schema rather than a habit.
+      // `Place?` fails this pattern, `Place` passes it.
+      path.reduce<string>((current, segment) => {
+        expect(modelBlock(current)).toMatch(new RegExp(`^\\s*${segment}\\s+\\w+\\s`, "m"));
+
+        return fieldType(current, segment) ?? current;
+      }, model);
+    });
   });
 });

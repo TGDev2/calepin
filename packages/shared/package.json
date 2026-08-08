@@ -20,6 +20,14 @@
       "types": "./src/config/index.ts",
       "default": "./src/config/index.ts"
     },
+    "./database": {
+      "types": "./src/database/index.ts",
+      "default": "./src/database/index.ts"
+    },
+    "./repository": {
+      "types": "./src/repository/index.ts",
+      "default": "./src/repository/index.ts"
+    },
     "./errors": {
       "types": "./src/errors/index.ts",
       "default": "./src/errors/index.ts"
@@ -39,5 +47,8 @@
   "dependencies": {
     "pino": "^10.3.1",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.3"
   }
 }

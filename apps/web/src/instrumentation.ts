@@ -7,6 +7,11 @@
  * It is also the composition root for the logger: `createLogger` is pure and
  * reads no environment, so the level has to be handed to it by the process
  * shell. `apps/worker` will do exactly the same thing (CAL-060).
+ *
+ * The database is registered here too (CAL-023). `./lib/database` composes the
+ * client and hands it to `@calepin/shared/database`; importing it at boot means
+ * a broken wiring fails when the server starts rather than on the first query a
+ * user happens to trigger.
  */
 import type { Instrumentation } from "next";
 
@@ -14,6 +19,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { env } = await import("@calepin/shared/config");
     const { configureLogger, logger } = await import("@calepin/shared/logging");
+    await import("./lib/database");
 
     configureLogger({ level: env.LOG_LEVEL });
     logger.info("app.started");
