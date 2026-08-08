@@ -123,7 +123,13 @@ test.describe("the sign-in screen", () => {
   });
 
   test("shows a loading state on an OAuth button without leaving the app", async ({ page }) => {
-    await fulfillAfterDelay(page, "**/api/auth/signin/google*", { url: "http://localhost:3000/" });
+    // Fulfilled with a public URL, not `/`: the mock never sets a real session
+    // cookie, so a fulfilled redirect there would correctly bounce off route
+    // protection again (CAL-032) — this test only cares that the app never
+    // left, not where the (faked) response happens to send it.
+    await fulfillAfterDelay(page, "**/api/auth/signin/google*", {
+      url: "http://localhost:3000/sign-in/check-email",
+    });
 
     await page.goto("/sign-in");
     const googleButton = page.getByRole("button", { name: "Continuer avec Google" });
@@ -133,7 +139,7 @@ test.describe("the sign-in screen", () => {
     // The email field is part of the same pending state.
     await expect(page.getByLabel("Adresse électronique")).toBeDisabled();
 
-    await page.waitForURL("http://localhost:3000/");
+    await page.waitForURL(/\/sign-in\/check-email/);
   });
 
   for (const [code, fragment] of [
@@ -201,9 +207,11 @@ test.describe("the confirmation screen", () => {
   });
 });
 
-test.describe("the home page", () => {
+test.describe("the account bar", () => {
+  // `/` is protected since CAL-032; the link under test is `AccountBar`'s own
+  // chrome, rendered identically, anonymous, on any public page.
   test("offers a way to reach the sign-in screen when signed out", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/sign-in/check-email");
 
     await expect(page.getByRole("link", { name: "Se connecter" })).toHaveAttribute(
       "href",

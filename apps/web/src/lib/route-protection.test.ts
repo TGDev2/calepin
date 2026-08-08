@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { hasSessionCookie, isPublicRoute, SESSION_COOKIE_NAMES } from "./route-protection";
 
 describe("isPublicRoute", () => {
-  it.each(["/", "/sign-in", "/sign-in/check-email", "/account/deleted", "/favicon.ico"])(
+  it.each(["/sign-in", "/sign-in/check-email", "/account/deleted", "/favicon.ico"])(
     "allows %s",
     (pathname) => {
       expect(isPublicRoute(pathname)).toBe(true);
@@ -28,7 +28,7 @@ describe("isPublicRoute", () => {
     expect(isPublicRoute(pathname)).toBe(true);
   });
 
-  it.each(["/account", "/account/delete", "/projects", "/sign-in-not-really", "/api/auth"])(
+  it.each(["/", "/account", "/account/delete", "/projects", "/sign-in-not-really", "/api/auth"])(
     "denies %s",
     (pathname) => {
       expect(isPublicRoute(pathname)).toBe(false);

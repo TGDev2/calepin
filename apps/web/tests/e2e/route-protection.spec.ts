@@ -23,7 +23,7 @@ function postedCallbackUrl(postData: string | null): string | null {
 }
 
 test.describe("the public allowlist", () => {
-  for (const path of ["/", "/sign-in", "/sign-in/check-email", "/account/deleted"]) {
+  for (const path of ["/sign-in", "/sign-in/check-email", "/account/deleted"]) {
     test(`does not redirect an anonymous visitor away from ${path}`, async ({ page }) => {
       await page.goto(path);
       expect(new URL(page.url()).pathname).toBe(path);
@@ -81,16 +81,17 @@ test.describe("an anonymous visitor of a non-public route", () => {
   test("carries the destination through to the OAuth sign-in request", async ({ page }) => {
     // Fulfilled with a public URL, not the real destination: the mock never
     // sets an actual session cookie, so a fulfilled redirect to `/account`
-    // would correctly bounce off this very middleware again. What this test
-    // asserts is the `callbackUrl` the request carried, not where the (faked)
-    // response happens to send the browser next.
+    // (or, since CAL-032, `/`) would correctly bounce off this very
+    // middleware again. What this test asserts is the `callbackUrl` the
+    // request carried, not where the (faked) response happens to send the
+    // browser next.
     let callbackUrl: string | null = null;
     await page.route("**/api/auth/signin/google*", async (route) => {
       callbackUrl = postedCallbackUrl(route.request().postData());
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ url: "http://localhost:3000/" }),
+        body: JSON.stringify({ url: "http://localhost:3000/sign-in/check-email" }),
       });
     });
 
@@ -98,7 +99,7 @@ test.describe("an anonymous visitor of a non-public route", () => {
     await page.waitForURL((url) => url.pathname === "/sign-in");
 
     await page.getByRole("button", { name: "Continuer avec Google" }).click();
-    await page.waitForURL("http://localhost:3000/");
+    await page.waitForURL(/\/sign-in\/check-email/);
 
     expect(callbackUrl).toBe("/account");
   });

@@ -108,7 +108,7 @@ test.describe("the account page", () => {
       await page.getByRole("button", { name: "Se déconnecter" }).click();
       await expect(page.getByRole("button", { name: "Déconnexion…" })).toBeVisible();
 
-      await page.waitForURL("http://localhost:3000/");
+      await page.waitForURL((url) => url.pathname === "/sign-in");
       await expect(sessionExists(session.sessionToken)).resolves.toBe(false);
     } finally {
       await closeSignedInSession(session);

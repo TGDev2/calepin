@@ -23,7 +23,9 @@ const clientLine = "Session client";
 
 test.describe("an anonymous visitor", () => {
   test("is shown as signed out on both halves of the page", async ({ page }) => {
-    await page.goto("/");
+    // `/` is protected since CAL-032; `AccountBar` (the chrome under test
+    // here) renders identically, anonymous, on any public page.
+    await page.goto("/sign-in");
 
     await expect(page.getByText(`${serverLine} : aucune`)).toBeVisible();
     // The client half starts at "chargement…" and settles once

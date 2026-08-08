@@ -5,9 +5,8 @@
  * own endpoints (`/api/auth/*`) stay reachable or sign-in itself would be
  * unreachable; the sign-in screen and its confirmation page stay reachable
  * for the same reason; the favicon is a static asset a browser requests
- * before any page renders. `/` is deliberately here too — it is today's
- * static skeleton page, not project data; CAL-032 turns it into the real
- * dashboard, and it joins this list's opposite, the protected set, then.
+ * before any page renders. `/` is deliberately *not* here (CAL-032): it is
+ * the real dashboard now, and a dashboard is project data.
  *
  * This module imports nothing on purpose, the same constraint as
  * `correlation-header.ts` beside it: `proxy.ts` runs on the Edge runtime,
@@ -15,7 +14,6 @@
  */
 
 const PUBLIC_ROUTES: readonly string[] = [
-  "/",
   "/sign-in",
   "/sign-in/check-email",
   // The acknowledgement an account deletion lands on (CAL-031). It is public

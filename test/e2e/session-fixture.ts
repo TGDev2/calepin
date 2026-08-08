@@ -71,11 +71,18 @@ export async function openSignedInSession(): Promise<SignedInSession> {
  * `deleteMany`, not `delete`: since CAL-031 a spec can legitimately have
  * deleted the account already, and a `finally` block that threw `P2025` would
  * fail the test that just proved the feature works.
+ *
+ * Projects first, same as `@calepin/shared/account`'s `deleteAccount`
+ * (lessons.md): `ChapterRevision.createdBy` is `onDelete: Restrict`, and
+ * `seedProjectWithChapters` credits the fixture's own user as the author, so
+ * deleting the user first is refused over rows its own projects' cascade was
+ * about to remove.
  */
 export async function closeSignedInSession(session: SignedInSession): Promise<void> {
   const prisma = new PrismaClient();
 
   try {
+    await prisma.project.deleteMany({ where: { userId: session.userId } });
     await prisma.user.deleteMany({ where: { id: session.userId } });
   } finally {
     await prisma.$disconnect();
@@ -95,6 +102,77 @@ export async function linkAccount(userId: string, provider: string): Promise<voi
     await prisma.account.create({
       data: { userId, provider, providerAccountId: randomUUID(), type: "oauth" },
     });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export interface SeededProject {
+  readonly projectId: string;
+  readonly title: string;
+}
+
+/**
+ * A project with a plan behind it — one written chapter, one not (CAL-032):
+ * enough for the dashboard's aggregates to read as non-trivial in a browser.
+ *
+ * Writes `updatedById` explicitly rather than pulling in
+ * `@calepin/shared/audit`'s extension: the fixture writes once, so naming the
+ * author on each call is simpler than wrapping the client for it.
+ *
+ * No matching teardown: `Project.user` cascades (`onDelete: Cascade`), so
+ * `closeSignedInSession`'s own deletes already remove everything this
+ * function creates.
+ */
+export async function seedProjectWithChapters(
+  userId: string,
+  title: string,
+): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    const outline = await prisma.outline.create({
+      data: { projectId: project.id, bibleId: bible.id, updatedById: userId },
+    });
+    const part = await prisma.part.create({
+      data: { outlineId: outline.id, orderKey: "i", title: "Partie 1", updatedById: userId },
+    });
+
+    const writtenChapter = await prisma.chapter.create({
+      data: {
+        outlineId: outline.id,
+        bibleId: bible.id,
+        partId: part.id,
+        orderKey: "i",
+        updatedById: userId,
+      },
+    });
+    await prisma.chapterRevision.create({
+      data: {
+        chapterId: writtenChapter.id,
+        revisionNumber: 1,
+        origin: "GENERATED",
+        content: "fixture",
+        wordCount: 250,
+        createdById: userId,
+      },
+    });
+
+    await prisma.chapter.create({
+      data: {
+        outlineId: outline.id,
+        bibleId: bible.id,
+        partId: part.id,
+        orderKey: "r",
+        updatedById: userId,
+      },
+    });
+
+    return { projectId: project.id, title };
   } finally {
     await prisma.$disconnect();
   }
