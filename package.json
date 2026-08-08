@@ -20,7 +20,14 @@
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:integration": "vitest run --project integration",
-    "test:e2e": "pnpm --filter @calepin/web test:e2e"
+    "test:e2e": "pnpm --filter @calepin/web test:e2e",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -32,6 +39,8 @@
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "pg": "^8.22.0",
     "prettier": "^3.9.6",
+    "prisma": "^6.19.3",
+    "tsx": "^4",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"

@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects              Project[]
+  sourceTextVersionsEdited SourceTextVersion[]
+
+  @@map("users")
+}
+
+enum ProjectStatus {
+  DRAFT
+  ANALYSIS_IN_PROGRESS
+  DIRECTION_TO_CHOOSE
+  BIBLE_TO_VALIDATE
+  OUTLINE_IN_PROGRESS
+  WRITING_IN_PROGRESS
+  REVISION
+  COMPLETED
+  PUBLISHED
+  ARCHIVED
+
+  @@map("project_status")
+}
+
+enum TargetLength {
+  SHORT
+  STANDARD
+  LONG
+  CUSTOM
+
+  @@map("target_length")
+}
+
+enum FreedomLevel {
+  LOW
+  BALANCED
+  HIGH
+
+  @@map("freedom_level")
+}
+
+model Project {
+  id                String         @id @default(cuid())
+  userId            String
+  title             String
+  language          String         @default("fr")
+  targetLength      TargetLength   @default(STANDARD)
+  targetAudience    String         @default("Grand public")
+  freedomLevel      FreedomLevel   @default(BALANCED)
+  status            ProjectStatus  @default(DRAFT)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceText SourceText?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, updatedAt])
+  @@map("projects")
+}
+
+model SourceText {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project          Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions         SourceTextVersion[]
+
+  @@map("source_texts")
+}
+
+model SourceTextVersion {
+  id           String   @id @default(cuid())
+  sourceTextId String
+  versionNumber Int
+  content      String
+  wordCount    Int
+  language     String   @default("fr")
+  editedById   String
+  createdAt    DateTime @default(now())
+
+  sourceText SourceText @relation(fields: [sourceTextId], references: [id], onDelete: Cascade)
+  editedBy   User       @relation(fields: [editedById], references: [id], onDelete: Restrict)
+
+  @@unique([sourceTextId, versionNumber])
+  @@map("source_text_versions")
+}
