@@ -18,12 +18,21 @@
  * leaves a number nothing ever contradicts.
  *
  * **Serialised per project, by a row lock.** `withProjectAggregates` takes
- * `FOR UPDATE` on the project row before anything else. Two concurrent chapter
- * writes would otherwise each recompute from a snapshot taken before the other
- * committed, and the second would overwrite the first's contribution with a
- * total that never included it — a lost update that no constraint can see. The
- * lock costs nothing a novel-writing application will notice: it serialises
- * writes to one project, not to the table.
+ * `FOR UPDATE` on the project row before anything else — `./project-lock`, which
+ * CAL-034's status writer shares, so the two writers of derived state cannot
+ * disagree about what they serialise. Two concurrent chapter writes would
+ * otherwise each recompute from a snapshot taken before the other committed, and
+ * the second would overwrite the first's contribution with a total that never
+ * included it — a lost update that no constraint can see. The lock costs nothing
+ * a novel-writing application will notice: it serialises writes to one project,
+ * not to the table.
+ *
+ * **The status is rewritten in the same breath** (CAL-034). `writtenChapterCount`
+ * is not only a number on the dashboard, it is evidence the project status is
+ * derived from: a chapter gaining its first revision is what moves a project
+ * from *plan en construction* to *rédaction en cours*. Recomputing the counters
+ * and leaving the status behind would ship exactly the drift both mechanisms
+ * exist to remove, so the one transaction writes both.
  *
  * **Written with raw SQL, deliberately.** The counters are derived state, so
  * they stay outside the audit block: this write names no author and does not
@@ -37,8 +46,10 @@
  */
 
 import { getDatabaseClient, type TransactionClient } from "../database/client";
-import { type AppError, InternalError, NotFoundError } from "../errors/app-error";
+import { InternalError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
+import { projectNotFound, RollbackSignal, runLockedOnProject } from "./project-lock";
+import { writeDerivedStatus } from "./project-status";
 import { assertProjectScope, type ProjectScope } from "./scope";
 
 /** The two denormalised counters, as they are stored and as they are computed. */
@@ -55,25 +66,6 @@ export interface ProjectAggregates {
  * database seam (CLAUDE.md §3.5).
  */
 export type { TransactionClient };
-
-/**
- * Carries a domain failure out of an interactive transaction.
- *
- * Prisma rolls back on a throw and on nothing else, so a `Result` returned from
- * the callback would commit the partial write it was reporting. The signal is
- * thrown, caught by `withProjectAggregates` itself, and turned back into the
- * failure the caller asked for. It never escapes this module.
- */
-class RollbackSignal extends Error {
-  constructor(readonly failure: AppError) {
-    super("the project aggregate transaction was rolled back");
-    this.name = "RollbackSignal";
-  }
-}
-
-function notFound(): NotFoundError {
-  return new NotFoundError({ message: "no project with this id belongs to this owner" });
-}
 
 /**
  * The definition of both counters, in one statement.
@@ -148,24 +140,6 @@ function toAggregates(rows: unknown): ProjectAggregates | undefined {
   return { writtenChapterCount: written, totalWordCount: words };
 }
 
-/**
- * Takes the project row for the rest of the transaction, and confirms it is the
- * scope's owner's while doing it.
- *
- * One statement does both on purpose. The lock is what serialises concurrent
- * recomputations, and the `userId` in its `WHERE` is what makes a forged scope
- * find nothing to lock — so a mutation running under one never starts.
- */
-async function lockProject(client: TransactionClient, scope: ProjectScope): Promise<void> {
-  const rows = await client.$queryRaw`
-    SELECT "id" FROM "projects"
-    WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
-    FOR UPDATE
-  `;
-
-  if (!Array.isArray(rows) || rows.length === 0) throw new RollbackSignal(notFound());
-}
-
 /** Recomputes both counters and stores them. The project row is already locked. */
 async function writeAggregates(
   client: TransactionClient,
@@ -173,10 +147,10 @@ async function writeAggregates(
 ): Promise<ProjectAggregates> {
   const aggregates = await selectAggregates(client, scope);
 
-  // Unreachable behind `lockProject`, which already refused a project the scope
-  // does not own. A throw rather than a silent zero: were it ever reached, the
+  // Unreachable behind the lock, which already refused a project the scope does
+  // not own. A throw rather than a silent zero: were it ever reached, the
   // alternative would be storing "no chapters" for a project full of them.
-  if (aggregates === undefined) throw new RollbackSignal(notFound());
+  if (aggregates === undefined) throw new RollbackSignal(projectNotFound());
 
   await client.$executeRaw`
     UPDATE "projects"
@@ -189,41 +163,23 @@ async function writeAggregates(
 }
 
 /**
- * One transaction, holding the project's row lock, around whatever the caller
- * has to do under it. The single place a `RollbackSignal` is turned back into
- * the failure it carries.
- */
-async function runLocked<T>(
-  scope: ProjectScope,
-  body: (client: TransactionClient) => Promise<Result<T>>,
-): Promise<Result<T>> {
-  assertProjectScope(scope);
-
-  try {
-    return await getDatabaseClient().$transaction(async (tx) => {
-      await lockProject(tx, scope);
-
-      return await body(tx);
-    });
-  } catch (error: unknown) {
-    if (error instanceof RollbackSignal) return fail(error.failure);
-
-    throw error;
-  }
-}
-
-/**
- * Runs a write against a project's chapters and leaves its counters exact.
+ * Runs a write against a project's chapters and leaves its derived state exact.
  *
  * The sequence is fixed, and every maintenance path in the product is expected
  * to be one call to this function:
  *
- *   lock the project ──► the caller's write ──► recompute and store
+ *   lock the project ──► the caller's write ──► recompute counters ──► status
  *
  * all inside one transaction. A failure anywhere — the mutation returning a
- * `Result` failure, the mutation throwing, the recomputation failing — rolls the
- * whole thing back, so a counter never records a write that did not happen and a
- * write never lands without its counter.
+ * `Result` failure, the mutation throwing, the recomputation failing, the status
+ * landing somewhere the transition table does not reach — rolls the whole thing
+ * back, so a counter never records a write that did not happen and a write never
+ * lands without its counter.
+ *
+ * The status comes last because it reads the counters this function has just
+ * rewritten: a chapter gaining its first revision is what moves a project from
+ * *plan en construction* to *rédaction en cours*, and it is the same statement's
+ * job to say so.
  *
  * The mutation receives the transaction client and must use it. A write issued
  * against the ambient client instead runs outside the transaction and outside
@@ -233,11 +189,12 @@ export async function withProjectAggregates<T>(
   scope: ProjectScope,
   mutate: (client: TransactionClient) => Promise<Result<T>>,
 ): Promise<Result<T>> {
-  return runLocked(scope, async (tx) => {
+  return runLockedOnProject(scope, async (tx) => {
     const mutated = await mutate(tx);
     if (!mutated.ok) throw new RollbackSignal(mutated.error);
 
     await writeAggregates(tx, scope);
+    await writeDerivedStatus(tx, scope, { gated: true });
 
     return succeed(mutated.value);
   });
@@ -258,7 +215,7 @@ export async function computeProjectAggregates(
 
   const aggregates = await selectAggregates(getDatabaseClient(), scope);
 
-  return aggregates === undefined ? fail(notFound()) : succeed(aggregates);
+  return aggregates === undefined ? fail(projectNotFound()) : succeed(aggregates);
 }
 
 /**
@@ -272,5 +229,5 @@ export async function computeProjectAggregates(
 export async function reconcileProjectAggregates(
   scope: ProjectScope,
 ): Promise<Result<ProjectAggregates>> {
-  return runLocked(scope, async (tx) => succeed(await writeAggregates(tx, scope)));
+  return runLockedOnProject(scope, async (tx) => succeed(await writeAggregates(tx, scope)));
 }

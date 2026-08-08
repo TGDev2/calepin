@@ -46,8 +46,17 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAuditedClient } from "./audited-client";
 import { createProjectGraph, type ProjectGraph } from "./project-graph";
 
-/** The repository's data entry points — every export that touches the database. */
+/**
+ * The repository's data entry points — every export that touches the database.
+ *
+ * The six status functions of CAL-034 are isolated in
+ * `project-status.integration.test.ts` rather than here: they are all one
+ * mechanism, they need a project seeded up a stage to refuse anything
+ * meaningful, and the assertion below is what makes leaving one of them untested
+ * fail.
+ */
 const ENTRY_POINTS = [
+  "archiveProject",
   "computeProjectAggregates",
   "createProject",
   "deleteProject",
@@ -55,10 +64,15 @@ const ENTRY_POINTS = [
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "openProjectScope",
+  "readProjectProgress",
   "reconcileProjectAggregates",
+  "reconcileProjectStatus",
+  "refreshProjectStatus",
   "requireOwnedRow",
+  "restoreProject",
   "updateProject",
   "withProjectAggregates",
+  "withProjectStatus",
 ];
 
 /** Its pure helpers: they build or check a value and reach nothing. */
@@ -374,6 +388,29 @@ describe("owner access policy", () => {
       if (updated.ok) expect(updated.value.userId).toBe(alice.ownerId);
       expect((await listProjectsForOwner(bob.ownerId)).map((project) => project.id)) //
         .not.toContain(alice.projectId);
+    });
+
+    // CAL-034 removed `status` from the patch, and the field-by-field rebuild is
+    // what makes the removal hold at runtime too: a caller reaching this
+    // function from untyped code cannot declare a project finished either.
+    it("updateProject cannot set a project status by hand", async () => {
+      const before = await getProjectForOwner({
+        ownerId: alice.ownerId,
+        projectId: alice.projectId,
+      });
+      if (!before.ok) throw new Error("the fixture's own project is unreadable");
+
+      const patch = {
+        title: "renamed twice",
+        status: "COMPLETED",
+      } as unknown as UpdateProjectInput;
+
+      const updated = await runWithActor(alice.ownerId, async () =>
+        updateProject(aliceScope, patch),
+      );
+
+      expect(updated.ok).toBe(true);
+      if (updated.ok) expect(updated.value.status).toBe(before.value.status);
     });
 
     it("createProject gives the project to the owner it names", async () => {

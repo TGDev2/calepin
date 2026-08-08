@@ -38,6 +38,14 @@ export {
   type UpdateProjectInput,
 } from "./project";
 export {
+  archiveProject,
+  readProjectProgress,
+  reconcileProjectStatus,
+  refreshProjectStatus,
+  restoreProject,
+  withProjectStatus,
+} from "./project-status";
+export {
   assertProjectScope,
   isProjectScope,
   openProjectScope,

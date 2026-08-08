@@ -268,20 +268,46 @@ enum FreedomLevel {
 }
 
 model Project {
-  id              String        @id @default(cuid())
+  id              String       @id @default(cuid())
   userId          String
   title           String
-  language        String        @default("fr")
-  targetLength    TargetLength  @default(STANDARD)
+  language        String       @default("fr")
+  targetLength    TargetLength @default(STANDARD)
   /// Set if and only if targetLength is CUSTOM, and then strictly positive.
   /// A preset stores no number: the enum already names its range, and a second
   /// column able to contradict it would become the one consumers trust.
   /// Enforced by projects_custom_target_word_count_check, which Prisma cannot
   /// express — see the add_project_custom_target_word_count migration.
   targetWordCount Int?
-  targetAudience  String        @default("Grand public")
-  freedomLevel    FreedomLevel  @default(BALANCED)
-  status          ProjectStatus @default(DRAFT)
+  targetAudience  String       @default("Grand public")
+  freedomLevel    FreedomLevel @default(BALANCED)
+
+  /// Derived state, never a field a caller sets (CAL-034). The status is a
+  /// function of what the project actually holds — a source text, a validated
+  /// analysis, a canonical direction, a validated bible, written and validated
+  /// chapters, a visible publication — and this column caches that function the
+  /// way the two counters below cache the chapters. It is maintained by
+  /// @calepin/shared/repository inside the write that moved the evidence, and by
+  /// nothing else: there is no path in the codebase that sets a status by hand.
+  ///
+  /// Outside the audit block for the same reason the counters are: the status
+  /// has no author, and burning Project.version on it would make a chapter
+  /// generation collide with an unrelated rename.
+  status ProjectStatus @default(DRAFT)
+
+  /// The one status the graph cannot otherwise carry (CAL-034). Archiving is a
+  /// decision about the project, with no row anywhere to prove it, so it is
+  /// written down the way this schema writes down every other decision of that
+  /// shape — Analysis.validatedAt, Bible.validatedAt,
+  /// Publication.firstPublishedAt — as a timestamp rather than as a status able
+  /// to contradict one. Set by archiveProject, cleared by restoreProject, and
+  /// read as evidence like everything else.
+  ///
+  /// No CHECK pairs it with `status`: archiving writes this column (audited, so
+  /// the act keeps its author) and the derived status (raw, so the counterpart
+  /// of a counter keeps no author) as two statements of one transaction, and
+  /// PostgreSQL cannot defer a CHECK to the end of it.
+  archivedAt DateTime?
 
   /// Chapters carrying at least one ChapterRevision (CAL-033). Denormalised and
   /// maintained by the write, never recomputed by the screen that shows it:
@@ -305,11 +331,11 @@ model Project {
   /// (CAL-033). Same maintenance, same statement, so the two can never disagree.
   totalWordCount      Int @default(0)
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  updatedById     String        @default("unattributed")
-  version         Int           @default(1)
-  updatedBy       User          @relation("ProjectUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("ProjectUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
   user               User                @relation("ProjectOwner", fields: [userId], references: [id], onDelete: Cascade)
   sourceText         SourceText?

@@ -249,15 +249,21 @@ export async function createProjectGraph(
     },
   });
 
-  // The graph writes its rows directly, so the counters CAL-033 maintains at
-  // write time never moved. They are set to what the graph actually seeded —
-  // one chapter carrying one revision of one word — rather than reconciled,
-  // because this fixture must not depend on the seam being registered before it
-  // runs, and because an isolation suite asserting on an aggregate should be
-  // asserting on a number this file put there.
+  // The graph writes its rows directly, so the derived state CAL-033 and
+  // CAL-034 maintain at write time never moved. All three are set to what the
+  // graph actually seeded — one chapter carrying one revision of one word, and
+  // therefore a project whose furthest stage reached is *rédaction en cours* —
+  // rather than reconciled, because this fixture must not depend on the seam
+  // being registered before it runs, and because an isolation suite asserting on
+  // derived state should be asserting on a value this file put there.
+  //
+  // The status matters beyond the assertions: a suite that calls
+  // `withProjectAggregates` on this graph recomputes the status inside the same
+  // transaction, and a column left at DRAFT would put that recomputation four
+  // stages ahead of it — the jump the transition table refuses.
   await prisma.project.update({
     where: { id: project.id },
-    data: { writtenChapterCount: 1, totalWordCount: 1 },
+    data: { writtenChapterCount: 1, totalWordCount: 1, status: "WRITING_IN_PROGRESS" },
   });
 
   return {

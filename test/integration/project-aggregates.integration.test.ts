@@ -82,12 +82,54 @@ describe("project aggregates (CAL-033)", () => {
   /**
    * A project with `chapterCount` chapters and no text at all — every counter
    * starts at zero, and every number below is something a write path put there.
+   *
+   * The rows above the outline are seeded too, and CAL-034 is why. Every write
+   * in this suite goes through `withProjectAggregates`, which recomputes the
+   * project status in the same transaction as the counters; a plan hanging off a
+   * bible nobody validated is a graph the product cannot build, and the first
+   * chapter written into it would move the status four stages at once — the jump
+   * the transition table refuses. So the fixture builds the project the product
+   * would have built, and states the stage it has reached, exactly as it states
+   * the counters it starts from.
    */
   async function seedProject(label: string, chapterCount = 2): Promise<Fixture> {
     setActor(ownerId);
 
-    const project = await prisma.project.create({ data: { userId: ownerId, title: label } });
-    const bible = await prisma.bible.create({ data: { projectId: project.id } });
+    const project = await prisma.project.create({
+      data: { userId: ownerId, title: label, status: "OUTLINE_IN_PROGRESS" },
+    });
+
+    const sourceText = await prisma.sourceText.create({ data: { projectId: project.id } });
+    await prisma.sourceTextVersion.create({
+      data: {
+        sourceTextId: sourceText.id,
+        versionNumber: 1,
+        content: FOUR_WORDS,
+        wordCount: 4,
+        editedById: ownerId,
+      },
+    });
+    await prisma.analysis.create({
+      data: { projectId: project.id, validatedAt: new Date(), validatedById: ownerId },
+    });
+    await prisma.creativeDirection.create({
+      data: {
+        projectId: project.id,
+        workingTitle: "fixture",
+        developedPremise: "fixture",
+        dominantGenre: "fixture",
+        mainConflict: "fixture",
+        protagonistArc: "fixture",
+        endingNature: "fixture",
+        novelPotentialAssessment: "fixture",
+        origin: "PROPOSED",
+        isCanonical: true,
+      },
+    });
+
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, validatedAt: new Date(), validatedById: ownerId },
+    });
     const outline = await prisma.outline.create({
       data: { projectId: project.id, bibleId: bible.id },
     });

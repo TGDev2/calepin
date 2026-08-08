@@ -113,7 +113,12 @@ function sharedStringUnion(path: string, name: string): string[] {
   const block = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source);
   if (!block?.[1]) throw new Error(`${name} is not declared in ${path}`);
 
-  return [...block[1].matchAll(/"([a-z_]+)"/g)]
+  // Both spellings, because the direction of the mirroring differs by case. A
+  // union `@calepin/shared` owns is lowercase and the Prisma enum copies it
+  // (`ERROR_CATEGORIES`); a union that copies a Prisma enum keeps that enum's
+  // SCREAMING_SNAKE (`PROJECT_STATUSES`, `LIVE_GENERATION_STATUSES`). Uppercasing
+  // afterwards makes one comparison serve both.
+  return [...block[1].matchAll(/"([A-Za-z_]+)"/g)]
     .map((member) => member[1])
     .filter((member): member is string => member !== undefined)
     .map((member) => member.toUpperCase());
@@ -137,6 +142,17 @@ describe("prisma schema", () => {
       "PUBLISHED", // publié
       "ARCHIVED", // archivé
     ]);
+  });
+
+  // CAL-034. The state machine walks its own copy of this list — it has to, to
+  // stay runnable without a generated client — so the two are pinned against
+  // each other here as well as at compile time in
+  // `repository/project-status.ts`. The *order* matters as much as the members:
+  // it is what "one step forward" means in the transition table.
+  it("mirrors the status order the state machine walks", () => {
+    expect(enumMembers("ProjectStatus")).toEqual(
+      sharedStringUnion("project-status/statuses.ts", "PROJECT_STATUSES"),
+    );
   });
 
   it("declares the four target lengths, the fourth being the custom one", () => {
@@ -185,6 +201,14 @@ describe("prisma schema", () => {
 
       expect(project).toMatch(/writtenChapterCount\s+Int\s+@default\(0\)/);
       expect(project).toMatch(/totalWordCount\s+Int\s+@default\(0\)/);
+    });
+
+    // CAL-034. Archiving is the one status no narrative evidence can produce,
+    // so it is written down as a timestamp — the shape every other decision of
+    // its kind takes in this schema — and never as a status able to contradict
+    // one. Nullable, because most projects have never been archived.
+    it("records archiving as a timestamp, which is what makes the status derived", () => {
+      expect(modelBlock("Project")).toMatch(/^\s*archivedAt\s+DateTime\?/m);
     });
 
     // The third dashboard number stays computed, deliberately: a chapter is

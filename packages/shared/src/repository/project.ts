@@ -17,6 +17,7 @@ import type { $Enums } from "@prisma/client";
 import { getDatabaseClient } from "../database/client";
 import { InternalError, NotFoundError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
+import type { ProjectStatus } from "../project-status";
 import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { assertProjectScope, type ProjectScope } from "./scope";
 
@@ -38,6 +39,13 @@ export interface CreateProjectInput {
  * hands through this layer. The patch is also rebuilt field by field below
  * rather than spread, so a caller that reaches this function from untyped code
  * with an extra `userId` in the object does not move the row either.
+ *
+ * `status` is absent for the same kind of reason, since CAL-034: it is derived
+ * from what the project holds, so there is nothing here for a caller to assert.
+ * `./project-status` is the only writer, it recomputes rather than accepts, and
+ * it refuses a move the transition table does not hold. Putting the field back
+ * would not add an option, it would add the one way to make the column disagree
+ * with the rows.
  */
 export interface UpdateProjectInput {
   readonly title?: string;
@@ -46,7 +54,6 @@ export interface UpdateProjectInput {
   readonly targetWordCount?: number | null;
   readonly targetAudience?: string;
   readonly freedomLevel?: $Enums.FreedomLevel;
-  readonly status?: $Enums.ProjectStatus;
 }
 
 /** Prisma's "no row matched the where clause" on an update or a delete. */
@@ -77,8 +84,13 @@ export async function listProjectsForOwner(ownerId: string) {
  * `Project.status` (CAL-032), re-exported under the repository's own name so
  * `apps/web` can type against it without importing `@prisma/client` — the
  * import the interface layer is never allowed to hold (CLAUDE.md §3.5).
+ *
+ * It is the state machine's type since CAL-034, not the generated enum's. The
+ * two are proved to be the same list in `./project-status`; naming the machine's
+ * here means a screen that types against a status is typing against the thing
+ * that decides it.
  */
-export type ProjectStatus = $Enums.ProjectStatus;
+export type { ProjectStatus };
 
 /** One row of the project dashboard (CAL-032). */
 export interface ProjectDashboardRow {
@@ -196,7 +208,6 @@ export async function updateProject(scope: ProjectScope, patch: UpdateProjectInp
         ...(patch.targetWordCount === undefined ? {} : { targetWordCount: patch.targetWordCount }),
         ...(patch.targetAudience === undefined ? {} : { targetAudience: patch.targetAudience }),
         ...(patch.freedomLevel === undefined ? {} : { freedomLevel: patch.freedomLevel }),
-        ...(patch.status === undefined ? {} : { status: patch.status }),
       },
     });
 

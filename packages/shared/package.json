@@ -51,6 +51,10 @@
     "./logging": {
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
+    },
+    "./project-status": {
+      "types": "./src/project-status/index.ts",
+      "default": "./src/project-status/index.ts"
     }
   },
   "scripts": {

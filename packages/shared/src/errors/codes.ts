@@ -30,6 +30,14 @@ export const ERROR_CODES = [
   // conflict
   "CONFLICT",
   "STALE_REVISION",
+  /**
+   * A project's status was recomputed from its rows and the answer is not
+   * reachable from the status stored on the row (CAL-034). It is `conflict`
+   * rather than `internal`: nothing about the request is malformed and no call
+   * site is mis-wired — the graph and the column disagree by more than one step,
+   * which is a state the caller can repair, not a bug it can only report.
+   */
+  "ILLEGAL_STATUS_TRANSITION",
 
   // rate_limit
   "RATE_LIMITED",
@@ -78,6 +86,7 @@ export const CATEGORY_BY_CODE = {
   UNAUTHENTICATED: "forbidden",
   CONFLICT: "conflict",
   STALE_REVISION: "conflict",
+  ILLEGAL_STATUS_TRANSITION: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",
