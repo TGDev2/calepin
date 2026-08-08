@@ -38,9 +38,16 @@ type PendingMethod = "email" | "google" | "github" | null;
 export interface SignInFormProps {
   /** French, ready to show — mapped server-side from `?error=` (CAL-028). */
   initialError: string | null;
+  /**
+   * Where to return the visitor once signed in — already sanitized
+   * server-side by `sanitizeCallbackUrl` (CAL-030). Auth.js carries it across
+   * both the email-link round trip and the OAuth round trip and redirects
+   * there on success.
+   */
+  callbackUrl: string;
 }
 
-export function SignInForm({ initialError }: SignInFormProps) {
+export function SignInForm({ initialError, callbackUrl }: SignInFormProps) {
   const [email, setEmail] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(initialError);
@@ -66,7 +73,7 @@ export function SignInForm({ initialError }: SignInFormProps) {
     setFieldError(null);
     setPending("email");
 
-    const result = await signIn("email", { email: trimmedEmail, redirect: false });
+    const result = await signIn("email", { email: trimmedEmail, redirect: false, callbackUrl });
 
     if (result?.error) {
       setPending(null);
@@ -86,7 +93,7 @@ export function SignInForm({ initialError }: SignInFormProps) {
   function handleOAuthClick(provider: "google" | "github") {
     setFormError(null);
     setPending(provider);
-    void signIn(provider);
+    void signIn(provider, { callbackUrl });
   }
 
   return (

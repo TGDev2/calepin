@@ -85,9 +85,12 @@ test.describe("the account page", () => {
     }
   });
 
-  test("redirects a signed-out visitor to the sign-in screen", async ({ page }) => {
+  test("redirects a signed-out visitor to the sign-in screen, preserving the destination", async ({
+    page,
+  }) => {
     await page.goto("/account");
-    await page.waitForURL(/\/sign-in$/);
+    await page.waitForURL((url) => url.pathname === "/sign-in");
+    expect(new URL(page.url()).searchParams.get("callbackUrl")).toBe("/account");
   });
 
   test("signing out shows a pending state and actually invalidates the session", async ({

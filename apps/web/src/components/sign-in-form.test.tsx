@@ -11,7 +11,7 @@ function labelTargetId(html: string): string | null {
 
 describe("SignInForm", () => {
   it("associates the email label with the email input", () => {
-    const html = renderToStaticMarkup(<SignInForm initialError={null} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={null} callbackUrl="/" />);
 
     const forId = labelTargetId(html);
     expect(forId).not.toBeNull();
@@ -20,14 +20,14 @@ describe("SignInForm", () => {
   });
 
   it("marks the email field as required for assistive technology", () => {
-    const html = renderToStaticMarkup(<SignInForm initialError={null} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={null} callbackUrl="/" />);
 
     expect(html).toContain('required=""');
     expect(html).toContain('aria-required="true"');
   });
 
   it("offers all three sign-in methods, each with a real accessible name", () => {
-    const html = renderToStaticMarkup(<SignInForm initialError={null} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={null} callbackUrl="/" />);
 
     expect(html).toContain("Recevoir le lien de connexion");
     expect(html).toContain("Continuer avec Google");
@@ -35,7 +35,7 @@ describe("SignInForm", () => {
   });
 
   it("renders no error banner when there is nothing to report", () => {
-    const html = renderToStaticMarkup(<SignInForm initialError={null} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={null} callbackUrl="/" />);
 
     expect(html).not.toContain('role="alert"');
   });
@@ -44,7 +44,7 @@ describe("SignInForm", () => {
     // No apostrophe in this one — React HTML-escapes it (`&#x27;`) in static
     // markup, which would make a literal `toContain` of the raw string fail.
     const message = "Ce lien de connexion a déjà été utilisé ou a expiré.";
-    const html = renderToStaticMarkup(<SignInForm initialError={message} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={message} callbackUrl="/" />);
 
     expect(html).toContain('role="alert"');
     expect(html).toContain(message);
@@ -52,7 +52,7 @@ describe("SignInForm", () => {
 
   it("never renders color as the only signal on an error — text goes with it", () => {
     const message = "La connexion a échoué. Réessayez dans un instant.";
-    const html = renderToStaticMarkup(<SignInForm initialError={message} />);
+    const html = renderToStaticMarkup(<SignInForm initialError={message} callbackUrl="/" />);
 
     expect(html).toContain("Erreur");
     expect(html).toContain('aria-hidden="true"');

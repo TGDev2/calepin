@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { getCurrentUser } from "@/lib/current-user";
+import { signInDestination } from "@/lib/sign-in-redirect";
 
 import styles from "./page.module.css";
 
@@ -21,10 +22,13 @@ const PROVIDER_LABELS: Record<string, string> = {
  *
  * A visitor with no session has nothing to see here — the mirror image of
  * the sign-in page's own "already authenticated → redirect home" (CAL-028).
+ * `proxy.ts` already turns away a visitor with no session cookie at all
+ * (CAL-030); this is what catches the one case it cannot — a cookie present
+ * but not naming a live session — and preserves the destination the same way.
  */
 export default async function AccountPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/sign-in");
+  if (!user) redirect(signInDestination("/account"));
 
   const linkedProviders = await listLinkedProviders(user.id);
   const methods = ["email", ...linkedProviders].map(
