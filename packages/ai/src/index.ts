@@ -18,6 +18,11 @@ export type {
   StructuredProviderCall,
 } from "./adapter";
 export {
+  type AnthropicMessagesClient,
+  createAnthropicAdapter,
+  type CreateAnthropicAdapterOptions,
+} from "./adapters/anthropic";
+export {
   EFFORT_LEVELS,
   type EffortLevel,
   MODEL_CAPABILITIES,

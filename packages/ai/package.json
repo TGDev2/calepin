@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
     "@calepin/shared": "workspace:*",
     "zod": "^4.4.3"
   },

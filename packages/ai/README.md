@@ -22,11 +22,21 @@ narrative rule, and never restates a domain schema.
   attempt, clean cancellation, retry with classification and backoff,
   rate-limit handling, switch to the backup model, output validation.
 
+## What exists (CAL-049)
+
+- `adapters/anthropic.ts` — the primary provider adapter, and the only file
+  in the repository that may import a provider SDK. It translates and sets no
+  policy: the transport streams, structured calls are constrained by the JSON
+  Schema the pipeline derived, usage is reported exactly as the provider
+  reported it, and the SDK's own retries are turned off (`maxRetries: 0`) so
+  the one exponential backoff is `retry.ts`'s. The key is a constructor
+  argument — no package outside the config module reads the environment.
+
 ## What arrives in its own task
 
-Adapters (CAL-049, CAL-050) · full mission registry over the routing table
-(CAL-051) · output repair (CAL-052) · prompt registry (CAL-053) · context
-composer (CAL-054) · token accounting (CAL-056).
+Second provider and automatic failover (CAL-050) · full mission registry over
+the routing table (CAL-051) · output repair (CAL-052) · prompt registry
+(CAL-053) · context composer (CAL-054) · token accounting (CAL-056).
 
 ## Hard rules
 
