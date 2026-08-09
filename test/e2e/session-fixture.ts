@@ -208,6 +208,47 @@ export async function setProjectStatus(
 }
 
 /**
+ * Writes a `Generation` row directly, `QUEUED` or `RUNNING` — the persistent
+ * indicator's spec (CAL-039) needs one without a mission registry
+ * (`@calepin/ai`, CAL-048) or a worker (CAL-060) to produce it for real.
+ */
+export async function seedRunningGeneration(
+  projectId: string,
+  userId: string,
+  mission: $Enums.GenerationMission,
+): Promise<string> {
+  const prisma = new PrismaClient();
+
+  try {
+    const generation = await prisma.generation.create({
+      data: { projectId, mission, input: {}, status: "RUNNING", updatedById: userId },
+    });
+
+    return generation.id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Moves a generation to a terminal status — CAL-039's spec proves the
+ * indicator's poll picks up a generation finishing without a page reload. */
+export async function setGenerationStatus(
+  generationId: string,
+  status: $Enums.GenerationStatus,
+): Promise<void> {
+  const prisma = new PrismaClient();
+
+  try {
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { status, completedAt: new Date() },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * The titles of one account's projects, most recently modified first — what
  * CAL-035's specs check a rename and a duplication against.
  *

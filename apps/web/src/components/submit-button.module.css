@@ -1,0 +1,40 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.button {
+  justify-self: start;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-1);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-weight: normal;
+}
+
+.primary:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+}
+
+.danger {
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.button:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}

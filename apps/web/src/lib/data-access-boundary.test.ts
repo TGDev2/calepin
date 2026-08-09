@@ -102,13 +102,26 @@ describe("the data-access boundary of apps/web", () => {
 
   // The criterion, file by file. Every one of the three spellings is refused,
   // in every file of the application but the two that compose the client.
-  it.each(guarded)("refuses a direct database import in %s", async (path) => {
-    expect(await restrictedImportsIn(path)).toHaveLength(FORBIDDEN_IMPORTS.length);
-  });
+  //
+  // A real `ESLint.lintText` call, one per case, past vitest's 5000ms default
+  // under the full suite's concurrency: comfortable alone, marginal once every
+  // project file in the repository is competing for the same CPU. The longer
+  // timeout buys headroom for that contention, not for a slower assertion.
+  it.each(guarded)(
+    "refuses a direct database import in %s",
+    async (path) => {
+      expect(await restrictedImportsIn(path)).toHaveLength(FORBIDDEN_IMPORTS.length);
+    },
+    15_000,
+  );
 
-  it.each(COMPOSITION_ROOT)("lets %s hold the client", async (path) => {
-    expect(await restrictedImportsIn(path)).toEqual([]);
-  });
+  it.each(COMPOSITION_ROOT)(
+    "lets %s hold the client",
+    async (path) => {
+      expect(await restrictedImportsIn(path)).toEqual([]);
+    },
+    15_000,
+  );
 
   // The repository is what a route is supposed to import, so the rule must not
   // have been written so broadly that it bans the replacement too.

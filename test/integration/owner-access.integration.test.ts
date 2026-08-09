@@ -30,6 +30,7 @@ import {
   getProjectForOwner,
   listProjectDashboardRows,
   listProjectsForOwner,
+  listRunningGenerations,
   openProjectScope,
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
@@ -65,6 +66,7 @@ const ENTRY_POINTS = [
   "getProjectForOwner",
   "listProjectDashboardRows",
   "listProjectsForOwner",
+  "listRunningGenerations",
   "openProjectScope",
   "readProjectProgress",
   "reconcileProjectAggregates",
@@ -301,6 +303,18 @@ describe("owner access policy", () => {
         writtenChapterCount: 1,
         totalWordCount: 1,
       });
+    });
+
+    // The fixture graph seeds one `Generation` per owner, `QUEUED` by
+    // default (`project-graph.ts`) — already "running" for this reader's
+    // purposes, with no extra seed needed.
+    it("listRunningGenerations never returns another owner's generation", async () => {
+      const alicesRunning = await listRunningGenerations(aliceScope);
+      const bobsRunning = await listRunningGenerations(bobScope);
+
+      expect(alicesRunning.map((row) => row.id)).toContain(alice.rows.Generation);
+      expect(alicesRunning.map((row) => row.id)).not.toContain(bob.rows.Generation);
+      expect(bobsRunning.map((row) => row.id)).not.toContain(alice.rows.Generation);
     });
 
     it("updateProject refuses a scope forged for another owner's project", async () => {

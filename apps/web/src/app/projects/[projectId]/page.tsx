@@ -1,12 +1,16 @@
 import {
   getProjectForOwner,
+  listRunningGenerations,
   openProjectScope,
   readProjectProgress,
 } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { ProcessStepper } from "@/components/process-stepper";
+import { ArchiveProjectSection } from "@/components/archive-project-section";
+import { GenerationIndicator } from "@/components/generation-indicator";
+import { ProjectOverview } from "@/components/project-overview";
+import { SubmitButton } from "@/components/submit-button";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectActionErrorMessage } from "@/lib/project-action-error";
 import { projectStatusLabel } from "@/lib/project-status-label";
@@ -19,6 +23,7 @@ import {
   renameProjectAction,
   restoreProjectAction,
 } from "./actions";
+import { getRunningGenerationsAction } from "./generation-status-action";
 import styles from "./page.module.css";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
@@ -59,7 +64,10 @@ export default async function ProjectPage({
   ]);
   if (!found.ok || !scope.ok) notFound();
 
-  const progress = await readProjectProgress(scope.value);
+  const [progress, runningGenerations] = await Promise.all([
+    readProjectProgress(scope.value),
+    listRunningGenerations(scope.value),
+  ]);
   if (!progress.ok) notFound();
 
   const project = found.value;
@@ -72,69 +80,25 @@ export default async function ProjectPage({
         <Link href="/">← Mes projets</Link>
       </p>
 
-      <div className={styles.header}>
-        <h1 className={styles.title}>{project.title}</h1>
-        <span className={styles.status}>{projectStatusLabel(project.status)}</span>
-      </div>
+      <ProjectOverview
+        projectId={project.id}
+        title={project.title}
+        titleMaxLength={PROJECT_TITLE_MAX_LENGTH}
+        statusLabel={projectStatusLabel(project.status)}
+        updatedAtIso={project.updatedAt.toISOString()}
+        updatedAtLabel={DATE_FORMAT.format(project.updatedAt)}
+        writtenChapterCountLabel={NUMBER_FORMAT.format(project.writtenChapterCount)}
+        totalWordCountLabel={NUMBER_FORMAT.format(project.totalWordCount)}
+        progress={progress.value}
+        error={error}
+        renameAction={renameProjectAction}
+      />
 
-      <p className={styles.updatedAt}>
-        Modifié le{" "}
-        <time dateTime={project.updatedAt.toISOString()}>
-          {DATE_FORMAT.format(project.updatedAt)}
-        </time>
-      </p>
-
-      <dl className={styles.stats}>
-        <div className={styles.stat}>
-          <dt>Chapitres rédigés</dt>
-          <dd>{NUMBER_FORMAT.format(project.writtenChapterCount)}</dd>
-        </div>
-        <div className={styles.stat}>
-          <dt>Mots</dt>
-          <dd>{NUMBER_FORMAT.format(project.totalWordCount)}</dd>
-        </div>
-      </dl>
-
-      <ProcessStepper progress={progress.value} />
-
-      {error ? (
-        <p className={styles.error} role="alert">
-          <span className={styles.errorIcon} aria-hidden="true">
-            ⚠
-          </span>
-          <span>
-            <strong>Erreur&nbsp;: </strong>
-            {error}
-          </span>
-        </p>
-      ) : null}
-
-      <h2 className={styles.sectionsTitle}>Actions</h2>
-
-      <section className={styles.action} aria-labelledby="rename-heading">
-        <h3 className={styles.actionTitle} id="rename-heading">
-          Renommer
-        </h3>
-        <form className={styles.renameForm} action={renameProjectAction}>
-          <input type="hidden" name="projectId" value={project.id} />
-          <label className={styles.label} htmlFor="title">
-            Titre du projet
-          </label>
-          <input
-            className={styles.input}
-            id="title"
-            name="title"
-            type="text"
-            defaultValue={project.title}
-            maxLength={PROJECT_TITLE_MAX_LENGTH}
-            required
-            aria-required="true"
-          />
-          <button className={styles.button} type="submit">
-            Renommer
-          </button>
-        </form>
-      </section>
+      <GenerationIndicator
+        projectId={project.id}
+        initial={runningGenerations.map((row) => ({ id: row.id, mission: row.mission }))}
+        getRunningGenerations={getRunningGenerationsAction}
+      />
 
       <section className={styles.action} aria-labelledby="duplicate-heading">
         <h3 className={styles.actionTitle} id="duplicate-heading">
@@ -148,28 +112,16 @@ export default async function ProjectPage({
         </p>
         <form action={duplicateProjectAction}>
           <input type="hidden" name="projectId" value={project.id} />
-          <button className={styles.button} type="submit">
-            Dupliquer ce projet
-          </button>
+          <SubmitButton pendingLabel="Duplication…">Dupliquer ce projet</SubmitButton>
         </form>
       </section>
 
-      <section className={styles.action} aria-labelledby="archive-heading">
-        <h3 className={styles.actionTitle} id="archive-heading">
-          {isArchived ? "Restaurer" : "Archiver"}
-        </h3>
-        <p className={styles.actionNote}>
-          {isArchived
-            ? "Ce projet est archivé. Le restaurer le remet à l'étape que son contenu justifie."
-            : "L'archivage met le projet de côté sans rien supprimer. Il reste consultable, et vous pouvez le restaurer à tout moment."}
-        </p>
-        <form action={isArchived ? restoreProjectAction : archiveProjectAction}>
-          <input type="hidden" name="projectId" value={project.id} />
-          <button className={styles.button} type="submit">
-            {isArchived ? "Restaurer ce projet" : "Archiver ce projet"}
-          </button>
-        </form>
-      </section>
+      <ArchiveProjectSection
+        projectId={project.id}
+        isArchived={isArchived}
+        archiveAction={archiveProjectAction}
+        restoreAction={restoreProjectAction}
+      />
 
       <section className={styles.danger} aria-labelledby="delete-heading">
         <h3 className={styles.actionTitle} id="delete-heading">

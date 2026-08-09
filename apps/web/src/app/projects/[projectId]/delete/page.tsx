@@ -2,6 +2,7 @@ import { getProjectForOwner } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { SubmitButton } from "@/components/submit-button";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectActionErrorMessage } from "@/lib/project-action-error";
 import { signInDestination } from "@/lib/sign-in-redirect";
@@ -112,9 +113,9 @@ export default async function DeleteProjectPage({
           aria-invalid={error ? true : undefined}
         />
 
-        <button className={styles.submit} type="submit">
+        <SubmitButton pendingLabel="Suppression…" variant="danger">
           Supprimer définitivement ce projet
-        </button>
+        </SubmitButton>
       </form>
 
       <p className={styles.cancel}>

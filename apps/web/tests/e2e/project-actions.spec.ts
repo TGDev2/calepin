@@ -82,8 +82,11 @@ test("renames a project, and refuses a blank title", async ({ page, context }) =
     await page.getByLabel("Titre du projet").fill("Titre choisi");
     await page.getByRole("button", { name: "Renommer" }).click();
 
+    // The heading updates optimistically (CAL-039), ahead of the server
+    // round trip — so the database check below polls rather than reading
+    // once, instead of racing the write the visible update doesn't wait for.
     await expect(page.getByRole("heading", { level: 1, name: "Titre choisi" })).toBeVisible();
-    expect(await listProjectTitles(session.userId)).toEqual(["Titre choisi"]);
+    await expect.poll(() => listProjectTitles(session.userId)).toEqual(["Titre choisi"]);
   } finally {
     await closeSignedInSession(session);
   }
@@ -141,7 +144,10 @@ test("archives a project and restores it", async ({ page, context }) => {
     // irreversible one.
     await page.getByRole("button", { name: "Restaurer ce projet" }).click();
 
-    await expect(page.getByRole("heading", { name: "Archiver" })).toBeVisible();
+    // `exact`, unlike the "Restaurer" check above: this project's own title
+    // contains the substring "archiver", which a loose match against the
+    // archive section's own heading would also catch.
+    await expect(page.getByRole("heading", { name: "Archiver", exact: true })).toBeVisible();
     await expect(page.getByText("Archivé", { exact: true })).toBeHidden();
   } finally {
     await closeSignedInSession(session);

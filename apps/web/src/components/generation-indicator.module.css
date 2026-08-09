@@ -1,0 +1,46 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.banner {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-1) var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.line {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.spinner {
+  flex-shrink: 0;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-text-muted);
+  animation: spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,31 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.block {
+  display: block;
+  background: var(--color-border);
+  border-radius: var(--radius-1);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Never rely on motion alone: a user who asked for less of it gets a static
+   placeholder instead of no feedback at all. */
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+    opacity: 0.8;
+  }
+}
