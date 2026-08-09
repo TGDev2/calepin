@@ -1,7 +1,12 @@
-import { getProjectForOwner } from "@calepin/shared/repository";
+import {
+  getProjectForOwner,
+  openProjectScope,
+  readProjectProgress,
+} from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ProcessStepper } from "@/components/process-stepper";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectActionErrorMessage } from "@/lib/project-action-error";
 import { projectStatusLabel } from "@/lib/project-status-label";
@@ -24,9 +29,10 @@ const NUMBER_FORMAT = new Intl.NumberFormat("fr-FR");
  *
  * **This is the "open" action.** The dashboard links here, and until the screens
  * of E7 to E15 exist this page is a shell: the same facts the dashboard card
- * shows, plus the four other actions. The nine-step bar that will sit at the top
- * of it is CAL-037's, and it reads `readProjectProgress` rather than anything
- * added here.
+ * shows, the nine-step progress bar (CAL-037), plus the four other actions.
+ * The bar reads `readProjectProgress` rather than `project.status` — the
+ * cached column can be stale (a fixture or a direct write never refreshed it),
+ * while the progress query recomputes from the rows every time.
  *
  * **A project that is not yours and a project that does not exist are the same
  * answer** — `notFound()`, because the repository refuses to tell them apart
@@ -47,8 +53,14 @@ export default async function ProjectPage({
   const user = await getCurrentUser();
   if (!user) redirect(signInDestination(`/projects/${projectId}`));
 
-  const found = await getProjectForOwner({ ownerId: user.id, projectId });
-  if (!found.ok) notFound();
+  const [found, scope] = await Promise.all([
+    getProjectForOwner({ ownerId: user.id, projectId }),
+    openProjectScope({ ownerId: user.id, projectId }),
+  ]);
+  if (!found.ok || !scope.ok) notFound();
+
+  const progress = await readProjectProgress(scope.value);
+  if (!progress.ok) notFound();
 
   const project = found.value;
   const isArchived = project.archivedAt !== null;
@@ -82,6 +94,8 @@ export default async function ProjectPage({
           <dd>{NUMBER_FORMAT.format(project.totalWordCount)}</dd>
         </div>
       </dl>
+
+      <ProcessStepper progress={progress.value} />
 
       {error ? (
         <p className={styles.error} role="alert">

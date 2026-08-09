@@ -1,0 +1,70 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. "Current" is told apart by border weight and font weight, never by
+ * introducing a color the token set doesn't already have.
+ */
+
+.wrapper {
+  margin: 0 0 var(--space-3);
+}
+
+.note {
+  margin: 0 0 var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  padding: 0.3rem var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text-muted);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.item[data-state="done"] {
+  color: var(--color-text);
+}
+
+.item[data-state="current"] {
+  border-width: 2px;
+  border-color: var(--color-text);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.glyph {
+  flex-shrink: 0;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.caption {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.item[data-state="current"] .caption {
+  color: inherit;
+}
