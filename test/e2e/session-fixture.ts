@@ -327,6 +327,32 @@ export async function getProjectFields(projectId: string): Promise<ProjectFields
   }
 }
 
+/**
+ * The first source text version a project stored — CAL-041's half of the
+ * "client and server never diverge" proof.
+ *
+ * The browser side reads the number the counter displayed; this reads the
+ * number and the text the database actually holds, so the spec can assert the
+ * two are the same rather than that each is individually plausible.
+ */
+export async function getFirstSourceTextVersion(
+  projectId: string,
+): Promise<{ content: string; wordCount: number } | null> {
+  const prisma = new PrismaClient();
+
+  try {
+    const version = await prisma.sourceTextVersion.findFirst({
+      where: { sourceText: { projectId } },
+      orderBy: { versionNumber: "asc" },
+      select: { content: true, wordCount: true },
+    });
+
+    return version;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Whether a session row is still live — CAL-029's proof that sign-out invalidates it. */
 export async function sessionExists(sessionToken: string): Promise<boolean> {
   const prisma = new PrismaClient();

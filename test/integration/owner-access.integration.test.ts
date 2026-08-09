@@ -473,14 +473,15 @@ describe("owner access policy", () => {
         createProjectWithSourceText({
           ownerId: bob.ownerId,
           title: "owner-access-created-with-source-text",
-          sourceText: { content: "Un texte source de test.", wordCount: 5 },
+          sourceText: { content: "Un texte source de test." },
         }),
       );
 
       expect(created.userId).toBe(bob.ownerId);
 
       const opened = await openProjectScope({ ownerId: bob.ownerId, projectId: created.id });
-      if (!opened.ok) throw new Error("the owner could not open a scope on the project just created");
+      if (!opened.ok)
+        throw new Error("the owner could not open a scope on the project just created");
       const createdScope = opened.value;
 
       expect(

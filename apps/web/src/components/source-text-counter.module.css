@@ -1,0 +1,82 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. The warning level travels as `data-level`, the same convention
+ * `process-stepper.module.css` and `project-creation-wizard.module.css`
+ * already use, rather than as conditional class names.
+ */
+
+.counter {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.count {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.counter[data-level="warning"] .value {
+  color: var(--color-warning);
+}
+
+.counter[data-level="over"] .value {
+  color: var(--color-danger);
+}
+
+.track {
+  display: block;
+  height: 3px;
+  border-radius: var(--radius-1);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  width: var(--fill, 0%);
+  height: 100%;
+  background: var(--color-text-muted);
+  transition: width 0.15s ease-out;
+}
+
+.counter[data-level="caution"] .fill,
+.counter[data-level="warning"] .fill {
+  background: var(--color-warning);
+}
+
+.counter[data-level="over"] .fill {
+  background: var(--color-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}
+
+.notice {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.counter[data-level="warning"] .notice {
+  color: var(--color-warning);
+}
+
+.counter[data-level="over"] .notice {
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-danger);
+  font-weight: 600;
+}

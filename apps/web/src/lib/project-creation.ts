@@ -18,7 +18,7 @@
  */
 
 import type { CreateProjectInput } from "@calepin/shared/repository";
-import { countWords } from "@calepin/shared/text";
+import { measureSourceText, normalizeText, sourceTextLimitMessage } from "@calepin/shared/text";
 
 import { PROJECT_TITLE_MAX_LENGTH, readProjectTitle } from "./project-title";
 
@@ -78,7 +78,13 @@ export const EMPTY_PROJECT_CREATION_DRAFT: ProjectCreationDraft = {
   freedomLevel: "BALANCED",
 };
 
-export const SOURCE_TEXT_MAX_WORDS = 2000;
+/*
+ * Re-exported, never redeclared (CAL-041). The ceiling is asserted by the
+ * counter, by this validation, by the repository and by a database `CHECK`;
+ * one of those four holding a different number is how a form accepts a text
+ * the database then refuses.
+ */
+export { SOURCE_TEXT_MAX_WORDS } from "@calepin/shared/text";
 
 export interface SelectOption {
   readonly value: string;
@@ -103,7 +109,11 @@ export const TARGET_LENGTH_OPTIONS: readonly TargetLengthOption[] = [
   { value: "SHORT", label: "Roman court", caption: "Environ 30 000 à 45 000 mots." },
   { value: "STANDARD", label: "Roman standard", caption: "Environ 50 000 à 80 000 mots." },
   { value: "LONG", label: "Roman long", caption: "Environ 80 000 à 110 000 mots." },
-  { value: "CUSTOM", label: "Longueur personnalisée", caption: "Choisissez vous-même le nombre de mots visé." },
+  {
+    value: "CUSTOM",
+    label: "Longueur personnalisée",
+    caption: "Choisissez vous-même le nombre de mots visé.",
+  },
 ];
 
 export const TARGET_AUDIENCE_OPTIONS: readonly SelectOption[] = [
@@ -140,7 +150,8 @@ export const FREEDOM_LEVEL_OPTIONS: readonly FreedomLevelOption[] = [
 /** What a validated draft becomes — `createProjectWithSourceText`'s input, minus the owner. */
 export interface ValidatedProjectCreation {
   readonly title: string;
-  readonly sourceText: { readonly content: string; readonly wordCount: number };
+  /** No `wordCount`: the repository derives it, so nothing here can state it (CAL-041). */
+  readonly sourceText: { readonly content: string };
   readonly language: string;
   readonly targetLength: TargetLength;
   readonly targetWordCount: number | null;
@@ -166,22 +177,23 @@ function resolveWithOther(value: string, other: string): string {
  * the step is complete. Used both to gate "Suivant" in the wizard and to
  * build the aggregate check the server action runs as its defense in depth.
  */
-export const FIELD_VALIDATORS: Record<ProjectCreationStep, (draft: ProjectCreationDraft) => string | null> = {
+export const FIELD_VALIDATORS: Record<
+  ProjectCreationStep,
+  (draft: ProjectCreationDraft) => string | null
+> = {
   title: (draft) =>
     readProjectTitle(draft.title) === null
       ? `Le titre est obligatoire et ne peut pas dépasser ${PROJECT_TITLE_MAX_LENGTH} caractères.`
       : null,
 
   sourceText: (draft) => {
-    const content = draft.sourceText.trim();
-    if (content === "") return "Le texte source ne peut pas être vide.";
+    // `measureSourceText` normalizes before counting, so this is the same
+    // measurement the counter shows and the same one the repository takes —
+    // the string, not just the rule, is shared (CAL-041).
+    const { wordCount } = measureSourceText(draft.sourceText);
+    if (wordCount === 0) return "Le texte source ne peut pas être vide.";
 
-    const wordCount = countWords(content);
-    if (wordCount > SOURCE_TEXT_MAX_WORDS) {
-      return `Le texte source dépasse la limite de ${SOURCE_TEXT_MAX_WORDS} mots (actuellement ${wordCount}).`;
-    }
-
-    return null;
+    return sourceTextLimitMessage(wordCount);
   },
 
   language: (draft) =>
@@ -222,7 +234,9 @@ export type ProjectCreationValidation =
  * draft restored from an old `localStorage` entry after a shape change is a
  * realistic way to reach it.
  */
-export function validateProjectCreationDraft(draft: ProjectCreationDraft): ProjectCreationValidation {
+export function validateProjectCreationDraft(
+  draft: ProjectCreationDraft,
+): ProjectCreationValidation {
   const errors: ProjectCreationErrors = {};
 
   for (const step of PROJECT_CREATION_STEPS) {
@@ -233,11 +247,15 @@ export function validateProjectCreationDraft(draft: ProjectCreationDraft): Proje
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const title = readProjectTitle(draft.title);
-  const sourceText = draft.sourceText.trim();
+  const sourceText = normalizeText(draft.sourceText);
   // Every branch above already refused a draft where any of these could be
   // null/NaN/unresolved — asserted again here only because TypeScript
   // cannot see across the loop, not because the check is skipped.
-  if (title === null || !isTargetLength(draft.targetLength) || !isFreedomLevel(draft.freedomLevel)) {
+  if (
+    title === null ||
+    !isTargetLength(draft.targetLength) ||
+    !isFreedomLevel(draft.freedomLevel)
+  ) {
     return { ok: false, errors: { title: "Le formulaire contient une erreur inattendue." } };
   }
 
@@ -245,7 +263,7 @@ export function validateProjectCreationDraft(draft: ProjectCreationDraft): Proje
     ok: true,
     value: {
       title,
-      sourceText: { content: sourceText, wordCount: countWords(sourceText) },
+      sourceText: { content: sourceText },
       language: resolveWithOther(draft.language, draft.languageOther),
       targetLength: draft.targetLength,
       targetWordCount:

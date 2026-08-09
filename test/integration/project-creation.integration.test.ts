@@ -3,12 +3,15 @@
  * creates a `Project`, its `SourceText` and the first `SourceTextVersion`
  * together, or none of the three.
  *
- * The atomicity half of that sentence is what this suite exists to prove.
- * `source_text_versions_word_count_check` (CAL-017/CAL-041) is a hand-written
- * `CHECK` Prisma cannot express, and the interface layer's own validation is
- * expected to refuse an over-limit text before this function is ever called —
- * so what matters here is that the constraint, if it ever fires anyway, takes
- * the whole transaction down with it rather than leaving an orphaned project.
+ * CAL-041 moved the word count *into* this function. It used to be a caller's
+ * claim — the over-limit case in this very suite used to prove the hole, by
+ * passing `{ content: "irrelevant", wordCount: 2001 }` and watching the
+ * database be the first thing to notice. Now the count is derived from the
+ * content here, so the two cannot disagree, and the limit is refused before
+ * the transaction opens rather than by `source_text_versions_word_count_check`
+ * at the end of it. That `CHECK` still exists and is still proven, in
+ * `source-text-word-limit.integration.test.ts`, which reaches the column
+ * directly — it is the last line of defense, and this is now the first.
  *
  * Ownership isolation for this function is asserted in
  * `owner-access.integration.test.ts`, which pins it as one of the repository's
@@ -18,6 +21,12 @@
 import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import { createProjectWithSourceText } from "@calepin/shared/repository";
+import {
+  countWords,
+  FRENCH_WORD_COUNT_CORPUS,
+  FRENCH_WORD_COUNT_CORPUS_WORDS,
+  SOURCE_TEXT_MAX_WORDS,
+} from "@calepin/shared/text";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -44,7 +53,7 @@ describe("createProjectWithSourceText (CAL-040)", () => {
       createProjectWithSourceText({
         ownerId,
         title: "project-creation-defaults",
-        sourceText: { content: "alpha beta gamma delta epsilon", wordCount: 5 },
+        sourceText: { content: "alpha beta gamma delta epsilon" },
       }),
     );
 
@@ -80,7 +89,7 @@ describe("createProjectWithSourceText (CAL-040)", () => {
         language: "en",
         targetLength: "CUSTOM",
         targetWordCount: 120_000,
-        sourceText: { content: "one two three", wordCount: 3 },
+        sourceText: { content: "one two three" },
       }),
     );
 
@@ -95,24 +104,65 @@ describe("createProjectWithSourceText (CAL-040)", () => {
     expect(versions[0]?.language).toBe("en");
   });
 
-  it("rolls back the whole transaction when the source text exceeds the 2000-word check", async () => {
+  it("refuses a source text past the limit, and writes nothing on the way", async () => {
     const title = "project-creation-over-limit";
+    const overLimit = Array.from({ length: SOURCE_TEXT_MAX_WORDS + 1 }, () => "mot").join(" ");
 
     await expect(
       runWithActor(ownerId, async () =>
-        createProjectWithSourceText({
-          ownerId,
-          title,
-          // The content itself is irrelevant to the CHECK — it validates the
-          // stored column, not a recount — so a short string with a false
-          // word count is enough to hit it deliberately.
-          sourceText: { content: "irrelevant", wordCount: 2001 },
-        }),
+        createProjectWithSourceText({ ownerId, title, sourceText: { content: overLimit } }),
       ),
-    ).rejects.toThrow(/source_text_versions_word_count_check/);
+    ).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      category: "validation",
+      fieldPath: "sourceText",
+      // The count reaches the visitor in French, and it names both numbers.
+      userMessage: "Le texte source dépasse la limite de 2000 mots (actuellement 2001).",
+    });
 
     // Not merely refused: no project was left behind on the way to refusing
     // it (CLAUDE.md §6 — never write partial data).
     expect(await seam.project.count({ where: { title } })).toBe(0);
+  });
+
+  it("accepts a source text at exactly the limit", async () => {
+    const atLimit = Array.from({ length: SOURCE_TEXT_MAX_WORDS }, () => "mot").join(" ");
+
+    const project = await runWithActor(ownerId, async () =>
+      createProjectWithSourceText({
+        ownerId,
+        title: "project-creation-at-limit",
+        sourceText: { content: atLimit },
+      }),
+    );
+
+    const version = await seam.sourceTextVersion.findFirst({
+      where: { sourceText: { projectId: project.id } },
+    });
+    expect(version?.wordCount).toBe(SOURCE_TEXT_MAX_WORDS);
+  });
+
+  it("derives the stored word count from the stored content, for real French typography", async () => {
+    // The claim CAL-041 exists to make, at the persistence layer: recounting
+    // the column's own content answers the number stored beside it. A caller
+    // cannot state a count any more, so there is nothing left to disagree.
+    const project = await runWithActor(ownerId, async () =>
+      createProjectWithSourceText({
+        ownerId,
+        title: "project-creation-french-typography",
+        // Submitted the way a browser submits a textarea: CRLF line endings
+        // and decomposed accents, neither of which the counter ever saw.
+        sourceText: { content: FRENCH_WORD_COUNT_CORPUS.replace(/\n/gu, "\r\n").normalize("NFD") },
+      }),
+    );
+
+    const version = await seam.sourceTextVersion.findFirst({
+      where: { sourceText: { projectId: project.id } },
+    });
+
+    expect(version?.wordCount).toBe(FRENCH_WORD_COUNT_CORPUS_WORDS);
+    expect(countWords(version?.content ?? "")).toBe(version?.wordCount);
+    // Normalized on the way in, so the row holds the string that was counted.
+    expect(version?.content).toBe(FRENCH_WORD_COUNT_CORPUS);
   });
 });

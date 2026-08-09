@@ -15,9 +15,10 @@
 import type { $Enums } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
-import { InternalError, NotFoundError } from "../errors/app-error";
+import { InternalError, NotFoundError, ValidationError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
 import type { ProjectStatus } from "../project-status";
+import { measureSourceText, normalizeText, sourceTextLimitMessage } from "../text";
 import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { assertProjectScope, type ProjectScope } from "./scope";
 
@@ -43,13 +44,22 @@ export interface CreateProjectInput {
 export interface CreateProjectWithSourceTextInput extends CreateProjectInput {
   readonly sourceText: {
     /**
-     * Already validated and counted by the caller (CLAUDE.md §3.3 — the
-     * interface layer owns the wizard's word-count rule; this layer only
-     * persists). The `source_text_versions_word_count_check` constraint is
-     * the last line of defense, not the first.
+     * The text itself, and **only** the text.
+     *
+     * There is deliberately no `wordCount` here (CAL-041). Taking one meant
+     * this function wrote whatever number the caller stated, and a shared
+     * counting function does not help if the layer doing the writing accepts
+     * an answer instead of computing one — the old integration test proved
+     * the hole by storing `{ content: "irrelevant", wordCount: 2001 }` and
+     * having it accepted as far as the database. The count is now derived
+     * here by `measureSourceText`, so a caller can no longer state it, and
+     * therefore can no longer state it wrongly.
+     *
+     * `packages/manuscript/src/chapter/revision.ts` already writes the other
+     * `wordCount` column this way ("counted at write time, never supplied by
+     * the caller"); this is the same rule reaching the other one.
      */
     readonly content: string;
-    readonly wordCount: number;
   };
 }
 
@@ -250,9 +260,33 @@ export async function createProject(input: CreateProjectInput) {
  *
  * The caller must be inside an actor scope (`runWithActor`, CAL-022), same
  * contract as `createProject`.
+ *
+ * **The word count is derived here, and the limit is enforced here** (CAL-041).
+ * The interface layer refuses an over-limit text first, for the visitor's sake;
+ * this refusal is what makes the rule true for every caller, including the
+ * worker and any later import path that never renders a form. The text is
+ * normalized before it is counted *and* before it is stored, so the column
+ * holds the exact string the count was taken from — a later recount of the row
+ * cannot disagree with the number stored beside it.
  */
 export async function createProjectWithSourceText(input: CreateProjectWithSourceTextInput) {
   assertOwnerId(input.ownerId);
+
+  const content = normalizeText(input.sourceText.content);
+  const { wordCount } = measureSourceText(content);
+  const overLimit = sourceTextLimitMessage(wordCount);
+
+  if (overLimit !== null) {
+    // Thrown before the transaction opens, so "refused" and "wrote nothing"
+    // are the same fact rather than two that have to agree. The message is
+    // developer-authored English carrying no data (CLAUDE.md §7); the count
+    // travels in the French `userMessage`, which is what a visitor reads.
+    throw new ValidationError({
+      message: "source text exceeds the word limit",
+      userMessage: overLimit,
+      fieldPath: "sourceText",
+    });
+  }
 
   return getDatabaseClient().$transaction(async (tx) => {
     const project = await tx.project.create({
@@ -275,8 +309,8 @@ export async function createProjectWithSourceText(input: CreateProjectWithSource
       data: {
         sourceTextId: sourceText.id,
         versionNumber: 1,
-        content: input.sourceText.content,
-        wordCount: input.sourceText.wordCount,
+        content,
+        wordCount,
         ...(input.language === undefined ? {} : { language: input.language }),
         editedById: input.ownerId,
       },

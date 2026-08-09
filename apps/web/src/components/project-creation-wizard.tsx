@@ -27,7 +27,6 @@
  * everything already typed — is untouched.
  */
 
-import { countWords } from "@calepin/shared/text";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useSyncExternalStore } from "react";
 
@@ -42,7 +41,6 @@ import {
   type ProjectCreationActionState,
   type ProjectCreationDraft,
   type ProjectCreationStep,
-  SOURCE_TEXT_MAX_WORDS,
   TARGET_AUDIENCE_OPTIONS,
   TARGET_LENGTH_OPTIONS,
 } from "@/lib/project-creation";
@@ -56,7 +54,11 @@ import {
 } from "@/lib/project-creation-draft-storage";
 
 import styles from "./project-creation-wizard.module.css";
+import { SourceTextCounter } from "./source-text-counter";
 import { SubmitButton } from "./submit-button";
+
+/** Ties the counter to the textarea it measures, for a screen reader. */
+const SOURCE_TEXT_COUNTER_ID = "project-creation-source-text-counter";
 
 const STEP_LABELS: Record<ProjectCreationStep, string> = {
   title: "Titre",
@@ -92,7 +94,10 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
   const [stepIndex, setStepIndex] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [showStepError, setShowStepError] = useState(false);
-  const [state, formAction, pending] = useActionState(action, INITIAL_PROJECT_CREATION_ACTION_STATE);
+  const [state, formAction, pending] = useActionState(
+    action,
+    INITIAL_PROJECT_CREATION_ACTION_STATE,
+  );
 
   // The SSR-safe read of `localStorage`: on the server, and on the client's
   // hydration-matching first render, this is the fixed server snapshot; only
@@ -138,7 +143,9 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
   if (priorState !== state) {
     setPriorState(state);
     if (!state.ok && state.errors) {
-      const firstErrorStep = PROJECT_CREATION_STEPS.find((step) => state.errors?.[step] !== undefined);
+      const firstErrorStep = PROJECT_CREATION_STEPS.find(
+        (step) => state.errors?.[step] !== undefined,
+      );
       if (firstErrorStep) {
         setStepIndex(PROJECT_CREATION_STEPS.indexOf(firstErrorStep));
         setShowStepError(true);
@@ -152,7 +159,10 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
   const serverError = !state.ok ? state.errors?.[currentStep] : undefined;
   const visibleError = serverError ?? (showStepError ? clientError : null);
 
-  function updateField<K extends keyof ProjectCreationDraft>(field: K, value: ProjectCreationDraft[K]) {
+  function updateField<K extends keyof ProjectCreationDraft>(
+    field: K,
+    value: ProjectCreationDraft[K],
+  ) {
     setDraft((previous) => ({ ...previous, [field]: value }));
   }
 
@@ -229,11 +239,10 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
               value={draft.sourceText}
               onChange={(event) => updateField("sourceText", event.target.value)}
               rows={14}
+              aria-describedby={SOURCE_TEXT_COUNTER_ID}
               required
             />
-            <p className={styles.counter}>
-              {countWords(draft.sourceText)} / {SOURCE_TEXT_MAX_WORDS} mots
-            </p>
+            <SourceTextCounter id={SOURCE_TEXT_COUNTER_ID} text={draft.sourceText} />
           </div>
         ) : null}
 
@@ -342,7 +351,9 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
 
         {currentStep === "freedomLevel" ? (
           <fieldset className={styles.field}>
-            <legend className={styles.label}>Degré de liberté laissé à l&apos;intelligence artificielle</legend>
+            <legend className={styles.label}>
+              Degré de liberté laissé à l&apos;intelligence artificielle
+            </legend>
             {FREEDOM_LEVEL_OPTIONS.map((option) => (
               <label key={option.value} className={styles.radioOption}>
                 <input
@@ -384,7 +395,12 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
         {isLastStep ? (
           <SubmitButton pendingLabel="Création en cours…">Créer le projet</SubmitButton>
         ) : (
-          <button type="button" className={styles.primaryButton} onClick={goNext} disabled={pending}>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={goNext}
+            disabled={pending}
+          >
             Suivant
           </button>
         )}

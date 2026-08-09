@@ -1,3 +1,8 @@
+import {
+  FRENCH_WORD_COUNT_CORPUS,
+  FRENCH_WORD_COUNT_CORPUS_WORDS,
+  measureSourceText,
+} from "@calepin/shared/text";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -31,7 +36,9 @@ describe("validateProjectCreationDraft", () => {
     if (!result.ok) return;
     expect(result.value).toEqual({
       title: "Le Roman de Test",
-      sourceText: { content: "alpha beta gamma delta epsilon", wordCount: 5 },
+      // No `wordCount`: the repository derives it, so nothing here states it
+      // and nothing here can state it wrongly (CAL-041).
+      sourceText: { content: "alpha beta gamma delta epsilon" },
       language: "fr",
       targetLength: "STANDARD",
       targetWordCount: null,
@@ -80,6 +87,43 @@ describe("validateProjectCreationDraft", () => {
     const result = validateProjectCreationDraft(validDraft({ sourceText: atLimit }));
 
     expect(result.ok).toBe(true);
+  });
+
+  it("counts the source text the way the counter and the repository do", () => {
+    // The shared corpus, so this cannot drift from what the browser displays
+    // (`source-text-counter.test.tsx`) or from what the server stores
+    // (`word-count-parity.test.ts`, `word-count.spec.ts`).
+    const result = validateProjectCreationDraft(
+      validDraft({ sourceText: FRENCH_WORD_COUNT_CORPUS }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(measureSourceText(result.value.sourceText.content).wordCount).toBe(
+      FRENCH_WORD_COUNT_CORPUS_WORDS,
+    );
+  });
+
+  it("normalizes the source text once, so what is stored is what was counted", () => {
+    // A form submission delivers a textarea with CRLF line endings; the
+    // counter measured the `\n` the visitor typed. One string reaches the
+    // repository, or the column disagrees with the number beside it.
+    const result = validateProjectCreationDraft(
+      validDraft({ sourceText: "  alpha\r\nbeta\r\n\r\ngamma  " }),
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sourceText.content).toBe("alpha\nbeta\n\ngamma");
+  });
+
+  it("rejects a source text that holds only punctuation", () => {
+    // Zero words is empty, whatever the character count says.
+    const result = validateProjectCreationDraft(validDraft({ sourceText: "... — «» !" }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.sourceText).toBe("Le texte source ne peut pas être vide.");
   });
 
   it("rejects a CUSTOM target length with no positive word count", () => {

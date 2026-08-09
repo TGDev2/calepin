@@ -76,12 +76,6 @@
   min-height: 12rem;
 }
 
-.counter {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-}
-
 .radioOption {
   display: flex;
   align-items: baseline;
