@@ -17,6 +17,10 @@
  * interface layer may never hold a Prisma import (CLAUDE.md §3.5).
  */
 
+import {
+  detectSourceTextLanguage,
+  SUPPORTED_SOURCE_TEXT_LANGUAGES,
+} from "@calepin/shared/language";
 import type { CreateProjectInput } from "@calepin/shared/repository";
 import { measureSourceText, normalizeText, sourceTextLimitMessage } from "@calepin/shared/text";
 
@@ -91,12 +95,20 @@ export interface SelectOption {
   readonly label: string;
 }
 
+/** French labels for `@calepin/shared/language`'s codes — the UI text is the interface layer's job, the codes are the shared source of truth. */
+const LANGUAGE_LABELS: Record<string, string> = {
+  fr: "Français",
+  en: "Anglais",
+  es: "Espagnol",
+  de: "Allemand",
+  it: "Italien",
+};
+
 export const LANGUAGE_OPTIONS: readonly SelectOption[] = [
-  { value: "fr", label: "Français" },
-  { value: "en", label: "Anglais" },
-  { value: "es", label: "Espagnol" },
-  { value: "de", label: "Allemand" },
-  { value: "it", label: "Italien" },
+  ...SUPPORTED_SOURCE_TEXT_LANGUAGES.map((value) => ({
+    value,
+    label: LANGUAGE_LABELS[value] ?? value,
+  })),
   { value: OTHER_OPTION_VALUE, label: "Autre" },
 ];
 
@@ -170,6 +182,23 @@ function isFreedomLevel(value: string): value is FreedomLevel {
 /** The language or audience actually meant: the preset, or what was typed for "Autre". */
 function resolveWithOther(value: string, other: string): string {
   return value === OTHER_OPTION_VALUE ? other.trim() : value.trim();
+}
+
+/**
+ * The language step's proposal (CAL-042): what to preselect when a visitor
+ * reaches it with the source text already filled in. `languageTouched` is
+ * where "manual selection always prevails" is actually enforced — once the
+ * visitor has picked a language by hand, detection never runs again for
+ * this draft, reload included (the wizard persists the flag alongside the
+ * draft itself).
+ */
+export function proposeDetectedLanguage(
+  sourceText: string,
+  languageTouched: boolean,
+): string | null {
+  if (languageTouched) return null;
+
+  return detectSourceTextLanguage(sourceText);
 }
 
 /**

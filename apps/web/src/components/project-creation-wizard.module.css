@@ -88,10 +88,15 @@
   font-weight: 600;
 }
 
-.radioCaption {
+.radioCaption,
+.hint {
   display: block;
   font-size: 0.85rem;
   color: var(--color-text-muted);
+}
+
+.hint {
+  margin: 0;
 }
 
 .error {

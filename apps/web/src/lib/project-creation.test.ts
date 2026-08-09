@@ -10,6 +10,7 @@ import {
   EMPTY_PROJECT_CREATION_DRAFT,
   OTHER_OPTION_VALUE,
   type ProjectCreationDraft,
+  proposeDetectedLanguage,
   SOURCE_TEXT_MAX_WORDS,
   validateProjectCreationDraft,
 } from "./project-creation";
@@ -234,5 +235,21 @@ describe("draftFromFormData", () => {
       ...EMPTY_PROJECT_CREATION_DRAFT,
       title: "Mon roman",
     });
+  });
+});
+
+describe("proposeDetectedLanguage", () => {
+  // CAL-042's own rule: once the visitor has picked a language by hand,
+  // nothing proposes anything else again, whatever the source text says.
+  it("never proposes anything once the visitor has chosen manually", () => {
+    expect(proposeDetectedLanguage(FRENCH_WORD_COUNT_CORPUS, true)).toBeNull();
+  });
+
+  it("proposes the detected language for an untouched field", () => {
+    expect(proposeDetectedLanguage(FRENCH_WORD_COUNT_CORPUS, false)).toBe("fr");
+  });
+
+  it("proposes nothing for a text too short to classify", () => {
+    expect(proposeDetectedLanguage("Bonjour", false)).toBeNull();
   });
 });

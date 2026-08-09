@@ -28,6 +28,7 @@ import {
   delegateName,
   deleteProject,
   duplicateProject,
+  getGenerationContextForProject,
   getProjectForOwner,
   listProjectDashboardRows,
   listProjectsForOwner,
@@ -65,6 +66,7 @@ const ENTRY_POINTS = [
   "createProjectWithSourceText",
   "deleteProject",
   "duplicateProject",
+  "getGenerationContextForProject",
   "getProjectForOwner",
   "listProjectDashboardRows",
   "listProjectsForOwner",
@@ -263,6 +265,21 @@ describe("owner access policy", () => {
       const missing = await openProjectScope({ ownerId: bob.ownerId, projectId: "no_such_id" });
       expect(missing.ok).toBe(false);
       if (!missing.ok) expect(missing.error.code).toBe("NOT_FOUND");
+    });
+
+    // CAL-042. The project's language is what every future generation call
+    // propagates (CLAUDE.md §5.8); it must never leak across an owner
+    // boundary any more than the project itself does.
+    it("getGenerationContextForProject refuses another owner's project", async () => {
+      const mine = await getGenerationContextForProject(aliceScope);
+      expect(mine.ok).toBe(true);
+      if (mine.ok) expect(mine.value).toEqual({ language: "fr" });
+
+      const theirs = await getGenerationContextForProject(
+        forgedScope(bob.ownerId, alice.projectId),
+      );
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
     });
 
     it("getProjectForOwner refuses another owner's project", async () => {

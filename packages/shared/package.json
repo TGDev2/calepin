@@ -48,6 +48,14 @@
       "types": "./src/generation/index.ts",
       "default": "./src/generation/index.ts"
     },
+    "./generation-context": {
+      "types": "./src/generation-context/index.ts",
+      "default": "./src/generation-context/index.ts"
+    },
+    "./language": {
+      "types": "./src/language/index.ts",
+      "default": "./src/language/index.ts"
+    },
     "./logging": {
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
@@ -63,6 +71,7 @@
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@auth/prisma-adapter": "^2.11.3",
+    "franc-min": "^6.2.0",
     "nodemailer": "^7.0.7",
     "pino": "^10.3.1",
     "zod": "^4.4.3"

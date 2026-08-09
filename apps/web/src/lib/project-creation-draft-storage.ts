@@ -47,6 +47,13 @@ const SERVER_SNAPSHOT = "__calepin_project_creation_draft_server__";
 export interface StoredProjectCreationDraft {
   readonly draft: ProjectCreationDraft;
   readonly step: ProjectCreationStep;
+  /**
+   * Whether the visitor has picked the language by hand (CAL-042) — persisted
+   * so a reload cannot make the detected proposal override a manual choice.
+   * Optional for backward compatibility with a draft saved before this field
+   * existed.
+   */
+  readonly languageTouched?: boolean;
 }
 
 export function subscribeToDraftStorage(): () => void {
@@ -77,7 +84,7 @@ export function parseStoredDraft(raw: string): StoredProjectCreationDraft | null
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
 
-    const { draft, step } = parsed as Partial<StoredProjectCreationDraft>;
+    const { draft, step, languageTouched } = parsed as Partial<StoredProjectCreationDraft>;
     if (typeof draft !== "object" || draft === null) return null;
     if (typeof step !== "string" || !PROJECT_CREATION_STEPS.includes(step as ProjectCreationStep)) {
       return null;
@@ -86,7 +93,11 @@ export function parseStoredDraft(raw: string): StoredProjectCreationDraft | null
     // Spread onto the current default shape rather than trusting the stored
     // object as-is: a draft saved before a field was added or renamed would
     // otherwise reach the wizard with a hole a required field can't have.
-    return { draft: { ...EMPTY_PROJECT_CREATION_DRAFT, ...draft }, step: step as ProjectCreationStep };
+    return {
+      draft: { ...EMPTY_PROJECT_CREATION_DRAFT, ...draft },
+      step: step as ProjectCreationStep,
+      languageTouched: languageTouched === true,
+    };
   } catch {
     // A corrupted or hand-edited entry is the same as no draft at all — never
     // a reason to fail the page it would otherwise quietly restore.
@@ -94,12 +105,16 @@ export function parseStoredDraft(raw: string): StoredProjectCreationDraft | null
   }
 }
 
-export function saveProjectCreationDraft(draft: ProjectCreationDraft, step: ProjectCreationStep): void {
+export function saveProjectCreationDraft(
+  draft: ProjectCreationDraft,
+  step: ProjectCreationStep,
+  languageTouched: boolean,
+): void {
   if (typeof window === "undefined") return;
 
   window.localStorage.setItem(
     DRAFT_STORAGE_KEY,
-    JSON.stringify({ draft, step } satisfies StoredProjectCreationDraft),
+    JSON.stringify({ draft, step, languageTouched } satisfies StoredProjectCreationDraft),
   );
 }
 

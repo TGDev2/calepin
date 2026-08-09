@@ -41,6 +41,7 @@ import {
   type ProjectCreationActionState,
   type ProjectCreationDraft,
   type ProjectCreationStep,
+  proposeDetectedLanguage,
   TARGET_AUDIENCE_OPTIONS,
   TARGET_LENGTH_OPTIONS,
 } from "@/lib/project-creation";
@@ -92,6 +93,9 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<ProjectCreationDraft>(EMPTY_PROJECT_CREATION_DRAFT);
   const [stepIndex, setStepIndex] = useState(0);
+  // CAL-042: whether the visitor has picked the language by hand — once true,
+  // the detected proposal never overrides it again, reload included.
+  const [languageTouched, setLanguageTouched] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [showStepError, setShowStepError] = useState(false);
   const [state, formAction, pending] = useActionState(
@@ -125,13 +129,14 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
     if (stored) {
       setDraft(stored.draft);
       setStepIndex(PROJECT_CREATION_STEPS.indexOf(stored.step));
+      setLanguageTouched(stored.languageTouched ?? false);
     }
   }
 
   useEffect(() => {
     if (!hydrated) return;
-    saveProjectCreationDraft(draft, PROJECT_CREATION_STEPS[stepIndex] ?? "title");
-  }, [draft, stepIndex, hydrated]);
+    saveProjectCreationDraft(draft, PROJECT_CREATION_STEPS[stepIndex] ?? "title", languageTouched);
+  }, [draft, stepIndex, languageTouched, hydrated]);
 
   useEffect(() => {
     if (!state.ok) return;
@@ -175,6 +180,13 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
     if (clientError !== null) {
       setShowStepError(true);
       return;
+    }
+    // CAL-042: propose a detected language the moment the source text is
+    // complete. `proposeDetectedLanguage` itself refuses to run once
+    // `languageTouched` is true, so this can never override a manual choice.
+    if (currentStep === "sourceText") {
+      const proposed = proposeDetectedLanguage(draft.sourceText, languageTouched);
+      if (proposed !== null) updateField("language", proposed);
     }
     goToStep(stepIndex + 1);
   }
@@ -256,7 +268,10 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
               className={styles.select}
               name="language"
               value={draft.language}
-              onChange={(event) => updateField("language", event.target.value)}
+              onChange={(event) => {
+                setLanguageTouched(true);
+                updateField("language", event.target.value);
+              }}
             >
               {LANGUAGE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -264,6 +279,11 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
                 </option>
               ))}
             </select>
+            {!languageTouched ? (
+              <p className={styles.hint}>
+                Langue proposée à partir du texte source. Modifiez-la si besoin.
+              </p>
+            ) : null}
             {draft.language === OTHER_OPTION_VALUE ? (
               <input
                 className={styles.input}

@@ -17,7 +17,13 @@
 import type { $Enums } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
+import { NotFoundError } from "../errors/app-error";
+import { fail, type Result, succeed } from "../errors/result";
+import { buildGenerationContext, type GenerationContext } from "../generation-context";
+import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
+
+export type { GenerationContext };
 
 /**
  * `GenerationMission`, re-exported under the repository's own name so
@@ -26,7 +32,10 @@ import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
  */
 export type GenerationMission = $Enums.GenerationMission;
 
-const RUNNING_STATUSES = ["QUEUED", "RUNNING"] as const satisfies readonly $Enums.GenerationStatus[];
+const RUNNING_STATUSES = [
+  "QUEUED",
+  "RUNNING",
+] as const satisfies readonly $Enums.GenerationStatus[];
 
 export type RunningGenerationStatus = (typeof RUNNING_STATUSES)[number];
 
@@ -52,4 +61,32 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
   });
 
   return rows.map((row) => ({ ...row, status: row.status as RunningGenerationStatus }));
+}
+
+/**
+ * The context every future generation call must carry (CAL-042) — read
+ * ahead of its producer, the same way `listRunningGenerations` above is: no
+ * mission calls this yet, but it is the one place that will get the
+ * project's resolved language from once one does.
+ *
+ * The ownership clause is repeated in the `where` rather than trusted from
+ * the scope alone — the same rule every other scoped read in this repository
+ * follows (`./scope`'s own doc comment: "the scope is a receipt, not the
+ * guarantee").
+ */
+export async function getGenerationContextForProject(
+  scope: ProjectScope,
+): Promise<Result<GenerationContext>> {
+  assertProjectScope(scope);
+
+  const project = await getDatabaseClient().project.findFirst({
+    where: { id: scope.projectId, [PROJECT_OWNER_FIELD]: scope.ownerId },
+    select: { language: true },
+  });
+
+  if (project === null) {
+    return fail(new NotFoundError({ message: "no project with this id belongs to this owner" }));
+  }
+
+  return succeed(buildGenerationContext(project));
 }

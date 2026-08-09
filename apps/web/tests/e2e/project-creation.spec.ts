@@ -119,7 +119,45 @@ test("keeps a mid-entry draft across a reload, and resumes on the same step", as
   }
 });
 
-test("refuses a source text over 2000 words and blocks the next step", async ({ page, context }) => {
+test("proposes a detected language, but a manual choice always survives going back and forward", async ({
+  page,
+  context,
+}) => {
+  const session = await openSignedInSession();
+
+  try {
+    await signIn(context, session);
+
+    await page.goto("/projects/new");
+    await page.getByLabel("Titre provisoire").fill("Detected Language Test");
+    await page.getByRole("button", { name: "Suivant" }).click();
+
+    await page
+      .getByLabel("Texte source")
+      .fill("Once upon a time there was a test source text about a lonely lighthouse keeper.");
+    await page.getByRole("button", { name: "Suivant" }).click();
+
+    // CAL-042: the English text proposes "Anglais" — never the "Français" default.
+    await expect(page.getByLabel("Langue du texte")).toHaveValue("en");
+
+    // A manual pick always prevails: switch to German by hand.
+    await page.getByLabel("Langue du texte").selectOption("de");
+
+    await page.getByRole("button", { name: "Précédent" }).click();
+    await page.getByRole("button", { name: "Suivant" }).click();
+
+    // Leaving and re-entering the source text step must not re-run detection
+    // over the manual choice.
+    await expect(page.getByLabel("Langue du texte")).toHaveValue("de");
+  } finally {
+    await closeSignedInSession(session);
+  }
+});
+
+test("refuses a source text over 2000 words and blocks the next step", async ({
+  page,
+  context,
+}) => {
   const session = await openSignedInSession();
 
   try {
