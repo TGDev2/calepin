@@ -22,7 +22,22 @@ import {
 } from "@calepin/shared/repository";
 import { describe, expect, it } from "vitest";
 
-const schema = readFileSync(fileURLToPath(new URL("./schema.prisma", import.meta.url)), "utf8");
+/**
+ * Read with the line endings normalised, because several helpers below strip a
+ * trailing `//` comment with a regex anchored on `$`.
+ *
+ * JavaScript counts `\r` as a line terminator, so `.` will not cross one and a
+ * `$` with no `m` flag will not match before one: on a CRLF working tree —
+ * which is what `core.autocrlf=true` hands every Windows clone — the comment
+ * survives the strip and sixteen enum assertions read an empty list. The
+ * failure names the enums, never the line endings. `tasks/lessons.md` has
+ * carried this trap since CAL-017; normalising once here is what stops it
+ * depending on how a given clone happened to check the file out.
+ */
+const schema = readFileSync(
+  fileURLToPath(new URL("./schema.prisma", import.meta.url)),
+  "utf8",
+).replaceAll("\r\n", "\n");
 
 /**
  * The members of a Prisma enum, in declaration order.
@@ -174,6 +189,16 @@ describe("prisma schema", () => {
       "BALANCED", // équilibré
       "HIGH", // élevé
     ]);
+  });
+
+  // CAL-044, the same pinning `ProjectStatus` gets above and for the same
+  // reason: the policy walks its own copy of this list so it stays runnable
+  // without a generated client, and the order carries meaning — it is what
+  // "no dimension tightens as the level rises" is stated against.
+  it("mirrors the freedom levels the policy is written over", () => {
+    expect(enumMembers("FreedomLevel")).toEqual(
+      sharedStringUnion("freedom-level/levels.ts", "FREEDOM_LEVELS"),
+    );
   });
 
   describe("project", () => {
