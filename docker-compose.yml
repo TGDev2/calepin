@@ -52,6 +52,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # SMTP sandbox for the email sign-in link (CAL-025). Catches every message
+  # sent to EMAIL_SERVER_HOST/PORT in apps/web/.env.example instead of
+  # delivering it — the web UI is where a local sign-in link is read.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: calepin-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8025/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
   redis_data:
