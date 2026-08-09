@@ -1,10 +1,11 @@
 /**
  * What each model can do, stated explicitly (CAL-048).
  *
- * The sheet exists so that nothing downstream ever guesses: the routing table
- * is checked against it by test, the pipeline refuses a structured call to a
- * model that cannot honour one, and CAL-054's context budgets will read the
- * window from here. The numbers are the provider's published limits; CAL-049
+ * The sheet exists so that nothing downstream ever guesses: the mission
+ * registry is checked against it by test — parameters within both models'
+ * limits, structured missions only on models that can serve one, context
+ * budget and output cap inside the smaller window. The numbers are the
+ * provider's published limits; CAL-049
  * can cross-check them against the live Models API (`max_input_tokens`,
  * `max_tokens`), which is the authoritative runtime source.
  *
@@ -46,7 +47,7 @@ export type ModelId = (typeof MODEL_IDS)[number];
  * The provider-side reasoning-depth control. On the current model family the
  * sampling parameters (`temperature`, `top_p`, `top_k`) are rejected outright,
  * so `effort` is the one tuning knob a mission declares — which is why
- * `MissionRouting` carries no temperature.
+ * `MissionDefinition` carries no temperature.
  */
 export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 

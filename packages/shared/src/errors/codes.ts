@@ -94,6 +94,14 @@ export const ERROR_CODES = [
    */
   "MODEL_NOT_CONFIGURED",
   /**
+   * A mission declared as producing prose was called for a structured answer,
+   * or the reverse (CAL-051). The registry states one treatment per mission;
+   * a call site asking for the other one has misread the mission, which no
+   * retry and no other provider can fix — so it throws, at the boundary, on
+   * every call rather than on the unlucky one.
+   */
+  "MISSION_OUTPUT_MISMATCH",
+  /**
    * A row being copied into a duplicated project references a row the copy does
    * not hold (CAL-035). Either the duplication plan is missing a model, or the
    * graph reaches outside the project it is supposed to be confined to — both
@@ -133,5 +141,6 @@ export const CATEGORY_BY_CODE = {
   PROJECT_SCOPE_REQUIRED: "internal",
   DATABASE_NOT_CONFIGURED: "internal",
   MODEL_NOT_CONFIGURED: "internal",
+  MISSION_OUTPUT_MISMATCH: "internal",
   PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

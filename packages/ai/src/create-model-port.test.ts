@@ -13,8 +13,8 @@ import type {
 } from "./adapter";
 import { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";
 import { ModelOutputInvalidError } from "./failures";
+import { MISSION_REGISTRY, type MissionDefinition, type MissionRegistry } from "./mission-registry";
 import type { MissionId } from "./missions";
-import { MISSION_MODEL_ROUTING, type MissionRouting } from "./routing";
 import type { Scheduler } from "./timing";
 
 /**
@@ -79,14 +79,37 @@ class VirtualScheduler implements Scheduler {
 const drainMicrotasks = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 const USAGE = { inputTokens: 12, outputTokens: 7 };
+
+/**
+ * Two missions, because since CAL-051 the registry declares what kind of
+ * answer each one produces and the pipeline holds the caller to it: the prose
+ * one carries every assertion about the pipeline itself, the structured one
+ * the assertions about the schema. Both keep their backup model on this
+ * suite's single fake provider, so one adapter still exercises the escalation.
+ */
 const MISSION: MissionId = "write-scene";
-const ROUTE: MissionRouting = {
+const STRUCTURED_MISSION: MissionId = "extract-facts";
+const ROUTE: MissionDefinition = {
+  id: MISSION,
   model: "claude-opus-5",
   fallbackModel: "claude-sonnet-5",
+  effort: "high",
   maxOutputTokens: 8_000,
   timeoutMs: 60_000,
+  output: { kind: "prose" },
+  contextBudgetTokens: 40_000,
+  expectedUsage: { inputTokens: 10_000, outputTokens: 4_000 },
 };
-const ROUTING = { ...MISSION_MODEL_ROUTING, [MISSION]: ROUTE };
+const STRUCTURED_ROUTE: MissionDefinition = {
+  ...ROUTE,
+  id: STRUCTURED_MISSION,
+  output: { kind: "structured", schemaOwner: "bible" },
+};
+const REGISTRY: MissionRegistry = {
+  ...MISSION_REGISTRY,
+  [MISSION]: ROUTE,
+  [STRUCTURED_MISSION]: STRUCTURED_ROUTE,
+};
 
 interface FakeAdapter {
   readonly adapter: ProviderAdapter;
@@ -131,7 +154,7 @@ function buildPort(
 ) {
   return createModelProviderPort({
     adapters: [adapter],
-    routing: ROUTING,
+    registry: REGISTRY,
     scheduler,
     random: () => 0,
     retryPolicy: { maxAttemptsPerModel: 3, baseDelayMs: 100, maxDelayMs: 5000 },
@@ -141,6 +164,12 @@ function buildPort(
 }
 
 const REQUEST = { missionId: MISSION, system: "system words", prompt: "alpha" };
+const STRUCTURED_REQUEST = {
+  missionId: STRUCTURED_MISSION,
+  system: "system words",
+  prompt: "alpha",
+  schema: z.object({ itemCount: z.number() }),
+};
 
 function expectOk<T>(result: Result<T>): T {
   if (!result.ok) {
@@ -192,9 +221,7 @@ describe("createModelProviderPort — the happy path", () => {
     const { adapter, calls } = fakeAdapter();
     const port = buildPort(adapter, new VirtualScheduler());
 
-    const value = expectOk(
-      await port.generateStructured({ ...REQUEST, schema: z.object({ itemCount: z.number() }) }),
-    );
+    const value = expectOk(await port.generateStructured(STRUCTURED_REQUEST));
 
     expect(value.output).toEqual({ itemCount: 3 });
 
@@ -210,9 +237,7 @@ describe("createModelProviderPort — unusable answers (§6)", () => {
     });
     const port = buildPort(adapter, new VirtualScheduler());
 
-    const error = expectFailure(
-      await port.generateStructured({ ...REQUEST, schema: z.object({ itemCount: z.number() }) }),
-    );
+    const error = expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
 
     expect(error.code).toBe("MODEL_OUTPUT_INVALID");
     expect(error.retryable).toBe(false);
@@ -230,6 +255,88 @@ describe("createModelProviderPort — unusable answers (§6)", () => {
 
     expect(error.code).toBe("MODEL_OUTPUT_INVALID");
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("createModelProviderPort — one mission, one treatment (CAL-051)", () => {
+  it("refuses a structured call to a mission the registry declares as prose", async () => {
+    const { adapter, calls } = fakeAdapter();
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    await expect(
+      port.generateStructured({ ...REQUEST, schema: z.object({ itemCount: z.number() }) }),
+    ).rejects.toMatchObject({ code: "MISSION_OUTPUT_MISMATCH", category: "internal" });
+
+    // The provider is never asked: the mismatch is a call-site bug, and it
+    // would fail on every call rather than on an unlucky one.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a prose call to a mission the registry declares as structured", async () => {
+    const { adapter, calls } = fakeAdapter();
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    await expect(
+      port.generateProse({ ...REQUEST, missionId: STRUCTURED_MISSION }),
+    ).rejects.toMatchObject({ code: "MISSION_OUTPUT_MISMATCH" });
+
+    expect(calls).toHaveLength(0);
+  });
+
+  it("calls each mission with the parameters its own entry declares", async () => {
+    const { adapter, calls } = fakeAdapter();
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    await port.generateProse(REQUEST);
+    await port.generateStructured(STRUCTURED_REQUEST);
+
+    // Nothing about the call comes from the caller: the model, the cap and the
+    // effort are the registry's, which is what makes retuning a mission an
+    // edit to one file.
+    expect(calls[0]?.call).toMatchObject({ maxOutputTokens: 8_000, effort: "high" });
+    expect(calls[0]?.call.model.id).toBe("claude-opus-5");
+    expect(calls[1]?.call).toMatchObject({ maxOutputTokens: 8_000, effort: "high" });
+  });
+});
+
+describe("createModelProviderPort — the context budget (CAL-051)", () => {
+  it("says so when a call came back over its mission's budget", async () => {
+    const { adapter } = fakeAdapter({
+      prose: () => ({ text: "alpha", usage: { inputTokens: 41_000, outputTokens: 7 } }),
+    });
+    const capture = createLogCapture();
+    const port = buildPort(adapter, new VirtualScheduler(), {
+      log: createLogger({ destination: capture.stream }),
+    });
+
+    expectOk(await port.generateProse(REQUEST));
+
+    // Identifiers and counts only (§9), and the budget itself is not repeated:
+    // it is a constant of the registry, which the mission id points at.
+    expect(capture.lines().find((line) => line["msg"] === "ai.context-budget-exceeded")).toEqual(
+      expect.objectContaining({
+        missionId: MISSION,
+        provider: "anthropic",
+        model: "claude-opus-5",
+        inputTokens: 41_000,
+      }),
+    );
+  });
+
+  it("stays quiet when the composed context fitted", async () => {
+    const { adapter } = fakeAdapter({
+      prose: () => ({ text: "alpha", usage: { inputTokens: 40_000, outputTokens: 7 } }),
+    });
+    const capture = createLogCapture();
+    const port = buildPort(adapter, new VirtualScheduler(), {
+      log: createLogger({ destination: capture.stream }),
+    });
+
+    expectOk(await port.generateProse(REQUEST));
+
+    expect(capture.lines().some((line) => line["msg"] === "ai.context-budget-exceeded")).toBe(
+      false,
+    );
   });
 });
 
@@ -403,8 +510,8 @@ describe("createModelProviderPort — deadlines", () => {
     const { adapter, calls } = fakeAdapter({ prose: hangs });
     const scheduler = new VirtualScheduler();
     const port = buildPort(adapter, scheduler, {
-      routing: {
-        ...ROUTING,
+      registry: {
+        ...REGISTRY,
         // The same model twice disables fallback: this test is about the clock.
         [MISSION]: { ...ROUTE, fallbackModel: ROUTE.model },
       },
@@ -424,7 +531,7 @@ describe("createModelProviderPort — wiring errors", () => {
   it("throws MODEL_NOT_CONFIGURED when no adapter serves the routed provider", async () => {
     const port = createModelProviderPort({
       adapters: [],
-      routing: ROUTING,
+      registry: REGISTRY,
       log: createLogger({ level: "silent" }),
     });
 
@@ -445,7 +552,7 @@ describe("createModelProviderPort — wiring errors", () => {
     });
     const scheduler = new VirtualScheduler();
     const port = buildPort(adapter, scheduler, {
-      routing: { ...ROUTING, [MISSION]: { ...ROUTE, fallbackModel: "anthropic.claude-opus-5" } },
+      registry: { ...REGISTRY, [MISSION]: { ...ROUTE, fallbackModel: "anthropic.claude-opus-5" } },
     });
 
     const error = expectFailure(await scheduler.settle(port.generateProse(REQUEST)));

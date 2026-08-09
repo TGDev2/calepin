@@ -5,7 +5,7 @@
  * types, and receives the concrete port from the process shell (`apps/web` or
  * the worker). It never learns which model, which provider or which SDK sat
  * behind an answer — that is the whole point: swapping a model per mission is
- * an edit to `routing.ts`, never to a caller.
+ * an edit to `mission-registry.ts`, never to a caller.
  *
  * Both methods return `Result` (CLAUDE.md §7): a provider outage, a deadline,
  * a rate limit, a cancellation and an unusable answer are all expected

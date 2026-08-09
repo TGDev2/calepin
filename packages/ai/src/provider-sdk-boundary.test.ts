@@ -107,7 +107,9 @@ describe("the provider-SDK boundary", () => {
   it("keeps the AI layer out of the domains, adapters included", async () => {
     const domainImport = 'import { anything } from "@calepin/bible";';
 
-    expect(await restrictedImportsAt("packages/ai/src/routing.ts", domainImport)).toHaveLength(1);
+    expect(
+      await restrictedImportsAt("packages/ai/src/mission-registry.ts", domainImport),
+    ).toHaveLength(1);
 
     for (const home of ADAPTER_HOMES) {
       expect(await restrictedImportsAt(home, domainImport)).toHaveLength(1);

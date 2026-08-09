@@ -11,8 +11,8 @@ narrative rule, and never restates a domain schema.
   `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: CAL-056 owns the configurable tariff table.
-- `routing.ts` — one entry per mission: model, backup model, output cap,
-  deadline, effort. **The one file a model change touches.**
+- `mission-registry.ts` — one entry per mission. **The one file a model change
+  touches** (grown into the full registry by CAL-051, below).
 - `port.ts` — `ModelProviderPort`, the only surface business code sees:
   `generateProse` and schema-validated `generateStructured`.
 - `adapter.ts` — the contract a provider adapter implements (CAL-049 the
@@ -50,20 +50,63 @@ narrative rule, and never restates a domain schema.
   A rate limit never marks a provider down — a 429 says the provider is
   working and we are over quota, and treating it as an outage would move the
   same load onto the backup.
-- `routing.ts` — every mission's `fallbackModel` is now its primary's twin on
-  the other provider. `routing.test.ts` pins both halves: never the same
-  model, never the same provider.
+- `mission-registry.ts` — every mission's `fallbackModel` is now its primary's
+  twin on the other provider. The registry's test pins both halves: never the
+  same model, never the same provider.
 - `failover.test.ts` — the acceptance criterion, run through
   `runGenerationAttempt`: a primary that dies while it answers, and a
   generation that completes anyway, started once and completed once, never
   recorded as failed, on a request the second endpoint received unchanged.
 
+## What exists (CAL-051)
+
+- `mission-registry.ts` — ten entries, one per mission, each carrying its
+  model, its parameters, the kind of answer it produces and who owns that
+  schema, its context budget and its expected cost. Business code names a
+  mission and nothing else, so retuning one is an edit here and no caller
+  moves — and `mission-registry.test.ts` proves it by walking every package's
+  sources: no file outside this one and the capability sheet names a model.
+
+  | mission                  | model    | effort | max out | timeout | output     | budget | expected in/out |
+  | ------------------------ | -------- | ------ | ------- | ------- | ---------- | ------ | --------------- |
+  | `analyze-source-text`    | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
+  | `propose-directions`     | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
+  | `evaluate-direction`     | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
+  | `create-character-sheet` | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
+  | `build-chapter-outline`  | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
+  | `write-scene`            | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
+  | `extract-facts`          | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
+  | `check-coherence`        | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
+  | `fix-issue`              | Opus 5   | medium | 16 k    | 300 s   | coherence  | 60 k   | 15 k / 6 k      |
+  | `summarize-chapter`      | Sonnet 5 | low    | 4 k     | 120 s   | manuscript | 40 k   | 10 k / 2 k      |
+
+  The backup is always the same model on Bedrock. Two missions leave Opus:
+  `extract-facts` and `summarize-chapter` run after every chapter and produce
+  no prose a reader reads, which is where the recurring cost is and where a
+  cheaper model changes nothing visible.
+
+- **The schema column is a reference, never a copy** (§5.5). A structured
+  entry names the domain package that owns its Zod schema; the schema itself
+  arrives per call through `StructuredGenerationRequest.schema`, so there is
+  one of it and nothing to drift. The pipeline holds a caller to the declared
+  kind: a structured call to a prose mission throws
+  `MISSION_OUTPUT_MISMATCH`.
+- **The context budget is a live signal.** When a provider reports more input
+  tokens than the mission's budget, the pipeline logs
+  `ai.context-budget-exceeded` — identifiers and counts only. It is checked
+  after the fact because that is when the count is exact, and the tokens are
+  already spent by then; refusing on an estimate would kill generations on a
+  guess. It is what will catch a context composer that sends chapter 12 the
+  eleven chapters before it (CAL-054).
+- **Expected cost is stated in tokens, never money.** CAL-056 owns the tariff
+  table; `expectedUsage` is the shape it multiplies.
+
 ## What arrives in its own task
 
-Full mission registry over the routing table (CAL-051) · output repair
-(CAL-052) · prompt registry (CAL-053) · context composer (CAL-054) · token
-accounting (CAL-056) · the credentials both adapters take, resolved from the
-validated config module by the process shell (CAL-060).
+Output repair (CAL-052) · prompt registry (CAL-053) · context composer
+(CAL-054) · token accounting and pricing (CAL-056) · the credentials both
+adapters take, resolved from the validated config module by the process shell
+(CAL-060).
 
 ## Hard rules
 

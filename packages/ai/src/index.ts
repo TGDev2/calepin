@@ -43,6 +43,14 @@ export {
   type ProviderHealthChange,
   type ProviderHealthPolicy,
 } from "./health";
+export {
+  DOMAIN_PACKAGES,
+  type DomainPackage,
+  MISSION_REGISTRY,
+  type MissionDefinition,
+  type MissionOutput,
+  type MissionRegistry,
+} from "./mission-registry";
 export { MISSION_IDS, type MissionId } from "./missions";
 export type {
   ModelCallMeta,
@@ -54,5 +62,4 @@ export type {
   TokenUsage,
 } from "./port";
 export { DEFAULT_RETRY_POLICY, type RetryPolicy } from "./retry";
-export { MISSION_MODEL_ROUTING, type MissionRouting } from "./routing";
 export type { Scheduler } from "./timing";

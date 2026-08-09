@@ -29,8 +29,8 @@
  * another model inside the same call. That is refused here: the model that
  * served has to be one in `capabilities.ts`, because `ModelCallMeta.model` is
  * what a `GenerationAttempt` row records and what CAL-056 prices. Switching
- * models is `routing.fallbackModel`'s job, where the switch is a logged event
- * rather than a silent substitution.
+ * models is the registry's `fallbackModel`'s job, where the switch is a logged
+ * event rather than a silent substitution.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -127,7 +127,7 @@ function toStreamParams(
     // Adaptive thinking is the only on-mode the 5-family accepts, and a
     // `budget_tokens` config is answered with a 400 there. A budget-thinking
     // model is sent no thinking configuration at all: a budget is a policy
-    // number, and inventing one here would put it outside `routing.ts`.
+    // number, and inventing one here would put it outside the registry.
     ...(call.model.thinking === "adaptive" ? { thinking: { type: "adaptive" as const } } : {}),
     // No `temperature`, `top_p` or `top_k`, and there never will be: the
     // current model family answers 400 for all three (`capabilities.ts`).

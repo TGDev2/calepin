@@ -51,3 +51,16 @@ export function modelNotConfigured(): InternalError {
     message: "no adapter is registered for the routed model's provider",
   });
 }
+
+/**
+ * The mission was called for the kind of answer it does not produce (CAL-051).
+ * A call-site bug, so thrown — and the message names no mission, because
+ * `AppError.message` is the first line of a stack and is never interpolated
+ * with data (§7). The caller knows which mission it just asked for.
+ */
+export function missionOutputMismatch(): InternalError {
+  return new InternalError({
+    code: "MISSION_OUTPUT_MISMATCH",
+    message: "the mission's declared output kind is not the one the caller asked for",
+  });
+}

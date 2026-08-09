@@ -42,9 +42,19 @@ import {
   type ModelId,
   type ProviderId,
 } from "./capabilities";
-import { generationCancelled, modelNotConfigured, ModelOutputInvalidError } from "./failures";
+import {
+  generationCancelled,
+  missionOutputMismatch,
+  modelNotConfigured,
+  ModelOutputInvalidError,
+} from "./failures";
 import { createProviderHealth, type ProviderHealth } from "./health";
-import type { MissionId } from "./missions";
+import {
+  MISSION_REGISTRY,
+  type MissionDefinition,
+  type MissionOutput,
+  type MissionRegistry,
+} from "./mission-registry";
 import type {
   ModelCallMeta,
   ModelProviderPort,
@@ -55,13 +65,12 @@ import type {
   TokenUsage,
 } from "./port";
 import { DEFAULT_RETRY_POLICY, isFallbackEligible, retryDelayMs, type RetryPolicy } from "./retry";
-import { MISSION_MODEL_ROUTING, type MissionRouting } from "./routing";
 import { REAL_SCHEDULER, type Scheduler, sleep } from "./timing";
 
 export interface CreateModelProviderPortOptions {
   adapters: readonly ProviderAdapter[];
   /** Tables and policy default to the real ones; injectable for tests (§8). */
-  routing?: Readonly<Record<MissionId, MissionRouting>>;
+  registry?: MissionRegistry;
   capabilities?: Readonly<Record<ModelId, ModelCapability>>;
   retryPolicy?: RetryPolicy;
   scheduler?: Scheduler;
@@ -103,7 +112,7 @@ export function createModelProviderPort(
 ): ModelProviderPort {
   const {
     adapters,
-    routing = MISSION_MODEL_ROUTING,
+    registry = MISSION_REGISTRY,
     capabilities = MODEL_CAPABILITIES,
     retryPolicy = DEFAULT_RETRY_POLICY,
     scheduler = REAL_SCHEDULER,
@@ -133,9 +142,11 @@ export function createModelProviderPort(
    * positive in the health tracker must cost latency, never refuse a
    * generation outright.
    */
-  function candidatesFor(route: MissionRouting): readonly Candidate[] {
+  function candidatesFor(mission: MissionDefinition): readonly Candidate[] {
     const models =
-      route.fallbackModel === route.model ? [route.model] : [route.model, route.fallbackModel];
+      mission.fallbackModel === mission.model
+        ? [mission.model]
+        : [mission.model, mission.fallbackModel];
     const configured: Candidate[] = [];
 
     for (const model of models) {
@@ -143,7 +154,7 @@ export function createModelProviderPort(
       const adapter = adapterByProvider.get(capability.provider);
 
       if (adapter !== undefined) {
-        configured.push({ capability, adapter, usedFallback: capability.id !== route.model });
+        configured.push({ capability, adapter, usedFallback: capability.id !== mission.model });
       }
     }
 
@@ -180,14 +191,14 @@ export function createModelProviderPort(
     adapter: ProviderAdapter,
     capability: ModelCapability,
     request: ModelRequest,
-    route: MissionRouting,
+    mission: MissionDefinition,
     invoke: (adapter: ProviderAdapter, call: ProviderCall) => Promise<TResponse>,
   ): Promise<AttemptOutcome<TResponse>> {
     const controller = new AbortController();
     const onCallerAbort = (): void => controller.abort(CALLER_CANCELLED);
     const deadline = scheduler.setTimeout(
       () => controller.abort(DEADLINE_REACHED),
-      route.timeoutMs,
+      mission.timeoutMs,
     );
 
     request.signal?.addEventListener("abort", onCallerAbort, { once: true });
@@ -197,8 +208,8 @@ export function createModelProviderPort(
         model: capability,
         system: request.system,
         prompt: request.prompt,
-        maxOutputTokens: route.maxOutputTokens,
-        effort: route.effort,
+        maxOutputTokens: mission.maxOutputTokens,
+        effort: mission.effort,
         signal: controller.signal,
       });
 
@@ -231,12 +242,21 @@ export function createModelProviderPort(
    */
   async function run<TResponse extends { readonly usage: TokenUsage }, TValue>(
     request: ModelRequest,
+    expects: MissionOutput["kind"],
     invoke: (adapter: ProviderAdapter, call: ProviderCall) => Promise<TResponse>,
     interpret: (response: TResponse) => Result<TValue>,
   ): Promise<Result<RunOutcome<TValue>>> {
     const startedAt = scheduler.now();
-    const route = routing[request.missionId];
-    const candidates = candidatesFor(route);
+    const mission = registry[request.missionId];
+
+    // One mission, one treatment (§5.4). Asking a mission for the kind of
+    // answer it does not produce is a call-site bug, not a runtime condition:
+    // it would fail on every call, so it fails before one is made.
+    if (mission.output.kind !== expects) {
+      throw missionOutputMismatch();
+    }
+
+    const candidates = candidatesFor(mission);
 
     let attemptCount = 0;
     let lastError: AppError | undefined;
@@ -267,7 +287,7 @@ export function createModelProviderPort(
 
         attemptCount += 1;
 
-        const outcome = await attemptOnce(adapter, capability, request, route, invoke);
+        const outcome = await attemptOnce(adapter, capability, request, mission, invoke);
 
         if (outcome.kind === "cancelled") {
           return fail(generationCancelled());
@@ -308,6 +328,23 @@ export function createModelProviderPort(
             outputTokens: meta.usage.outputTokens,
           });
 
+          // The context budget, made observable (CAL-051). The comparison is
+          // against the provider's own count, after the fact: an estimate
+          // before the call would refuse generations on a guess, and by the
+          // time the count is exact the tokens are already spent. So it warns
+          // rather than fails — and it is the line that catches a composer
+          // sending a chapter everything written before it (§5.8, CAL-054).
+          // The budget itself is not logged: it is a constant this file holds,
+          // and the mission id is how a reader looks it up.
+          if (meta.usage.inputTokens > mission.contextBudgetTokens) {
+            log.warn("ai.context-budget-exceeded", {
+              missionId: meta.missionId,
+              provider: meta.provider,
+              model: meta.model,
+              inputTokens: meta.usage.inputTokens,
+            });
+          }
+
           return succeed({ value: interpreted.value, meta });
         }
 
@@ -342,6 +379,7 @@ export function createModelProviderPort(
     async generateProse(request: ModelRequest): Promise<Result<ProseGenerationResult>> {
       const result = await run(
         request,
+        "prose",
         (adapter, call) => adapter.generateProse(call),
         (response: ProviderProse): Result<string> =>
           response.text.trim().length === 0
@@ -363,6 +401,7 @@ export function createModelProviderPort(
 
       const result = await run(
         request,
+        "structured",
         (adapter, call) => {
           const structuredCall: StructuredProviderCall = { ...call, outputSchema };
 

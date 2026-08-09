@@ -25,8 +25,7 @@ import { z } from "zod";
 import type { ProviderCall, StructuredProviderCall } from "../adapter";
 import { MODEL_CAPABILITIES } from "../capabilities";
 import { createModelProviderPort } from "../create-model-port";
-import type { MissionId } from "../missions";
-import { MISSION_MODEL_ROUTING, type MissionRouting } from "../routing";
+import { MISSION_REGISTRY, type MissionRegistry } from "../mission-registry";
 import type { Scheduler } from "../timing";
 import { createAnthropicAdapter } from "./anthropic";
 import {
@@ -38,17 +37,18 @@ import {
 } from "./simulated";
 
 /**
- * A routing table whose backup stays on this adapter's own provider. The
- * cross-provider table is the real one (`routing.ts`) and `failover.test.ts`
- * exercises it; here the subject is the escalation itself, and a second
- * adapter would only add a moving part to a test that is not about it.
+ * A registry whose backup stays on this adapter's own provider. The
+ * cross-provider table is the real one (`mission-registry.ts`) and
+ * `failover.test.ts` exercises it; here the subject is the escalation itself,
+ * and a second adapter would only add a moving part to a test that is not
+ * about it.
  */
-const SAME_PROVIDER_ROUTING = Object.fromEntries(
-  Object.entries(MISSION_MODEL_ROUTING).map(([missionId, route]) => [
+const SAME_PROVIDER_REGISTRY = Object.fromEntries(
+  Object.entries(MISSION_REGISTRY).map(([missionId, mission]) => [
     missionId,
-    { ...route, fallbackModel: "claude-sonnet-5" as const },
+    { ...mission, model: "claude-opus-5" as const, fallbackModel: "claude-sonnet-5" as const },
   ]),
-) as Record<MissionId, MissionRouting>;
+) as MissionRegistry;
 
 function headers(entries: Record<string, string> = {}): Headers {
   return new Headers(entries);
@@ -327,7 +327,7 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
-        routing: SAME_PROVIDER_ROUTING,
+        registry: SAME_PROVIDER_REGISTRY,
         log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
       });
@@ -454,7 +454,7 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
-        routing: SAME_PROVIDER_ROUTING,
+        registry: SAME_PROVIDER_REGISTRY,
         log: createLogger({ level: "silent" }),
         scheduler,
         // Full jitter would pick a delay under the floor; pinning the source
@@ -491,7 +491,7 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
-        routing: SAME_PROVIDER_ROUTING,
+        registry: SAME_PROVIDER_REGISTRY,
         log: createLogger({ level: "silent" }),
         scheduler,
         random: () => 1,
@@ -514,7 +514,7 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
-        routing: SAME_PROVIDER_ROUTING,
+        registry: SAME_PROVIDER_REGISTRY,
         log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
         random: () => 0,
@@ -543,7 +543,7 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
-        routing: SAME_PROVIDER_ROUTING,
+        registry: SAME_PROVIDER_REGISTRY,
         log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
       });
