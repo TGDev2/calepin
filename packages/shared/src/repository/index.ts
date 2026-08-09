@@ -50,6 +50,8 @@ export {
 export {
   createProject,
   type CreateProjectInput,
+  createProjectWithSourceText,
+  type CreateProjectWithSourceTextInput,
   deleteProject,
   getProjectForOwner,
   listProjectDashboardRows,

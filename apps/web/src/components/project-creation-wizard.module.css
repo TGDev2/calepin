@@ -1,0 +1,153 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. Step state uses `data-state`, the same convention
+ * `process-stepper.module.css` already established, rather than conditional
+ * class names.
+ */
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.step {
+  padding: 0.3rem var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.step[data-state="done"] {
+  color: var(--color-text);
+}
+
+.step[data-state="current"] {
+  border-width: 2px;
+  border-color: var(--color-text);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.stepContent {
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.input,
+.select,
+.textarea {
+  padding: var(--space-1);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 12rem;
+}
+
+.counter {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.radioOption {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: var(--space-1) 0;
+}
+
+.radioLabel {
+  display: block;
+  font-weight: 600;
+}
+
+.radioCaption {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.primaryButton {
+  padding: 0.6rem var(--space-3);
+  background: var(--color-text);
+  color: var(--color-background);
+  border: none;
+  border-radius: var(--radius-1);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.primaryButton:hover,
+.primaryButton:focus-visible {
+  background: var(--color-text-muted);
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.secondaryButton {
+  padding: 0.6rem var(--space-3);
+  background: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -33,6 +33,27 @@ export interface CreateProjectInput {
 }
 
 /**
+ * `createProjectWithSourceText`'s own input — `CreateProjectInput` plus the
+ * text the project is built from, since CAL-040's wizard collects both in
+ * one flow and neither is useful without the other: a project with no
+ * source text has nothing for analysis to read, and a source text cannot
+ * exist without the project it belongs to (`SourceText.projectId` is
+ * `@unique`, one-to-one).
+ */
+export interface CreateProjectWithSourceTextInput extends CreateProjectInput {
+  readonly sourceText: {
+    /**
+     * Already validated and counted by the caller (CLAUDE.md §3.3 — the
+     * interface layer owns the wizard's word-count rule; this layer only
+     * persists). The `source_text_versions_word_count_check` constraint is
+     * the last line of defense, not the first.
+     */
+    readonly content: string;
+    readonly wordCount: number;
+  };
+}
+
+/**
  * What a caller may change afterwards.
  *
  * `userId` is absent, and its absence is the point: a project cannot change
@@ -211,6 +232,57 @@ export async function createProject(input: CreateProjectInput) {
       ...(input.targetAudience === undefined ? {} : { targetAudience: input.targetAudience }),
       ...(input.freedomLevel === undefined ? {} : { freedomLevel: input.freedomLevel }),
     },
+  });
+}
+
+/**
+ * Creates a project and its founding source text together (CAL-040) — the
+ * wizard's only write.
+ *
+ * One transaction: `Project`, then `SourceText`, then its first
+ * `SourceTextVersion`. Nothing else could create a project with no source
+ * text or a source text with no project, and CLAUDE.md §6 refuses a
+ * half-persisted result on principle even where the schema wouldn't catch
+ * one. `SourceTextVersion` carries no audit block — it is append-only
+ * history, not a mutable row — so `editedById` is written directly rather
+ * than left to the audit extension, the same shape a `ChapterRevision`
+ * takes.
+ *
+ * The caller must be inside an actor scope (`runWithActor`, CAL-022), same
+ * contract as `createProject`.
+ */
+export async function createProjectWithSourceText(input: CreateProjectWithSourceTextInput) {
+  assertOwnerId(input.ownerId);
+
+  return getDatabaseClient().$transaction(async (tx) => {
+    const project = await tx.project.create({
+      data: {
+        [PROJECT_OWNER_FIELD]: input.ownerId,
+        title: input.title,
+        ...(input.language === undefined ? {} : { language: input.language }),
+        ...(input.targetLength === undefined ? {} : { targetLength: input.targetLength }),
+        ...(input.targetWordCount === undefined ? {} : { targetWordCount: input.targetWordCount }),
+        ...(input.targetAudience === undefined ? {} : { targetAudience: input.targetAudience }),
+        ...(input.freedomLevel === undefined ? {} : { freedomLevel: input.freedomLevel }),
+      },
+    });
+
+    const sourceText = await tx.sourceText.create({
+      data: { projectId: project.id },
+    });
+
+    await tx.sourceTextVersion.create({
+      data: {
+        sourceTextId: sourceText.id,
+        versionNumber: 1,
+        content: input.sourceText.content,
+        wordCount: input.sourceText.wordCount,
+        ...(input.language === undefined ? {} : { language: input.language }),
+        editedById: input.ownerId,
+      },
+    });
+
+    return project;
   });
 }
 

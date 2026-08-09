@@ -24,6 +24,7 @@ import { succeed } from "@calepin/shared/errors";
 import {
   computeProjectAggregates,
   createProject,
+  createProjectWithSourceText,
   delegateName,
   deleteProject,
   duplicateProject,
@@ -61,6 +62,7 @@ const ENTRY_POINTS = [
   "archiveProject",
   "computeProjectAggregates",
   "createProject",
+  "createProjectWithSourceText",
   "deleteProject",
   "duplicateProject",
   "getProjectForOwner",
@@ -459,6 +461,39 @@ describe("owner access policy", () => {
       expect(created.userId).toBe(bob.ownerId);
       expect((await listProjectsForOwner(alice.ownerId)).map((project) => project.id)) //
         .not.toContain(created.id);
+    });
+
+    // CAL-040. The wizard's one write: a project and its founding source text
+    // in one transaction. Both rows must belong to the owner it names, and
+    // neither is reachable by scoping to someone else's — the same criterion
+    // the table-by-table sweep above proves for every other model, checked
+    // here for the one pair this function creates together.
+    it("createProjectWithSourceText gives the project and its source text to the owner it names", async () => {
+      const created = await runWithActor(bob.ownerId, async () =>
+        createProjectWithSourceText({
+          ownerId: bob.ownerId,
+          title: "owner-access-created-with-source-text",
+          sourceText: { content: "Un texte source de test.", wordCount: 5 },
+        }),
+      );
+
+      expect(created.userId).toBe(bob.ownerId);
+
+      const opened = await openProjectScope({ ownerId: bob.ownerId, projectId: created.id });
+      if (!opened.ok) throw new Error("the owner could not open a scope on the project just created");
+      const createdScope = opened.value;
+
+      expect(
+        await delegateOf("SourceText").count({
+          where: scopedWhere("SourceText", createdScope, { projectId: created.id }),
+        }),
+      ).toBe(1);
+
+      expect(
+        await delegateOf("SourceText").count({
+          where: scopedWhere("SourceText", aliceScope, { projectId: created.id }),
+        }),
+      ).toBe(0);
     });
 
     // An owner id that never got established would query the projects of

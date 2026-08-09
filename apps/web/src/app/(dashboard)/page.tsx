@@ -11,7 +11,6 @@ import { getCurrentUser } from "@/lib/current-user";
 import { projectStatusLabel } from "@/lib/project-status-label";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
-import { createProjectAction } from "./actions";
 import styles from "./page.module.css";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
@@ -67,7 +66,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   return (
     <main className={styles.main}>
-      <h1 className={styles.title}>Mes projets</h1>
+      <div className={styles.header}>
+        <h1 className={styles.title}>Mes projets</h1>
+        <Link className={styles.newProjectLink} href="/projects/new">
+          Nouveau projet
+        </Link>
+      </div>
 
       <form className={styles.filters} method="get" action="/">
         <label className={styles.filterLabel} htmlFor="q">
@@ -154,11 +158,9 @@ function EmptyState() {
         </ol>
       </div>
 
-      <form action={createProjectAction}>
-        <button type="submit" className={styles.createButton}>
-          Créer mon premier projet
-        </button>
-      </form>
+      <Link className={styles.createButton} href="/projects/new">
+        Créer mon premier projet
+      </Link>
     </section>
   );
 }

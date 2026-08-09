@@ -293,6 +293,40 @@ export async function projectExists(projectId: string): Promise<boolean> {
   }
 }
 
+export interface ProjectFields {
+  readonly status: $Enums.ProjectStatus;
+  readonly language: string;
+  readonly targetLength: $Enums.TargetLength;
+  readonly targetAudience: string;
+  readonly freedomLevel: $Enums.FreedomLevel;
+  readonly sourceTextVersionCount: number;
+}
+
+/** What CAL-040's wizard actually wrote — read back for the creation spec, never through the screen alone. */
+export async function getProjectFields(projectId: string): Promise<ProjectFields | null> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: { sourceText: { include: { _count: { select: { versions: true } } } } },
+    });
+
+    if (project === null) return null;
+
+    return {
+      status: project.status,
+      language: project.language,
+      targetLength: project.targetLength,
+      targetAudience: project.targetAudience,
+      freedomLevel: project.freedomLevel,
+      sourceTextVersionCount: project.sourceText?._count.versions ?? 0,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Whether a session row is still live — CAL-029's proof that sign-out invalidates it. */
 export async function sessionExists(sessionToken: string): Promise<boolean> {
   const prisma = new PrismaClient();
