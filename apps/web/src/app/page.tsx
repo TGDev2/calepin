@@ -10,8 +10,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectStatusLabel } from "@/lib/project-status-label";
 import { signInDestination } from "@/lib/sign-in-redirect";
-import { createProjectAction } from "./actions";
 
+import { createProjectAction } from "./actions";
 import styles from "./page.module.css";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
@@ -139,7 +139,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 function EmptyState() {
   return (
     <section className={styles.emptyState}>
-      <h2 className={styles.emptyTitle}>Aucun projet pour l'instant.</h2>
+      <h2 className={styles.emptyTitle}>Aucun projet pour l&apos;instant.</h2>
 
       <p className={styles.emptyDescription}>
         Calepin transforme une fiction courte en projet de roman structuré.

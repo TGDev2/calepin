@@ -32,7 +32,7 @@ export async function createProjectAction(): Promise<void> {
 
     revalidatePath(DASHBOARD_PATH);
     redirect(`/projects/${encodeURIComponent(project.id)}`);
-  } catch (error: unknown) {
+  } catch {
     redirect(DASHBOARD_PATH);
   }
 }
