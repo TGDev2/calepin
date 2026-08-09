@@ -46,3 +46,12 @@ and the chapter-count derivation live.
   (CAL-042), extended with the calibration. Built ahead of its producer, the
   same way `getGenerationContextForProject` is: no mission calls this yet
   (CAL-048, CAL-060 still to come).
+
+**Two entry points, and the split is load-bearing.** `@calepin/outline` is the
+whole surface; `@calepin/outline/calibration` is the pure half — the ranges,
+the chapter maths and their types, with no database read anywhere in its module
+graph. A browser bundle must import the second: the root barrel re-exports
+`getPlanGenerationContext`, which reaches `@calepin/shared/repository` and
+through it `node:async_hooks`, and Turbopack answers a server-only module in a
+client chunk by refusing to build the page rather than shaking the unused
+branch out. `apps/web`'s creation wizard is the caller this exists for.

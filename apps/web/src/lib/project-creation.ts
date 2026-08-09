@@ -17,7 +17,12 @@
  * interface layer may never hold a Prisma import (CLAUDE.md §3.5).
  */
 
-import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline";
+// `@calepin/outline/calibration`, never the package root: the root barrel
+// re-exports `getPlanGenerationContext`, whose module graph reaches
+// `@calepin/shared/repository` and so `node:async_hooks`. This module is
+// imported by a `"use client"` component, and Turbopack answers that by
+// refusing to build the whole page rather than shaking the unused branch out.
+import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline/calibration";
 import {
   detectSourceTextLanguage,
   SUPPORTED_SOURCE_TEXT_LANGUAGES,

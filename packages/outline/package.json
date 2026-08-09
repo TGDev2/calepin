@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./calibration": {
+      "types": "./src/target-length/calibration.ts",
+      "default": "./src/target-length/calibration.ts"
     }
   },
   "scripts": {
