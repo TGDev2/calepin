@@ -2,14 +2,17 @@ import {
   getProjectForOwner,
   listRunningGenerations,
   openProjectScope,
+  type ProjectScope,
   readProjectProgress,
 } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { ArchiveProjectSection } from "@/components/archive-project-section";
 import { GenerationIndicator } from "@/components/generation-indicator";
 import { ProjectOverview } from "@/components/project-overview";
+import { SkeletonBlock } from "@/components/skeleton";
 import { SubmitButton } from "@/components/submit-button";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectActionErrorMessage } from "@/lib/project-action-error";
@@ -24,7 +27,10 @@ import {
   restoreProjectAction,
 } from "./actions";
 import { getRunningGenerationsAction } from "./generation-status-action";
+import loadingStyles from "./loading.module.css";
 import styles from "./page.module.css";
+
+type FoundProject = Extract<Awaited<ReturnType<typeof getProjectForOwner>>, { ok: true }>["value"];
 
 const DATE_FORMAT = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" });
 const NUMBER_FORMAT = new Intl.NumberFormat("fr-FR");
@@ -43,6 +49,16 @@ const NUMBER_FORMAT = new Intl.NumberFormat("fr-FR");
  * answer** — `notFound()`, because the repository refuses to tell them apart
  * (CLAUDE.md §3.5) and a screen that did would reopen the enumeration leak the
  * 404 is chosen to close.
+ *
+ * **The ownership check runs above any `<Suspense>` boundary, on purpose.**
+ * Next only commits to the response's HTTP status once something below the
+ * first boundary in the tree suspends; a `notFound()` thrown after that point
+ * still renders the not-found UI but the status stays 200 (a known Next.js
+ * streaming behaviour, not a bug in this page). `getProjectForOwner` and
+ * `openProjectScope` above are therefore awaited directly in this component —
+ * which has no `loading.tsx` and no ancestor `<Suspense>` — before rendering
+ * begins; only the slower, ownership-agnostic `<ProjectDetails>` below is
+ * wrapped in one, so the skeleton still shows without ever gating the 404.
  *
  * Every form is a plain form posting to a server action. No client state
  * decides whether a destructive control is live: the checks that matter run on
@@ -64,14 +80,6 @@ export default async function ProjectPage({
   ]);
   if (!found.ok || !scope.ok) notFound();
 
-  const [progress, runningGenerations] = await Promise.all([
-    readProjectProgress(scope.value),
-    listRunningGenerations(scope.value),
-  ]);
-  if (!progress.ok) notFound();
-
-  const project = found.value;
-  const isArchived = project.archivedAt !== null;
   const error = projectActionErrorMessage((await searchParams).error);
 
   return (
@@ -80,6 +88,36 @@ export default async function ProjectPage({
         <Link href="/">← Mes projets</Link>
       </p>
 
+      <Suspense fallback={<ProjectDetailsSkeleton />}>
+        <ProjectDetails scope={scope.value} project={found.value} error={error} />
+      </Suspense>
+    </main>
+  );
+}
+
+interface ProjectDetailsProps {
+  readonly scope: ProjectScope;
+  readonly project: FoundProject;
+  readonly error: string | null;
+}
+
+/**
+ * Everything about the project that is not the ownership decision — the nine-
+ * step bar, the generation indicator and the three actions. Split out of
+ * `ProjectPage` so only this half streams behind a `<Suspense>` boundary; see
+ * that component's doc comment for why.
+ */
+async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
+  const [progress, runningGenerations] = await Promise.all([
+    readProjectProgress(scope),
+    listRunningGenerations(scope),
+  ]);
+  if (!progress.ok) notFound();
+
+  const isArchived = project.archivedAt !== null;
+
+  return (
+    <>
       <ProjectOverview
         projectId={project.id}
         title={project.title}
@@ -135,6 +173,47 @@ export default async function ProjectPage({
           Supprimer ce projet…
         </Link>
       </section>
-    </main>
+    </>
+  );
+}
+
+/**
+ * `<ProjectDetails>`'s fallback — the same shape `loading.tsx` used to render
+ * for the whole page, minus the back link and page shell that now render
+ * immediately in `ProjectPage` itself.
+ */
+function ProjectDetailsSkeleton() {
+  return (
+    <div className={loadingStyles.skeleton} role="status" aria-live="polite">
+      <span className="visually-hidden">Chargement du projet…</span>
+
+      <div className={loadingStyles.header}>
+        <SkeletonBlock height="2rem" width="16rem" />
+        <SkeletonBlock height="1.5rem" width="6rem" />
+      </div>
+
+      <SkeletonBlock height="0.85rem" width="10rem" />
+
+      <div className={loadingStyles.stats}>
+        <SkeletonBlock height="2.5rem" width="8rem" />
+        <SkeletonBlock height="2.5rem" width="8rem" />
+      </div>
+
+      <div className={loadingStyles.stepper}>
+        {Array.from({ length: 9 }, (_, index) => (
+          <SkeletonBlock key={index} className={loadingStyles.step} height="0.75rem" />
+        ))}
+      </div>
+
+      <div className={loadingStyles.actions}>
+        {[0, 1, 2].map((index) => (
+          <div key={index} className={loadingStyles.action}>
+            <SkeletonBlock height="1.1rem" width="30%" />
+            <SkeletonBlock height="0.85rem" width="70%" />
+            <SkeletonBlock height="2.25rem" width="10rem" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

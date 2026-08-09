@@ -2,18 +2,15 @@
  * Built from the placeholder tokens in `app/globals.css`. No hard-coded
  * values — CAL-181 owns the real token system and will replace them in one
  * place.
+ *
+ * Backs `ProjectDetailsSkeleton` in `page.tsx`, the `<Suspense>` fallback for
+ * the part of the project page that streams. The page shell itself (the back
+ * link, `<main>`'s layout) renders immediately and has no skeleton of its own.
  */
 
-.main {
-  max-width: 42rem;
-  margin: 0 auto;
-  padding: var(--space-4) var(--space-2);
+.skeleton {
   display: grid;
   gap: var(--space-2);
-}
-
-.back {
-  margin-bottom: var(--space-2);
 }
 
 .header {
