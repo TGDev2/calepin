@@ -65,8 +65,3 @@
 .versionFacts {
   color: var(--color-text-muted);
 }
-
-.skeleton {
-  display: grid;
-  gap: var(--space-2);
-}

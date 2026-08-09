@@ -146,7 +146,19 @@ test("refuses an empty text and keeps the current version", async ({ page, conte
     await signIn(context, session);
 
     await page.goto(`/projects/${project.projectId}/source-text`);
-    await page.getByLabel("Votre texte de départ").fill("   ");
+
+    // A `defaultValue` textarea's hydration commits its server-rendered raw
+    // text onto `.value` once, on mount (`source-text-editor.tsx`'s own doc
+    // comment) — filling before that one-time commit lands has it silently
+    // overwrite the fill right back to the original text. There is no signal
+    // to wait on for "hydration of this field has committed"; the commit is
+    // bounded and settles well under a second, so verify the fill held and
+    // redo it once rather than guess at a fixed wait up front.
+    const field = page.getByLabel("Votre texte de départ");
+    await field.fill("   ");
+    await page.waitForTimeout(250);
+    if ((await field.inputValue()) !== "   ") await field.fill("   ");
+
     await page.getByRole("button", { name: "Enregistrer une nouvelle version" }).click();
 
     await expect(page.locator("p[role='alert']")).toContainText("ne peut pas être vide");

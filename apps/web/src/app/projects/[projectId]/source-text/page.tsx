@@ -3,15 +3,12 @@ import {
   getSourceText,
   listSourceTextVersions,
   openProjectScope,
-  type ProjectScope,
   readSourceTextObsolescence,
 } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Suspense } from "react";
 
 import { ObsolescenceNotice } from "@/components/obsolescence-notice";
-import { SkeletonBlock } from "@/components/skeleton";
 import { SourceTextEditor } from "@/components/source-text-editor";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
@@ -37,11 +34,20 @@ const NUMBER_FORMAT = new Intl.NumberFormat("fr-FR");
  * archive button, and the project page already links here. Same shape as
  * `/projects/[projectId]/delete`.
  *
- * **The ownership check runs above any `<Suspense>` boundary**, for the reason
- * the project page's own doc comment sets out: Next commits the HTTP status at
- * the first suspension, so a `notFound()` thrown after that point renders the
- * 404 UI with a 200. A project that is not yours and one that does not exist are
- * the same answer, because the repository refuses to tell them apart.
+ * **No `<Suspense>` boundary around the editor.** One was tried and removed:
+ * streaming this section behind a fallback delays the moment React actually
+ * commits (and hydrates) the real `<textarea>` relative to the moment it
+ * becomes visible on screen, which widens the exact window
+ * `source-text-editor.tsx`'s own doc comment already warns about — text typed
+ * before a `defaultValue` field's hydration commit is silently overwritten,
+ * because React re-syncs `.value` from the server-rendered raw text once, on
+ * mount. An end-to-end run that filled the field immediately after
+ * navigation reproduced it reliably. The query this page runs is a handful of
+ * indexed reads, so the skeleton bought a flash of loading UI on a fast
+ * connection at the cost of a real data-loss window on a slow one — the
+ * `notFound()` this fetch could throw is provably unreachable to begin with
+ * (a project always has a source text; the wizard writes both in one
+ * transaction), so the boundary was not protecting a status code either.
  */
 export default async function SourceTextPage({ params }: PageProps<"/projects/[projectId]">) {
   const { projectId } = await params;
@@ -55,37 +61,19 @@ export default async function SourceTextPage({ params }: PageProps<"/projects/[p
   ]);
   if (!found.ok || !scope.ok) notFound();
 
+  const [current, versions, obsolescence] = await Promise.all([
+    getSourceText(scope.value),
+    listSourceTextVersions(scope.value),
+    readSourceTextObsolescence(scope.value),
+  ]);
+  if (!current.ok) notFound();
+
   return (
     <main className={styles.main}>
       <p className={styles.back}>
         <Link href={`/projects/${projectId}`}>← {found.value.title}</Link>
       </p>
 
-      <Suspense fallback={<SourceTextSkeleton />}>
-        <SourceTextSection scope={scope.value} projectId={projectId} />
-      </Suspense>
-    </main>
-  );
-}
-
-interface SourceTextSectionProps {
-  readonly scope: ProjectScope;
-  readonly projectId: string;
-}
-
-async function SourceTextSection({ scope, projectId }: SourceTextSectionProps) {
-  const [current, versions, obsolescence] = await Promise.all([
-    getSourceText(scope),
-    listSourceTextVersions(scope),
-    readSourceTextObsolescence(scope),
-  ]);
-
-  // A project always has a source text — the wizard writes both in one
-  // transaction — so its absence is a graph nothing in the product can produce.
-  if (!current.ok) notFound();
-
-  return (
-    <>
       {obsolescence.ok ? <ObsolescenceNotice report={obsolescence.value} /> : null}
 
       <SourceTextEditor
@@ -118,18 +106,6 @@ async function SourceTextSection({ scope, projectId }: SourceTextSectionProps) {
           ))}
         </ol>
       </section>
-    </>
-  );
-}
-
-function SourceTextSkeleton() {
-  return (
-    <div className={styles.skeleton} role="status" aria-live="polite">
-      <span className="visually-hidden">Chargement du texte source…</span>
-
-      <SkeletonBlock height="1.5rem" width="12rem" />
-      <SkeletonBlock height="18rem" />
-      <SkeletonBlock height="2.25rem" width="16rem" />
-    </div>
+    </main>
   );
 }
