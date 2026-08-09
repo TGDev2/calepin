@@ -259,6 +259,13 @@ enum TargetLength {
   @@map("target_length")
 }
 
+/// How far the novel may travel from its source text. What each level permits
+/// — a treatment per source dimension, the constraints it resolves to for the
+/// analysis, direction, bible and outline missions, and the short explanation
+/// the author reads — belongs to CAL-044 and lives in
+/// @calepin/shared/freedom-level; this schema stores the choice, not its
+/// interpretation. FREEDOM_LEVELS mirrors these members and schema.test.ts
+/// pins the two against each other.
 enum FreedomLevel {
   LOW
   BALANCED

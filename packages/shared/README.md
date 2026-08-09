@@ -18,6 +18,7 @@ them; an import in the other direction is a cycle.
 | `@calepin/shared/database`   | the client seam — the process shell registers a `PrismaClient` here and the repository layer reads it (CAL-023). **Only a process shell may import it**      |
 | `@calepin/shared/repository` | the owner access policy: the ownership registry, `ProjectScope`, the scoped `where` builder and the project repository (CAL-023)                             |
 | `@calepin/shared/errors`     | the `AppError` hierarchy, `Result`, the HTTP mapping, the French user messages (CAL-010)                                                                     |
+| `@calepin/shared/freedom-level` | the freedom-level policy over the ten source dimensions, the constraints it resolves to at each of the four stages, the compliance check and the French an author reads (CAL-044) |
 | `@calepin/shared/generation` | the generation attempt lifecycle and its append-only guarantee (CAL-010)                                                                                     |
 | `@calepin/shared/logging`    | the Pino logger, the correlation context and the log field allowlist (CAL-009)                                                                               |
 | `@calepin/shared/testing`    | test helpers — data factories, log capture                                                                                                                   |

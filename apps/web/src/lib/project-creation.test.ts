@@ -1,5 +1,11 @@
 import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline";
 import {
+  FREEDOM_LEVELS,
+  freedomLevelCopy,
+  SOURCE_DIMENSIONS,
+  summarizeFreedomLevel,
+} from "@calepin/shared/freedom-level";
+import {
   FRENCH_WORD_COUNT_CORPUS,
   FRENCH_WORD_COUNT_CORPUS_WORDS,
   measureSourceText,
@@ -9,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import {
   draftFromFormData,
   EMPTY_PROJECT_CREATION_DRAFT,
+  FREEDOM_LEVEL_OPTIONS,
   OTHER_OPTION_VALUE,
   type ProjectCreationDraft,
   proposeDetectedLanguage,
@@ -232,6 +239,56 @@ describe("validateProjectCreationDraft", () => {
     const result = validateProjectCreationDraft(validDraft({ freedomLevel: "EXTREME" }));
 
     expect(result.ok).toBe(false);
+  });
+
+  it("rejects a lowercase freedom level, which is the shared union's spelling trap", () => {
+    expect(validateProjectCreationDraft(validDraft({ freedomLevel: "balanced" })).ok).toBe(false);
+  });
+
+  it("accepts each of the three levels the shared union declares", () => {
+    for (const level of FREEDOM_LEVELS) {
+      const result = validateProjectCreationDraft(validDraft({ freedomLevel: level }));
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.freedomLevel).toBe(level);
+    }
+  });
+});
+
+// CAL-044. The wizard used to carry its own copy of these three captions,
+// which made them a promise the form made on its own authority; they now come
+// from the same table the constraint clauses are composed from, so what an
+// author is shown and what a mission is held to cannot drift apart.
+describe("FREEDOM_LEVEL_OPTIONS", () => {
+  it("offers exactly the three levels, in the shared order", () => {
+    expect(FREEDOM_LEVEL_OPTIONS.map((option) => option.value)).toEqual([...FREEDOM_LEVELS]);
+  });
+
+  it("takes its label, caption and explanation from the shared copy", () => {
+    for (const option of FREEDOM_LEVEL_OPTIONS) {
+      const copy = freedomLevelCopy(option.value);
+
+      expect(option.label).toBe(copy.label);
+      expect(option.caption).toBe(copy.tagline);
+      expect(option.explanation).toBe(copy.explanation);
+    }
+  });
+
+  it("carries the derived treatment lists the step displays", () => {
+    for (const option of FREEDOM_LEVEL_OPTIONS) {
+      expect(option.summary).toEqual(summarizeFreedomLevel(option.value));
+      expect(option.summary.flatMap((group) => group.dimensions).length).toBe(
+        SOURCE_DIMENSIONS.length,
+      );
+    }
+  });
+
+  it("gives an author enough to tell the three apart", () => {
+    const explanations = FREEDOM_LEVEL_OPTIONS.map((option) => option.explanation);
+
+    expect(new Set(explanations).size).toBe(FREEDOM_LEVEL_OPTIONS.length);
+    expect(explanations.every((explanation) => explanation.length > 80)).toBe(true);
   });
 });
 

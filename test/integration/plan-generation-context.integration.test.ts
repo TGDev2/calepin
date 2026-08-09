@@ -11,6 +11,7 @@
 
 import { getPlanGenerationContext } from "@calepin/outline";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
+import { freedomConstraints, sourceDepartureBudget } from "@calepin/shared/freedom-level";
 import { openProjectScope } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -85,6 +86,38 @@ describe("getPlanGenerationContext (CAL-043)", () => {
       chapterCount: 33,
       chapterTargetWordCount: 3_030,
     });
+  });
+
+  // CAL-044. The setting is worth nothing stored: what matters is that a
+  // non-default choice survives the trip from the column to the context every
+  // mission reads. Asserted against a real row rather than a stub, because the
+  // failure this guards against is a `select` that forgot the column.
+  it("carries a non-default freedom level from the column into the context", async () => {
+    const user = await prisma.user.create({
+      data: { email: "plan-context-freedom@example.test" },
+    });
+    setActor(user.id);
+
+    const project = await prisma.project.create({
+      data: { userId: user.id, title: "Free reinterpretation", freedomLevel: "HIGH" },
+    });
+
+    const opened = await openProjectScope({ ownerId: user.id, projectId: project.id });
+    if (!opened.ok) throw new Error("the owner could not open a scope on their own project");
+
+    const context = await getPlanGenerationContext(opened.value);
+
+    expect(context.ok).toBe(true);
+    if (!context.ok) return;
+    expect(context.value.freedomLevel).toBe("HIGH");
+    // And the constraints that level resolves to are reachable from it — the
+    // one hop a mission will make once CAL-048's registry exists.
+    expect(sourceDepartureBudget(context.value.freedomLevel)).toBe(sourceDepartureBudget("HIGH"));
+    expect(
+      freedomConstraints(context.value.freedomLevel, "outline").some(
+        (constraint) => constraint.dimension === "themes" && constraint.treatment === "preserve",
+      ),
+    ).toBe(true);
   });
 
   it("refuses a project that does not belong to the scope's owner", async () => {

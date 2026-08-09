@@ -58,7 +58,23 @@ test("creates a project through the wizard, ending in a draft", async ({ page, c
     // Target audience step: keep the default (Grand public).
     await page.getByRole("button", { name: "Suivant" }).click();
 
+    // CAL-044: the step does not just name the level, it states what the
+    // level enforces — and the lists are derived from the policy, so nothing
+    // is reinterpretable at « Faible » and the themes stay conserved even at
+    // « Élevé ». Scoped to the region, because the three radio captions sit
+    // in the same fieldset and mention the same words.
+    const levelDetail = page.getByRole("region", { name: "Ce que ce degré engage" });
+
+    await page.getByLabel(/Faible/).check();
+    await expect(levelDetail).toContainText("Conservé");
+    await expect(levelDetail).not.toContainText("Réinterprétable");
+
     await page.getByLabel(/Élevé/).check();
+    await expect(levelDetail).toContainText("Réinterprétable");
+    await expect(levelDetail.locator("dt", { hasText: "Conservé" }).locator("~ dd")).toHaveText(
+      "les thèmes",
+    );
+
     await page.getByRole("button", { name: "Créer le projet" }).click();
 
     // `/projects/new` itself matches `^/projects/[^/]+$` — the pattern alone

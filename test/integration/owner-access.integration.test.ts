@@ -269,13 +269,13 @@ describe("owner access policy", () => {
       if (!missing.ok) expect(missing.error.code).toBe("NOT_FOUND");
     });
 
-    // CAL-042. The project's language is what every future generation call
-    // propagates (CLAUDE.md §5.8); it must never leak across an owner
-    // boundary any more than the project itself does.
+    // CAL-042, CAL-044. The project's language and freedom level are what
+    // every future generation call propagates (CLAUDE.md §5.8); neither may
+    // leak across an owner boundary any more than the project itself does.
     it("getGenerationContextForProject refuses another owner's project", async () => {
       const mine = await getGenerationContextForProject(aliceScope);
       expect(mine.ok).toBe(true);
-      if (mine.ok) expect(mine.value).toEqual({ language: "fr" });
+      if (mine.ok) expect(mine.value).toEqual({ language: "fr", freedomLevel: "BALANCED" });
 
       const theirs = await getGenerationContextForProject(
         forgedScope(bob.ownerId, alice.projectId),

@@ -99,6 +99,50 @@
   margin: 0;
 }
 
+/*
+ * CAL-044. What the chosen freedom level actually enforces, shown under the
+ * three radios: the short explanation, then the dimensions it conserves,
+ * develops and opens.
+ */
+.levelDetail {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.levelExplanation {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.levelTreatments {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.levelTreatment {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: var(--space-1);
+  align-items: baseline;
+}
+
+.levelTreatmentHeading {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.levelTreatmentList {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
 .error {
   margin: 0;
   padding: var(--space-2);

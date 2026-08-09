@@ -44,6 +44,10 @@
       "types": "./src/errors/index.ts",
       "default": "./src/errors/index.ts"
     },
+    "./freedom-level": {
+      "types": "./src/freedom-level/index.ts",
+      "default": "./src/freedom-level/index.ts"
+    },
     "./generation": {
       "types": "./src/generation/index.ts",
       "default": "./src/generation/index.ts"

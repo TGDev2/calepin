@@ -160,6 +160,13 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
 
   const currentStep = PROJECT_CREATION_STEPS[stepIndex] ?? "title";
   const isLastStep = stepIndex === PROJECT_CREATION_STEPS.length - 1;
+  // CAL-044: the chosen level's explanation and the three lists it resolves
+  // to, so the step says what the setting will actually do rather than only
+  // naming it. `undefined` only for a draft restored with a level the union
+  // no longer has — the step's own validator refuses that on "Suivant".
+  const selectedFreedomLevel = FREEDOM_LEVEL_OPTIONS.find(
+    (option) => option.value === draft.freedomLevel,
+  );
   const clientError = FIELD_VALIDATORS[currentStep](draft);
   const serverError = !state.ok ? state.errors?.[currentStep] : undefined;
   const visibleError = serverError ?? (showStepError ? clientError : null);
@@ -389,6 +396,26 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
                 </span>
               </label>
             ))}
+            {selectedFreedomLevel ? (
+              // A named region rather than a bare block: it gives the live
+              // update something to announce, and it is what the end-to-end
+              // spec asks for by name instead of by hashed class.
+              <section
+                className={styles.levelDetail}
+                aria-label="Ce que ce degré engage"
+                aria-live="polite"
+              >
+                <p className={styles.levelExplanation}>{selectedFreedomLevel.explanation}</p>
+                <dl className={styles.levelTreatments}>
+                  {selectedFreedomLevel.summary.map((group) => (
+                    <div key={group.treatment} className={styles.levelTreatment}>
+                      <dt className={styles.levelTreatmentHeading}>{group.heading}</dt>
+                      <dd className={styles.levelTreatmentList}>{group.dimensions.join(", ")}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : null}
           </fieldset>
         ) : null}
 

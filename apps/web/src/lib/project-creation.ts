@@ -10,11 +10,14 @@
  * expects — content, not narrative rules, which is why it lives in the
  * interface layer rather than a domain (CLAUDE.md §3.3).
  *
- * The target-length/freedom-level enum *values* are derived from
- * `CreateProjectInput`'s own fields rather than imported from
- * `@prisma/client` directly — the same trick `Adapter`/`NodemailerConfig`
- * already use elsewhere in this codebase, and for the same reason: the
- * interface layer may never hold a Prisma import (CLAUDE.md §3.5).
+ * The target-length enum *values* are derived from `CreateProjectInput`'s own
+ * fields rather than imported from `@prisma/client` directly — the same trick
+ * `Adapter`/`NodemailerConfig` already use elsewhere in this codebase, and for
+ * the same reason: the interface layer may never hold a Prisma import
+ * (CLAUDE.md §3.5). The freedom level no longer needs that trick: CAL-044 gave
+ * it a shared union of its own, and the wizard's three captions now come from
+ * the same table the constraints do, so what this form promises an author and
+ * what a mission is later held to cannot drift apart.
  */
 
 // `@calepin/outline/calibration`, never the package root: the root barrel
@@ -23,6 +26,14 @@
 // imported by a `"use client"` component, and Turbopack answers that by
 // refusing to build the whole page rather than shaking the unused branch out.
 import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline/calibration";
+import {
+  FREEDOM_LEVELS,
+  type FreedomLevel,
+  freedomLevelCopy,
+  type FreedomLevelSummaryGroup,
+  isFreedomLevel,
+  summarizeFreedomLevel,
+} from "@calepin/shared/freedom-level";
 import {
   detectSourceTextLanguage,
   SUPPORTED_SOURCE_TEXT_LANGUAGES,
@@ -33,7 +44,7 @@ import { measureSourceText, normalizeText, sourceTextLimitMessage } from "@calep
 import { PROJECT_TITLE_MAX_LENGTH, readProjectTitle } from "./project-title";
 
 export type TargetLength = NonNullable<CreateProjectInput["targetLength"]>;
-export type FreedomLevel = NonNullable<CreateProjectInput["freedomLevel"]>;
+export type { FreedomLevel };
 
 /** The six steps of the wizard, in the order the backlog names them. */
 export const PROJECT_CREATION_STEPS = [
@@ -145,25 +156,29 @@ export const TARGET_AUDIENCE_OPTIONS: readonly SelectOption[] = [
 export interface FreedomLevelOption extends SelectOption {
   readonly value: FreedomLevel;
   readonly caption: string;
+  /** The short explanation the step shows for whichever level is selected. */
+  readonly explanation: string;
+  /** What the level conserves, develops and opens — derived from the policy. */
+  readonly summary: readonly FreedomLevelSummaryGroup[];
 }
 
-export const FREEDOM_LEVEL_OPTIONS: readonly FreedomLevelOption[] = [
-  {
-    value: "LOW",
-    label: "Faible",
-    caption: "Développement très fidèle au texte source.",
-  },
-  {
-    value: "BALANCED",
-    label: "Équilibré",
-    caption: "Le noyau de l'histoire est conservé, avec des ajouts significatifs.",
-  },
-  {
-    value: "HIGH",
-    label: "Élevé",
-    caption: "Réinterprétation libre, tant que les thèmes essentiels sont conservés.",
-  },
-];
+/**
+ * Built from `@calepin/shared/freedom-level`, never typed out here (CAL-044).
+ * The three captions used to live in this file, which made them a promise the
+ * form made on its own authority; they are now the same strings the constraint
+ * clauses are composed from.
+ */
+export const FREEDOM_LEVEL_OPTIONS: readonly FreedomLevelOption[] = FREEDOM_LEVELS.map((level) => {
+  const copy = freedomLevelCopy(level);
+
+  return {
+    value: level,
+    label: copy.label,
+    caption: copy.tagline,
+    explanation: copy.explanation,
+    summary: summarizeFreedomLevel(level),
+  };
+});
 
 /** What a validated draft becomes — `createProjectWithSourceText`'s input, minus the owner. */
 export interface ValidatedProjectCreation {
@@ -179,10 +194,6 @@ export interface ValidatedProjectCreation {
 
 function isTargetLength(value: string): value is TargetLength {
   return value === "SHORT" || value === "STANDARD" || value === "LONG" || value === "CUSTOM";
-}
-
-function isFreedomLevel(value: string): value is FreedomLevel {
-  return value === "LOW" || value === "BALANCED" || value === "HIGH";
 }
 
 /** The language or audience actually meant: the preset, or what was typed for "Autre". */

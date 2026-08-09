@@ -64,10 +64,10 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
 }
 
 /**
- * The context every future generation call must carry (CAL-042) — read
- * ahead of its producer, the same way `listRunningGenerations` above is: no
- * mission calls this yet, but it is the one place that will get the
- * project's resolved language from once one does.
+ * The context every future generation call must carry (CAL-042, CAL-044) —
+ * read ahead of its producer, the same way `listRunningGenerations` above is:
+ * no mission calls this yet, but it is the one place that will get the
+ * project's resolved language and freedom level from once one does.
  *
  * The ownership clause is repeated in the `where` rather than trusted from
  * the scope alone — the same rule every other scoped read in this repository
@@ -81,7 +81,7 @@ export async function getGenerationContextForProject(
 
   const project = await getDatabaseClient().project.findFirst({
     where: { id: scope.projectId, [PROJECT_OWNER_FIELD]: scope.ownerId },
-    select: { language: true },
+    select: { language: true, freedomLevel: true },
   });
 
   if (project === null) {
