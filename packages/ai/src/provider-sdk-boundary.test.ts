@@ -26,10 +26,19 @@ const SDK_IMPORTS = [
   'import { GoogleGenAI } from "@google/genai";',
   'import { generateText } from "ai";',
   'import { anthropic } from "@ai-sdk/anthropic";',
+  'import { AnthropicBedrockMantle } from "@anthropic-ai/bedrock-sdk";',
 ];
 
-/** The one place a provider SDK may live (CLAUDE.md §5, ADR-001). */
-const ADAPTER_HOME = "packages/ai/src/adapters/anthropic.ts";
+/**
+ * The one place a provider SDK may live (CLAUDE.md §5, ADR-001) — a directory,
+ * not a file, and CAL-050 is what made that distinction load-bearing: the
+ * second adapter and the translation the two share sit beside the first.
+ */
+const ADAPTER_HOMES = [
+  "packages/ai/src/adapters/anthropic.ts",
+  "packages/ai/src/adapters/bedrock.ts",
+  "packages/ai/src/adapters/messages.ts",
+];
 
 const packageEntryPoints = readdirSync(join(REPO_ROOT, "packages"), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -84,9 +93,13 @@ describe("the provider-SDK boundary", () => {
     15_000,
   );
 
-  it("lets the adapters — and only the adapters — hold an SDK", async () => {
-    expect(await restrictedImportsAt(ADAPTER_HOME, SDK_IMPORTS.join("\n"))).toEqual([]);
-  }, 15_000);
+  it.each(ADAPTER_HOMES)(
+    "lets %s — and only the adapters — hold an SDK",
+    async (home) => {
+      expect(await restrictedImportsAt(home, SDK_IMPORTS.join("\n"))).toEqual([]);
+    },
+    15_000,
+  );
 
   // §3.2 in the same breath: the AI layer knows nothing about narrative
   // meaning, so a domain import is refused everywhere in it — the adapter
@@ -95,13 +108,19 @@ describe("the provider-SDK boundary", () => {
     const domainImport = 'import { anything } from "@calepin/bible";';
 
     expect(await restrictedImportsAt("packages/ai/src/routing.ts", domainImport)).toHaveLength(1);
-    expect(await restrictedImportsAt(ADAPTER_HOME, domainImport)).toHaveLength(1);
+
+    for (const home of ADAPTER_HOMES) {
+      expect(await restrictedImportsAt(home, domainImport)).toHaveLength(1);
+    }
   }, 15_000);
 
   it("leaves @calepin/shared importable from the AI layer", async () => {
     const sharedImport = 'import { fail } from "@calepin/shared/errors";';
 
     expect(await restrictedImportsAt("packages/ai/src/port.ts", sharedImport)).toEqual([]);
-    expect(await restrictedImportsAt(ADAPTER_HOME, sharedImport)).toEqual([]);
+
+    for (const home of ADAPTER_HOMES) {
+      expect(await restrictedImportsAt(home, sharedImport)).toEqual([]);
+    }
   }, 15_000);
 });

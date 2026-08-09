@@ -5,10 +5,15 @@
  * `ModelProviderPort` business code sees. Around any adapter it owns, in this
  * order: caller cancellation, the per-attempt deadline, retry with
  * classification and backoff (rate limits included), the switch to the backup
- * model, and — before anything else can happen — validation of the answer
- * (§6). It never persists anything and never knows what a chapter means (§5);
- * the process shell composes it with concrete adapters (CAL-049, CAL-050) and
- * hands it to domain code as a port.
+ * model on the other provider, and — before anything else can happen —
+ * validation of the answer (§6). It never persists anything and never knows
+ * what a chapter means (§5); the process shell composes it with concrete
+ * adapters (CAL-049, CAL-050) and hands it to domain code as a port.
+ *
+ * One thing outlives a call: provider health (`health.ts`). A durable outage
+ * is invisible from inside a single request, so the port remembers which
+ * endpoints have stopped answering and starts the next call at one that has
+ * not. Everything else here is per-call and stateless.
  */
 
 import {
@@ -38,6 +43,7 @@ import {
   type ProviderId,
 } from "./capabilities";
 import { generationCancelled, modelNotConfigured, ModelOutputInvalidError } from "./failures";
+import { createProviderHealth, type ProviderHealth } from "./health";
 import type { MissionId } from "./missions";
 import type {
   ModelCallMeta,
@@ -59,6 +65,12 @@ export interface CreateModelProviderPortOptions {
   capabilities?: Readonly<Record<ModelId, ModelCapability>>;
   retryPolicy?: RetryPolicy;
   scheduler?: Scheduler;
+  /**
+   * Provider availability across calls (CAL-050). Shared by every call this
+   * port serves — that is the whole point, since one call cannot tell a
+   * durable outage from a transient error on its own.
+   */
+  health?: ProviderHealth;
   /** Jitter source, injected so tests are deterministic (§8). */
   random?: () => number;
   log?: Logger;
@@ -67,6 +79,14 @@ export interface CreateModelProviderPortOptions {
 /** Why the attempt's own controller aborted — the signal reason tells them apart. */
 const DEADLINE_REACHED = Symbol("calepin.ai.deadline");
 const CALLER_CANCELLED = Symbol("calepin.ai.cancelled");
+
+/** A model that could serve this mission, with the adapter that would do it. */
+interface Candidate {
+  readonly capability: ModelCapability;
+  readonly adapter: ProviderAdapter;
+  /** True for any model other than the mission's own — the switch happened. */
+  readonly usedFallback: boolean;
+}
 
 type AttemptOutcome<TResponse> =
   | { readonly kind: "success"; readonly response: TResponse }
@@ -87,6 +107,7 @@ export function createModelProviderPort(
     capabilities = MODEL_CAPABILITIES,
     retryPolicy = DEFAULT_RETRY_POLICY,
     scheduler = REAL_SCHEDULER,
+    health = createProviderHealth({ scheduler }),
     random = Math.random,
     log = defaultLogger,
   } = options;
@@ -100,14 +121,54 @@ export function createModelProviderPort(
     adapterByProvider.set(adapter.provider, adapter);
   }
 
-  function resolveAdapter(capability: ModelCapability): ProviderAdapter {
-    const adapter = adapterByProvider.get(capability.provider);
+  /**
+   * Who may serve this mission, in the order they will be asked.
+   *
+   * Two filters, and the difference between them is the whole design. A model
+   * whose provider has **no adapter** is not a candidate at all: the process
+   * shell never wired that endpoint, and a shell that wired only one endpoint
+   * must still work rather than turn a recoverable provider outage into a
+   * thrown mis-wiring. A model whose provider is **marked down** is merely
+   * skipped — and only while another candidate remains, because a false
+   * positive in the health tracker must cost latency, never refuse a
+   * generation outright.
+   */
+  function candidatesFor(route: MissionRouting): readonly Candidate[] {
+    const models =
+      route.fallbackModel === route.model ? [route.model] : [route.model, route.fallbackModel];
+    const configured: Candidate[] = [];
 
-    if (adapter === undefined) {
+    for (const model of models) {
+      const capability = capabilities[model];
+      const adapter = adapterByProvider.get(capability.provider);
+
+      if (adapter !== undefined) {
+        configured.push({ capability, adapter, usedFallback: capability.id !== route.model });
+      }
+    }
+
+    if (configured.length === 0) {
       throw modelNotConfigured();
     }
 
-    return adapter;
+    const available = configured.filter((candidate) =>
+      health.isAvailable(candidate.capability.provider),
+    );
+
+    return available.length === 0 ? configured : available;
+  }
+
+  /** Identifiers only (§9) — a health transition names an endpoint, never a payload. */
+  function reportHealth(change: string, provider: ProviderId, error?: AppError): void {
+    if (change === "unavailable") {
+      log.warn("ai.provider-unavailable", {
+        provider,
+        errorCode: error?.code,
+        errorCategory: error?.category,
+      });
+    } else if (change === "restored") {
+      log.info("ai.provider-restored", { provider });
+    }
   }
 
   /**
@@ -175,30 +236,26 @@ export function createModelProviderPort(
   ): Promise<Result<RunOutcome<TValue>>> {
     const startedAt = scheduler.now();
     const route = routing[request.missionId];
-    const candidates =
-      route.fallbackModel === route.model
-        ? ([{ model: route.model, usedFallback: false }] as const)
-        : ([
-            { model: route.model, usedFallback: false },
-            { model: route.fallbackModel, usedFallback: true },
-          ] as const);
+    const candidates = candidatesFor(route);
 
     let attemptCount = 0;
     let lastError: AppError | undefined;
 
     for (const candidate of candidates) {
-      const capability = capabilities[candidate.model];
-      const adapter = resolveAdapter(capability);
+      const capability = candidate.capability;
+      const adapter = candidate.adapter;
 
-      if (candidate.usedFallback && lastError !== undefined) {
-        // Identifiers only (§9): which mission fell back, onto which model,
-        // away from which failure. Never a payload.
+      if (candidate.usedFallback) {
+        // Identifiers only (§9): which mission fell back, onto which provider
+        // and model, away from which failure. Never a payload. There is no
+        // error to name when the primary was skipped as already down — the
+        // line that reported *that* is `ai.provider-unavailable`.
         log.warn("ai.model-fallback", {
           missionId: request.missionId,
           provider: capability.provider,
           model: capability.id,
-          errorCode: lastError.code,
-          errorCategory: lastError.category,
+          errorCode: lastError?.code,
+          errorCategory: lastError?.category,
           attempt: attemptCount,
         });
       }
@@ -217,27 +274,49 @@ export function createModelProviderPort(
         }
 
         if (outcome.kind === "success") {
+          // The endpoint served. Whether the *answer* holds is the next
+          // question and a different one — a response that fails the mission's
+          // schema still proves the provider is up.
+          reportHealth(health.recordSuccess(capability.provider), capability.provider);
+
           const interpreted = interpret(outcome.response);
 
           if (!interpreted.ok) {
             return fail(interpreted.error);
           }
 
-          return succeed({
-            value: interpreted.value,
-            meta: {
-              missionId: request.missionId,
-              provider: capability.provider,
-              model: capability.id,
-              usage: outcome.response.usage,
-              durationMs: scheduler.now() - startedAt,
-              attemptCount,
-              usedFallback: candidate.usedFallback,
-            },
+          const meta: ModelCallMeta = {
+            missionId: request.missionId,
+            provider: capability.provider,
+            model: capability.id,
+            usage: outcome.response.usage,
+            durationMs: scheduler.now() - startedAt,
+            attemptCount,
+            usedFallback: candidate.usedFallback,
+          };
+
+          // The model that finally served (CAL-050). `ai.model-fallback` says
+          // a switch happened; this says how the call ended, which is what a
+          // cost or incident view reads without joining two lines.
+          log.info("ai.model-served", {
+            missionId: meta.missionId,
+            provider: meta.provider,
+            model: meta.model,
+            attempt: meta.attemptCount,
+            durationMs: meta.durationMs,
+            inputTokens: meta.usage.inputTokens,
+            outputTokens: meta.usage.outputTokens,
           });
+
+          return succeed({ value: interpreted.value, meta });
         }
 
         lastError = outcome.error;
+        reportHealth(
+          health.recordFailure(capability.provider, outcome.error),
+          capability.provider,
+          outcome.error,
+        );
 
         if (outcome.error.retryable && attempt < retryPolicy.maxAttemptsPerModel) {
           await sleep(

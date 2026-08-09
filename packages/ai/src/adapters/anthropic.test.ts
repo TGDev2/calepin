@@ -3,104 +3,52 @@
  * consumed are reported exactly.**
  *
  * Everything here runs against a simulated client (CLAUDE.md §8: never a real
- * provider in a test). The stub is typed as `AnthropicMessagesClient`, the same
- * type a real `new Anthropic(...)` is assigned to in the adapter — so a slice
- * that drifted away from the SDK would stop compiling on both sides at once,
- * which is what keeps the fake honest.
+ * provider in a test), shared with the Bedrock suite in `simulated.ts` — it is
+ * typed as `MessagesClient`, the same type a real `new Anthropic(...)` is
+ * assigned to in the adapter, so a slice that drifted away from the SDK would
+ * stop compiling on both sides at once.
  *
  * The last block closes the loop the task actually asks for: the adapter under
  * the real pipeline, a rate limit answered with `retry-after`, and the retry
- * that follows it — on virtual time, so the suite waits for nothing.
+ * that follows it — on virtual time, so the suite waits for nothing. Since
+ * CAL-050 the routed backup is on the *other* provider, so a suite about this
+ * adapter alone pins a same-provider backup where the assertion is about the
+ * pipeline's escalation rather than about which endpoint serves it.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
 import { isAppError, RateLimitError } from "@calepin/shared/errors";
+import { createLogger } from "@calepin/shared/logging";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import type { ProviderCall, StructuredProviderCall } from "../adapter";
 import { MODEL_CAPABILITIES } from "../capabilities";
 import { createModelProviderPort } from "../create-model-port";
+import type { MissionId } from "../missions";
+import { MISSION_MODEL_ROUTING, type MissionRouting } from "../routing";
 import type { Scheduler } from "../timing";
-import { type AnthropicMessagesClient, createAnthropicAdapter } from "./anthropic";
-
-/** One recorded request: what the adapter sent, and what it sent it with. */
-interface RecordedCall {
-  readonly params: Anthropic.MessageStreamParams;
-  readonly signal: AbortSignal | null | undefined;
-}
+import { createAnthropicAdapter } from "./anthropic";
+import {
+  answer,
+  type RecordedCall,
+  simulatedClient,
+  type SimulatedOutcome,
+  text,
+} from "./simulated";
 
 /**
- * The simulated client. One outcome per call, in order: a `Message` to answer
- * with, or an `Error` to throw the way the SDK would.
+ * A routing table whose backup stays on this adapter's own provider. The
+ * cross-provider table is the real one (`routing.ts`) and `failover.test.ts`
+ * exercises it; here the subject is the escalation itself, and a second
+ * adapter would only add a moving part to a test that is not about it.
  */
-function simulatedClient(outcomes: readonly (Anthropic.Message | Error)[]): {
-  client: AnthropicMessagesClient;
-  calls: RecordedCall[];
-} {
-  const calls: RecordedCall[] = [];
-  const client: AnthropicMessagesClient = {
-    messages: {
-      stream(body, options) {
-        const index = calls.length;
-
-        calls.push({ params: body, signal: options?.signal });
-
-        return {
-          finalMessage: async (): Promise<Anthropic.Message> => {
-            const outcome = outcomes[index];
-
-            if (outcome === undefined) {
-              throw new Error("the simulated client was asked for more answers than it holds");
-            }
-
-            if (outcome instanceof Error) {
-              throw outcome;
-            }
-
-            return outcome;
-          },
-        };
-      },
-    },
-  };
-
-  return { client, calls };
-}
-
-function answer(options: {
-  content?: Anthropic.ContentBlock[];
-  usage?: Partial<Anthropic.Usage>;
-  stopReason?: Anthropic.StopReason;
-}): Anthropic.Message {
-  return {
-    id: "msg_test",
-    container: null,
-    content: options.content ?? [text("...")],
-    model: "claude-opus-5",
-    role: "assistant",
-    stop_details: null,
-    stop_reason: options.stopReason ?? "end_turn",
-    stop_sequence: null,
-    type: "message",
-    usage: {
-      cache_creation: null,
-      cache_creation_input_tokens: null,
-      cache_read_input_tokens: null,
-      inference_geo: null,
-      input_tokens: 0,
-      output_tokens: 0,
-      output_tokens_details: null,
-      server_tool_use: null,
-      service_tier: "standard",
-      ...options.usage,
-    },
-  };
-}
-
-function text(value: string): Anthropic.TextBlock {
-  return { type: "text", text: value, citations: null };
-}
+const SAME_PROVIDER_ROUTING = Object.fromEntries(
+  Object.entries(MISSION_MODEL_ROUTING).map(([missionId, route]) => [
+    missionId,
+    { ...route, fallbackModel: "claude-sonnet-5" as const },
+  ]),
+) as Record<MissionId, MissionRouting>;
 
 function headers(entries: Record<string, string> = {}): Headers {
   return new Headers(entries);
@@ -146,7 +94,7 @@ function structuredCall(overrides: Partial<StructuredProviderCall> = {}): Struct
   };
 }
 
-function adapterOver(outcomes: readonly (Anthropic.Message | Error)[]): {
+function adapterOver(outcomes: readonly SimulatedOutcome[]): {
   adapter: ReturnType<typeof createAnthropicAdapter>;
   calls: RecordedCall[];
 } {
@@ -379,6 +327,8 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
+        routing: SAME_PROVIDER_ROUTING,
+        log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
       });
 
@@ -504,6 +454,8 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
+        routing: SAME_PROVIDER_ROUTING,
+        log: createLogger({ level: "silent" }),
         scheduler,
         // Full jitter would pick a delay under the floor; pinning the source
         // makes the assertion about the floor, not about the jitter.
@@ -539,6 +491,8 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
+        routing: SAME_PROVIDER_ROUTING,
+        log: createLogger({ level: "silent" }),
         scheduler,
         random: () => 1,
       });
@@ -560,6 +514,8 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
+        routing: SAME_PROVIDER_ROUTING,
+        log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
         random: () => 0,
       });
@@ -587,6 +543,8 @@ describe("the primary provider adapter", () => {
       ]);
       const port = createModelProviderPort({
         adapters: [createAnthropicAdapter({ client })],
+        routing: SAME_PROVIDER_ROUTING,
+        log: createLogger({ level: "silent" }),
         scheduler: virtualScheduler(),
       });
 

@@ -17,11 +17,13 @@ export type {
   ProviderValue,
   StructuredProviderCall,
 } from "./adapter";
+export { createAnthropicAdapter, type CreateAnthropicAdapterOptions } from "./adapters/anthropic";
 export {
-  type AnthropicMessagesClient,
-  createAnthropicAdapter,
-  type CreateAnthropicAdapterOptions,
-} from "./adapters/anthropic";
+  type BedrockCredentials,
+  createBedrockAdapter,
+  type CreateBedrockAdapterOptions,
+} from "./adapters/bedrock";
+export type { MessagesClient } from "./adapters/messages";
 export {
   EFFORT_LEVELS,
   type EffortLevel,
@@ -34,6 +36,13 @@ export {
 } from "./capabilities";
 export { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";
 export { ModelOutputInvalidError } from "./failures";
+export {
+  createProviderHealth,
+  DEFAULT_PROVIDER_HEALTH_POLICY,
+  type ProviderHealth,
+  type ProviderHealthChange,
+  type ProviderHealthPolicy,
+} from "./health";
 export { MISSION_IDS, type MissionId } from "./missions";
 export type {
   ModelCallMeta,

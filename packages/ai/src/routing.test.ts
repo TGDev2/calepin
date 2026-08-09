@@ -15,8 +15,11 @@ describe("the mission model routing", () => {
     const primary = MODEL_CAPABILITIES[route.model];
     const backup = MODEL_CAPABILITIES[route.fallbackModel];
 
-    // A backup identical to the primary is no backup at all.
+    // A backup identical to the primary is no backup at all — and a backup
+    // behind the same endpoint, the same key and the same outage is no better
+    // (CAL-050). Failover is only failover across providers.
     expect(route.fallbackModel).not.toBe(route.model);
+    expect(backup.provider).not.toBe(primary.provider);
 
     expect(route.maxOutputTokens).toBeGreaterThan(0);
     expect(route.maxOutputTokens).toBeLessThanOrEqual(primary.maxOutputTokens);

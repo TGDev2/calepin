@@ -433,6 +433,29 @@ describe("createModelProviderPort — wiring errors", () => {
     });
   });
 
+  // Since CAL-050 the backup lives on another provider, so a shell that wired
+  // one endpoint has an unreachable candidate. Dropping it — rather than
+  // discovering it mid-run — is what keeps a recoverable provider outage from
+  // surfacing as a thrown mis-wiring error that hides the real cause.
+  it("serves with the one provider a partially-wired shell configured", async () => {
+    const { adapter, calls } = fakeAdapter({
+      prose: () => {
+        throw new ProviderError();
+      },
+    });
+    const scheduler = new VirtualScheduler();
+    const port = buildPort(adapter, scheduler, {
+      routing: { ...ROUTING, [MISSION]: { ...ROUTE, fallbackModel: "anthropic.claude-opus-5" } },
+    });
+
+    const error = expectFailure(await scheduler.settle(port.generateProse(REQUEST)));
+
+    // The primary's own failure, not MODEL_NOT_CONFIGURED, and no attempt
+    // against an endpoint nothing can reach.
+    expect(error.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(calls).toHaveLength(3);
+  });
+
   it("refuses two adapters claiming one provider", () => {
     const first = fakeAdapter().adapter;
     const second = fakeAdapter().adapter;

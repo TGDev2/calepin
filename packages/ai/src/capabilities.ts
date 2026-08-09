@@ -12,11 +12,33 @@
  * here would be the copy that drifts.
  */
 
-export const PROVIDER_IDS = ["anthropic"] as const;
+/**
+ * The two endpoints a model can be served from (CAL-050).
+ *
+ * `bedrock` serves the *same* Claude models under a different account, key and
+ * control plane. That is the point: an outage lives at an endpoint, not in a
+ * set of weights, so a failover that keeps the model keeps the prose — a
+ * chapter written after a switch does not change voice mid-novel.
+ */
+export const PROVIDER_IDS = ["anthropic", "bedrock"] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
-export const MODEL_IDS = ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"] as const;
+/**
+ * A model id is the string its own provider answers to, verbatim — which is
+ * why the Bedrock entries carry the `anthropic.` prefix Bedrock itself uses.
+ * The spelling is the provider's, not one this repository chose (§4.2 makes
+ * the same carve-out for `Account`'s OAuth fields), and taking it verbatim is
+ * what lets an adapter send `call.model.id` with no translation table and
+ * `ModelCallMeta.model` record exactly what was invoked.
+ */
+export const MODEL_IDS = [
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-haiku-4-5",
+  "anthropic.claude-opus-5",
+  "anthropic.claude-sonnet-5",
+] as const;
 
 export type ModelId = (typeof MODEL_IDS)[number];
 
@@ -76,5 +98,30 @@ export const MODEL_CAPABILITIES = {
     supportsStructuredOutput: true,
     supportsEffort: false,
     thinking: "budget",
+  },
+
+  // The backup endpoint (CAL-050). Same weights, same limits, same request
+  // surface: schema-constrained output and adaptive thinking with `effort` are
+  // both generally available on Bedrock, so the second adapter has full parity
+  // with the first and a mission needs no per-provider tuning.
+  "anthropic.claude-opus-5": {
+    id: "anthropic.claude-opus-5",
+    provider: "bedrock",
+    label: "Claude Opus 5 (Bedrock)",
+    contextWindowTokens: 1_000_000,
+    maxOutputTokens: 128_000,
+    supportsStructuredOutput: true,
+    supportsEffort: true,
+    thinking: "adaptive",
+  },
+  "anthropic.claude-sonnet-5": {
+    id: "anthropic.claude-sonnet-5",
+    provider: "bedrock",
+    label: "Claude Sonnet 5 (Bedrock)",
+    contextWindowTokens: 1_000_000,
+    maxOutputTokens: 128_000,
+    supportsStructuredOutput: true,
+    supportsEffort: true,
+    thinking: "adaptive",
   },
 } as const satisfies Record<ModelId, ModelCapability>;

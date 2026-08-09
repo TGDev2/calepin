@@ -32,11 +32,38 @@ narrative rule, and never restates a domain schema.
   the one exponential backoff is `retry.ts`'s. The key is a constructor
   argument — no package outside the config module reads the environment.
 
+## What exists (CAL-050)
+
+- `adapters/bedrock.ts` — the fallback provider adapter. Bedrock serves the
+  **same** Claude models under a different account, credential and control
+  plane, which is where an outage actually lives; keeping the model is what
+  keeps a chapter written after a switch from changing voice mid-novel. Its
+  model ids are Bedrock's own, prefix included, so nothing translates.
+- `adapters/messages.ts` — the translation the two adapters share. Both
+  clients expose the same `messages` resource, so a per-provider copy of the
+  request shape and the error classification would only give the failover one
+  endpoint whose classification silently rots.
+- `health.ts` — provider availability **across** calls. A durable outage is
+  invisible from inside one request, so consecutive provider-side failures
+  mark an endpoint down for a cooldown and the next call starts at the other
+  one; a success clears it, and after the cooldown one call probes it again.
+  A rate limit never marks a provider down — a 429 says the provider is
+  working and we are over quota, and treating it as an outage would move the
+  same load onto the backup.
+- `routing.ts` — every mission's `fallbackModel` is now its primary's twin on
+  the other provider. `routing.test.ts` pins both halves: never the same
+  model, never the same provider.
+- `failover.test.ts` — the acceptance criterion, run through
+  `runGenerationAttempt`: a primary that dies while it answers, and a
+  generation that completes anyway, started once and completed once, never
+  recorded as failed, on a request the second endpoint received unchanged.
+
 ## What arrives in its own task
 
-Second provider and automatic failover (CAL-050) · full mission registry over
-the routing table (CAL-051) · output repair (CAL-052) · prompt registry
-(CAL-053) · context composer (CAL-054) · token accounting (CAL-056).
+Full mission registry over the routing table (CAL-051) · output repair
+(CAL-052) · prompt registry (CAL-053) · context composer (CAL-054) · token
+accounting (CAL-056) · the credentials both adapters take, resolved from the
+validated config module by the process shell (CAL-060).
 
 ## Hard rules
 
