@@ -22,4 +22,12 @@ export interface GenerationContext {
    * three quarters uninterested in.
    */
   readonly freedomLevel: FreedomLevel;
+  /**
+   * `Project.targetAudience` — the short-list-or-free-text readership choice
+   * made at creation (CAL-040), propagated the same way (CAL-045). The bible's
+   * style section (`BibleStyle.languageRegister`, CAL-089) is meant to read it
+   * from here rather than restate it, the same rule `prisma/schema.test.ts`
+   * already pins for `BibleIdentity`: the project holds it once.
+   */
+  readonly targetAudience: string;
 }
