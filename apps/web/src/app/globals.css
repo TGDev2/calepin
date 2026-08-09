@@ -4,6 +4,21 @@
  * one place, rather than hard-coded in components.
  */
 :root {
+  /*
+   * Tells the browser to paint the parts of a form control the stylesheet
+   * cannot reach — a radio's dot, a checkbox's tick, a scrollbar, the caret,
+   * a `<select>`'s dropdown, an autofilled field — in the scheme the tokens
+   * below are already following. Without it those stay light on a dark page:
+   * every `background`/`color` here applies, and the controls still render
+   * white, because they are UA-painted rather than author-painted.
+   *
+   * `light dark` rather than a value per media query: the app has no manual
+   * theme switch, so the controls should track the same OS preference the
+   * `prefers-color-scheme` block below tracks, and one declaration cannot
+   * fall out of step with it.
+   */
+  color-scheme: light dark;
+
   --color-background: #fdfcfa;
   --color-surface: #ffffff;
   --color-text: #1b1917;
