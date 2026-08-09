@@ -39,6 +39,10 @@
   color: var(--color-text-muted);
 }
 
+.actionLink {
+  font-size: 0.9rem;
+}
+
 .dangerLink {
   color: var(--color-danger);
 }

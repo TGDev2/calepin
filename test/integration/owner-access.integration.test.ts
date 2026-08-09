@@ -31,18 +31,22 @@ import {
   getGenerationContextForProject,
   getProjectForOwner,
   getProjectTargetLength,
+  getSourceText,
   listProjectDashboardRows,
   listProjectsForOwner,
   listRunningGenerations,
+  listSourceTextVersions,
   openProjectScope,
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  readSourceTextObsolescence,
   reconcileProjectAggregates,
   requireOwnedRow,
   scopedWhere,
   updateProject,
   type UpdateProjectInput,
+  updateSourceText,
   withProjectAggregates,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
@@ -70,17 +74,21 @@ const ENTRY_POINTS = [
   "getGenerationContextForProject",
   "getProjectForOwner",
   "getProjectTargetLength",
+  "getSourceText",
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "listRunningGenerations",
+  "listSourceTextVersions",
   "openProjectScope",
   "readProjectProgress",
+  "readSourceTextObsolescence",
   "reconcileProjectAggregates",
   "reconcileProjectStatus",
   "refreshProjectStatus",
   "requireOwnedRow",
   "restoreProject",
   "updateProject",
+  "updateSourceText",
   "withProjectAggregates",
   "withProjectStatus",
 ];
@@ -441,6 +449,53 @@ describe("owner access policy", () => {
       const mine = await computeProjectAggregates(aliceScope);
       expect(mine.ok).toBe(true);
       if (mine.ok) expect(mine.value).toEqual({ writtenChapterCount: 1, totalWordCount: 1 });
+    });
+
+    // CAL-046. These four are the only entry points that read or write the
+    // author's own prose, so a leak here is the whole novel rather than a
+    // number about it. What they do is asserted in
+    // `source-text-edit.integration.test.ts`; what is asserted here is that
+    // nobody but the owner reaches them.
+    it("the source text entry points refuse a scope forged for another owner's project", async () => {
+      const forged = forgedScope(bob.ownerId, alice.projectId);
+
+      const mine = await getSourceText(aliceScope);
+      expect(mine.ok).toBe(true);
+
+      const theirs = await getSourceText(forged);
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+
+      // A list, so "refused" is an empty answer rather than a failure — and an
+      // empty answer only means something beside the owner's non-empty one.
+      const myVersions = await listSourceTextVersions(aliceScope);
+      expect(myVersions.ok && myVersions.value.length).toBeGreaterThan(0);
+
+      const theirVersions = await listSourceTextVersions(forged);
+      expect(theirVersions.ok && theirVersions.value).toEqual([]);
+
+      const myReport = await readSourceTextObsolescence(aliceScope);
+      expect(myReport.ok).toBe(true);
+
+      const theirReport = await readSourceTextObsolescence(forged);
+      expect(theirReport.ok).toBe(false);
+      if (!theirReport.ok) expect(theirReport.error.code).toBe("NOT_FOUND");
+    });
+
+    it("updateSourceText writes nothing through a scope forged for another owner", async () => {
+      const before = await getSourceText(aliceScope);
+
+      const seized = await runWithActor(bob.ownerId, async () =>
+        updateSourceText(forgedScope(bob.ownerId, alice.projectId), { content: "texte saisi" }),
+      );
+
+      expect(seized.ok).toBe(false);
+      if (!seized.ok) expect(seized.error.code).toBe("NOT_FOUND");
+
+      // Not merely refused: the owner's current version is untouched, and no
+      // version was appended on the way to refusing it.
+      const after = await getSourceText(aliceScope);
+      expect(after.ok && before.ok && after.value).toEqual(before.ok ? before.value : null);
     });
 
     it("requireOwnedRow refuses a row from another owner's project", async () => {

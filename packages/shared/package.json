@@ -64,6 +64,10 @@
       "types": "./src/logging/index.ts",
       "default": "./src/logging/index.ts"
     },
+    "./obsolescence": {
+      "types": "./src/obsolescence/index.ts",
+      "default": "./src/obsolescence/index.ts"
+    },
     "./project-status": {
       "types": "./src/project-status/index.ts",
       "default": "./src/project-status/index.ts"

@@ -87,3 +87,13 @@ export {
   type ScopedFilter,
   scopedWhere,
 } from "./scope";
+export {
+  getSourceText,
+  listSourceTextVersions,
+  readSourceTextObsolescence,
+  type SourceTextEdit,
+  type SourceTextSnapshot,
+  type SourceTextVersionSummary,
+  updateSourceText,
+  type UpdateSourceTextInput,
+} from "./source-text";

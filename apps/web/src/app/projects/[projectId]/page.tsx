@@ -1,9 +1,11 @@
 import {
   getProjectForOwner,
+  getSourceText,
   listRunningGenerations,
   openProjectScope,
   type ProjectScope,
   readProjectProgress,
+  readSourceTextObsolescence,
 } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -11,6 +13,7 @@ import { Suspense } from "react";
 
 import { ArchiveProjectSection } from "@/components/archive-project-section";
 import { GenerationIndicator } from "@/components/generation-indicator";
+import { ObsolescenceNotice } from "@/components/obsolescence-notice";
 import { ProjectOverview } from "@/components/project-overview";
 import { SkeletonBlock } from "@/components/skeleton";
 import { SubmitButton } from "@/components/submit-button";
@@ -108,9 +111,11 @@ interface ProjectDetailsProps {
  * that component's doc comment for why.
  */
 async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
-  const [progress, runningGenerations] = await Promise.all([
+  const [progress, runningGenerations, sourceText, obsolescence] = await Promise.all([
     readProjectProgress(scope),
     listRunningGenerations(scope),
+    getSourceText(scope),
+    readSourceTextObsolescence(scope),
   ]);
   if (!progress.ok) notFound();
 
@@ -137,6 +142,37 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
         initial={runningGenerations.map((row) => ({ id: row.id, mission: row.mission }))}
         getRunningGenerations={getRunningGenerationsAction}
       />
+
+      {/*
+       * The warning lives here as well as on the editor, and on purpose: an
+       * author who edited their text last week arrives on the project page, not
+       * on the screen where they made the change. A consequence only visible
+       * where it was caused is a consequence nobody sees again.
+       */}
+      {obsolescence.ok ? <ObsolescenceNotice report={obsolescence.value} /> : null}
+
+      <section className={styles.action} aria-labelledby="source-text-heading">
+        <h3 className={styles.actionTitle} id="source-text-heading">
+          Texte source
+        </h3>
+        <p className={styles.actionNote}>
+          {sourceText.ok ? (
+            <>
+              Version&nbsp;{sourceText.value.versionNumber} ·{" "}
+              {NUMBER_FORMAT.format(sourceText.value.wordCount)} mots ·{" "}
+              {sourceText.value.versionCount === 1
+                ? "une seule version"
+                : `${NUMBER_FORMAT.format(sourceText.value.versionCount)} versions conservées`}
+              . Chaque modification en crée une nouvelle&nbsp;; aucune n&apos;est jamais écrasée.
+            </>
+          ) : (
+            "Ce projet ne contient pas encore de texte source."
+          )}
+        </p>
+        <Link className={styles.actionLink} href={`/projects/${project.id}/source-text`}>
+          Modifier le texte source…
+        </Link>
+      </section>
 
       <section className={styles.action} aria-labelledby="duplicate-heading">
         <h3 className={styles.actionTitle} id="duplicate-heading">

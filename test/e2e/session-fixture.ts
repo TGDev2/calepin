@@ -190,6 +190,104 @@ export async function seedProjectWithChapters(
 }
 
 /**
+ * A project with a source text and a plan already built on it (CAL-046) — what
+ * the source-text editor needs in front of it before an edit can put anything
+ * in doubt.
+ *
+ * The two instants are forced, and the order between them is the point: the
+ * founding version is written first, the bible, the plan and the chapters after
+ * it, and the edit the spec performs lands now — later than both. Raw SQL for
+ * the stamping, because `@updatedAt` is applied client-side by Prisma and a
+ * normal `update` would overwrite the very column being set.
+ */
+export async function seedProjectWithSourceTextAndPlan(
+  userId: string,
+  title: string,
+  content: string,
+): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+  const foundingVersionWrittenAt = new Date("2019-01-01T00:00:00.000Z");
+  const stagesProducedAt = new Date("2020-01-01T00:00:00.000Z");
+
+  try {
+    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+
+    const sourceText = await prisma.sourceText.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    await prisma.sourceTextVersion.create({
+      data: {
+        sourceTextId: sourceText.id,
+        versionNumber: 1,
+        content,
+        wordCount: content.split(/\s+/u).filter(Boolean).length,
+        editedById: userId,
+      },
+    });
+
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    const outline = await prisma.outline.create({
+      data: { projectId: project.id, bibleId: bible.id, updatedById: userId },
+    });
+    const part = await prisma.part.create({
+      data: { outlineId: outline.id, orderKey: "i", title: "Partie 1", updatedById: userId },
+    });
+
+    for (const orderKey of ["i", "r"]) {
+      await prisma.chapter.create({
+        data: {
+          outlineId: outline.id,
+          bibleId: bible.id,
+          partId: part.id,
+          orderKey,
+          updatedById: userId,
+        },
+      });
+    }
+
+    await prisma.$executeRaw`
+      UPDATE "source_text_versions" SET "createdAt" = ${foundingVersionWrittenAt}
+      WHERE "sourceTextId" = ${sourceText.id}
+    `;
+    await prisma.$executeRaw`
+      UPDATE "bibles" SET "updatedAt" = ${stagesProducedAt} WHERE "id" = ${bible.id}
+    `;
+    await prisma.$executeRaw`
+      UPDATE "outlines" SET "updatedAt" = ${stagesProducedAt} WHERE "id" = ${outline.id}
+    `;
+    await prisma.$executeRaw`
+      UPDATE "chapters" SET "updatedAt" = ${stagesProducedAt} WHERE "outlineId" = ${outline.id}
+    `;
+
+    return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Every version of a project's source text, newest first — what a spec asserts
+ * an edit against, since the browser only ever shows the current one.
+ */
+export async function listSourceTextVersions(
+  projectId: string,
+): Promise<{ versionNumber: number; content: string; wordCount: number }[]> {
+  const prisma = new PrismaClient();
+
+  try {
+    return await prisma.sourceTextVersion.findMany({
+      where: { sourceText: { projectId } },
+      orderBy: { versionNumber: "desc" },
+      select: { versionNumber: true, content: true, wordCount: true },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * Overwrites a project's status directly — the dashboard's search/sort/filter
  * specs (CAL-036) need a project at a status other than the default `DRAFT`
  * without driving an entire generation through the browser to earn one.
