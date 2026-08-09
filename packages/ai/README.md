@@ -101,12 +101,41 @@ narrative rule, and never restates a domain schema.
 - **Expected cost is stated in tokens, never money.** CAL-056 owns the tariff
   table; `expectedUsage` is the shape it multiplies.
 
+## What exists (CAL-052)
+
+- `repair.ts` — the answer to an answer that failed its mission's schema, and
+  the distinction §6 asks for: *erreur de forme* against *erreur de fond*.
+  `classifyOutputFailure` is structural and never semantic, because this layer
+  may not know what a chapter means. Two signals make an answer off-topic —
+  it is **not of the contract's kind** (a string, a list, a null, or no JSON at
+  all where an object was asked for), or it **shares no field name with the
+  contract** (`{}`, a refusal wearing its own shape). Everything else is a form
+  failure: the answer attempted the contract and one field of it is wrong.
+- `buildRepairPrompt` — the targeted re-ask, in French, carrying the mission,
+  the rejected answer and one clause per violation. The answer travels back
+  because a provider call is stateless: without it the model has nothing to
+  correct and the pass is a blind retry wearing a repair's name. The clauses
+  are built from issue *codes*, never from issue messages — a validator's
+  message is the one place a received value can appear.
+- `RepairPolicy` — the bound, explicit and injectable. **One** repair pass by
+  default; `0` disables it. A repair is a full pass, so a rate limit hit during
+  one is treated as a rate limit rather than as an unusable answer.
+- Two codes rather than one: `MODEL_OUTPUT_INVALID` once the repair has been
+  attempted and did not hold, `MODEL_OUTPUT_OFF_TOPIC` for the answer that was
+  never repaired. Different remedies — a prompt to fix against a schema or a
+  format — and the code is the axis an operations view reads.
+- The failure type is logged, the answer never is: `ai.output-repair-attempted`
+  and `ai.output-rejected` carry the mission, the endpoint, the attempt, the
+  number of violations and the **path** of the first one (§9).
+- `output-repair.test.ts` — the acceptance criterion, through
+  `runGenerationAttempt`: an invalid output is repaired once, fails explicitly,
+  and writes nothing at all.
+
 ## What arrives in its own task
 
-Output repair (CAL-052) · prompt registry (CAL-053) · context composer
-(CAL-054) · token accounting and pricing (CAL-056) · the credentials both
-adapters take, resolved from the validated config module by the process shell
-(CAL-060).
+Prompt registry (CAL-053) · context composer (CAL-054) · token accounting and
+pricing (CAL-056) · the credentials both adapters take, resolved from the
+validated config module by the process shell (CAL-060).
 
 ## Hard rules
 

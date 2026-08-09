@@ -319,8 +319,10 @@ describe("the primary provider adapter", () => {
     });
 
     // The whole point of yielding no value rather than throwing: the answer is
-    // judged once, by the pipeline (§6), so it fails as MODEL_OUTPUT_INVALID
-    // without a blind replay and without reaching the backup model.
+    // judged once, by the pipeline (§6), so it fails without a blind replay and
+    // without reaching the backup model. A body carrying no JSON at all is not
+    // an attempt at the contract, so it is not repaired either (CAL-052) — one
+    // call, and an explicit off-topic failure.
     it("lets an unparsable body fail the mission's schema, once, without a retry", async () => {
       const { client, calls } = simulatedClient([
         answer({ content: [text("not json")], usage: { input_tokens: 4, output_tokens: 2 } }),
@@ -340,7 +342,7 @@ describe("the primary provider adapter", () => {
       });
 
       expect(result.ok).toBe(false);
-      expect(result.ok ? undefined : result.error.code).toBe("MODEL_OUTPUT_INVALID");
+      expect(result.ok ? undefined : result.error.code).toBe("MODEL_OUTPUT_OFF_TOPIC");
       expect(calls).toHaveLength(1);
     });
   });

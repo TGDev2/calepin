@@ -60,9 +60,20 @@ export const ERROR_CODES = [
    * The model answered, but the answer is unusable — it fails the mission's
    * schema, or the prose is empty (CAL-048). Marked non-retryable at its one
    * construction site: a blind replay is not the treatment for a malformed
-   * output, CAL-052's targeted repair is.
+   * output, CAL-052's targeted repair is — and this code is what a generation
+   * carries once that repair has been attempted and did not hold.
    */
   "MODEL_OUTPUT_INVALID",
+  /**
+   * The answer is not an answer to the mission at all (CAL-052): not of the
+   * contract's kind, or an object sharing no field with it. A second code
+   * rather than a flag beside the first, because the code is the axis an
+   * operations view reads and the two have different remedies — an off-topic
+   * answer is a prompt to fix, a malformed one a schema or a format. It is
+   * never repaired: re-asking the same question in the same way returns the
+   * same answer, so the attempt would only spend budget.
+   */
+  "MODEL_OUTPUT_OFF_TOPIC",
 
   // timeout
   "TIMEOUT",
@@ -135,6 +146,7 @@ export const CATEGORY_BY_CODE = {
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",
   MODEL_OUTPUT_INVALID: "provider",
+  MODEL_OUTPUT_OFF_TOPIC: "provider",
   TIMEOUT: "timeout",
   INTERNAL_ERROR: "internal",
   AUDIT_ACTOR_REQUIRED: "internal",

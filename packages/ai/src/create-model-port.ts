@@ -6,9 +6,17 @@
  * order: caller cancellation, the per-attempt deadline, retry with
  * classification and backoff (rate limits included), the switch to the backup
  * model on the other provider, and — before anything else can happen —
- * validation of the answer (§6). It never persists anything and never knows
- * what a chapter means (§5); the process shell composes it with concrete
- * adapters (CAL-049, CAL-050) and hands it to domain code as a port.
+ * validation of the answer (§6), with one bounded repair pass when the answer
+ * is repairable (CAL-052). It never persists anything and never knows what a
+ * chapter means (§5); the process shell composes it with concrete adapters
+ * (CAL-049, CAL-050) and hands it to domain code as a port.
+ *
+ * Two loops, deliberately separate. `deliver` is *one pass*: candidates,
+ * retries, backoff, the switch between models — everything that answers the
+ * question "did an endpoint serve?". `run` sits above it and answers "is the
+ * answer usable?", and when it is not, it may re-enter `deliver` once with a
+ * repair prompt. Keeping them apart is what makes a rate limit hit *during* a
+ * repair a rate limit rather than an unusable answer.
  *
  * One thing outlives a call: provider health (`health.ts`). A durable outage
  * is invisible from inside a single request, so the port remembers which
@@ -47,6 +55,7 @@ import {
   missionOutputMismatch,
   modelNotConfigured,
   ModelOutputInvalidError,
+  ModelOutputOffTopicError,
 } from "./failures";
 import { createProviderHealth, type ProviderHealth } from "./health";
 import {
@@ -64,6 +73,12 @@ import type {
   StructuredGenerationResult,
   TokenUsage,
 } from "./port";
+import {
+  buildRepairPrompt,
+  classifyOutputFailure,
+  DEFAULT_REPAIR_POLICY,
+  type RepairPolicy,
+} from "./repair";
 import { DEFAULT_RETRY_POLICY, isFallbackEligible, retryDelayMs, type RetryPolicy } from "./retry";
 import { REAL_SCHEDULER, type Scheduler, sleep } from "./timing";
 
@@ -73,6 +88,8 @@ export interface CreateModelProviderPortOptions {
   registry?: MissionRegistry;
   capabilities?: Readonly<Record<ModelId, ModelCapability>>;
   retryPolicy?: RetryPolicy;
+  /** How many targeted repair passes an unusable answer is worth (CAL-052). */
+  repairPolicy?: RepairPolicy;
   scheduler?: Scheduler;
   /**
    * Provider availability across calls (CAL-050). Shared by every call this
@@ -102,6 +119,43 @@ type AttemptOutcome<TResponse> =
   | { readonly kind: "failure"; readonly error: AppError }
   | { readonly kind: "cancelled" };
 
+/** What one pass through the candidates ended in. */
+type PassResult<TResponse> =
+  | {
+      readonly kind: "served";
+      readonly response: TResponse;
+      readonly capability: ModelCapability;
+      readonly usedFallback: boolean;
+    }
+  | { readonly kind: "failure"; readonly error: AppError }
+  | { readonly kind: "cancelled" };
+
+interface Pass<TResponse> {
+  readonly result: PassResult<TResponse>;
+  /** Tries this pass consumed, across every model it asked. */
+  readonly attempts: number;
+}
+
+/**
+ * The verdict on an answer an endpoint did serve — the one place §6's *parse
+ * first* lives for each kind of mission.
+ *
+ * `repairable` is the form failure: the answer attempted the contract, so the
+ * pipeline is handed the prompt that would ask for it again, corrected.
+ * `unusable` is everything the pipeline must not re-ask. Neither variant
+ * carries a message or a value — a count and a field path are what a log is
+ * allowed (§9).
+ */
+type Interpretation<TValue> =
+  | { readonly kind: "value"; readonly value: TValue }
+  | { readonly kind: "unusable"; readonly error: AppError; readonly issueCount?: number }
+  | {
+      readonly kind: "repairable";
+      readonly error: AppError;
+      readonly issueCount: number;
+      readonly repairPrompt: string;
+    };
+
 interface RunOutcome<TValue> {
   readonly value: TValue;
   readonly meta: ModelCallMeta;
@@ -115,6 +169,7 @@ export function createModelProviderPort(
     registry = MISSION_REGISTRY,
     capabilities = MODEL_CAPABILITIES,
     retryPolicy = DEFAULT_RETRY_POLICY,
+    repairPolicy = DEFAULT_REPAIR_POLICY,
     scheduler = REAL_SCHEDULER,
     health = createProviderHealth({ scheduler }),
     random = Math.random,
@@ -141,6 +196,9 @@ export function createModelProviderPort(
    * skipped — and only while another candidate remains, because a false
    * positive in the health tracker must cost latency, never refuse a
    * generation outright.
+   *
+   * Resolved per pass rather than per call: a repair pass starts from what the
+   * first pass just learned about the endpoints.
    */
   function candidatesFor(mission: MissionDefinition): readonly Candidate[] {
     const models =
@@ -235,30 +293,22 @@ export function createModelProviderPort(
   }
 
   /**
-   * The full policy: primary model with bounded retries, then — for a
-   * provider-side failure only — the backup model with its own budget. An
-   * unusable *answer* returns immediately: neither a blind retry nor another
-   * model is the treatment for that (CAL-052 owns repair).
+   * One pass: the primary model with bounded retries, then — for a
+   * provider-side failure only — the backup model with its own budget.
+   *
+   * `attemptsBefore` is the count the passes before this one consumed, so the
+   * attempt numbers in the log keep climbing across a repair instead of
+   * restarting at one.
    */
-  async function run<TResponse extends { readonly usage: TokenUsage }, TValue>(
+  async function deliver<TResponse>(
     request: ModelRequest,
-    expects: MissionOutput["kind"],
+    mission: MissionDefinition,
     invoke: (adapter: ProviderAdapter, call: ProviderCall) => Promise<TResponse>,
-    interpret: (response: TResponse) => Result<TValue>,
-  ): Promise<Result<RunOutcome<TValue>>> {
-    const startedAt = scheduler.now();
-    const mission = registry[request.missionId];
-
-    // One mission, one treatment (§5.4). Asking a mission for the kind of
-    // answer it does not produce is a call-site bug, not a runtime condition:
-    // it would fail on every call, so it fails before one is made.
-    if (mission.output.kind !== expects) {
-      throw missionOutputMismatch();
-    }
-
+    attemptsBefore: number,
+  ): Promise<Pass<TResponse>> {
     const candidates = candidatesFor(mission);
 
-    let attemptCount = 0;
+    let attempts = 0;
     let lastError: AppError | undefined;
 
     for (const candidate of candidates) {
@@ -276,21 +326,21 @@ export function createModelProviderPort(
           model: capability.id,
           errorCode: lastError?.code,
           errorCategory: lastError?.category,
-          attempt: attemptCount,
+          attempt: attemptsBefore + attempts,
         });
       }
 
       for (let attempt = 1; attempt <= retryPolicy.maxAttemptsPerModel; attempt += 1) {
         if (request.signal?.aborted === true) {
-          return fail(generationCancelled());
+          return { attempts, result: { kind: "cancelled" } };
         }
 
-        attemptCount += 1;
+        attempts += 1;
 
         const outcome = await attemptOnce(adapter, capability, request, mission, invoke);
 
         if (outcome.kind === "cancelled") {
-          return fail(generationCancelled());
+          return { attempts, result: { kind: "cancelled" } };
         }
 
         if (outcome.kind === "success") {
@@ -299,53 +349,15 @@ export function createModelProviderPort(
           // schema still proves the provider is up.
           reportHealth(health.recordSuccess(capability.provider), capability.provider);
 
-          const interpreted = interpret(outcome.response);
-
-          if (!interpreted.ok) {
-            return fail(interpreted.error);
-          }
-
-          const meta: ModelCallMeta = {
-            missionId: request.missionId,
-            provider: capability.provider,
-            model: capability.id,
-            usage: outcome.response.usage,
-            durationMs: scheduler.now() - startedAt,
-            attemptCount,
-            usedFallback: candidate.usedFallback,
+          return {
+            attempts,
+            result: {
+              kind: "served",
+              response: outcome.response,
+              capability,
+              usedFallback: candidate.usedFallback,
+            },
           };
-
-          // The model that finally served (CAL-050). `ai.model-fallback` says
-          // a switch happened; this says how the call ended, which is what a
-          // cost or incident view reads without joining two lines.
-          log.info("ai.model-served", {
-            missionId: meta.missionId,
-            provider: meta.provider,
-            model: meta.model,
-            attempt: meta.attemptCount,
-            durationMs: meta.durationMs,
-            inputTokens: meta.usage.inputTokens,
-            outputTokens: meta.usage.outputTokens,
-          });
-
-          // The context budget, made observable (CAL-051). The comparison is
-          // against the provider's own count, after the fact: an estimate
-          // before the call would refuse generations on a guess, and by the
-          // time the count is exact the tokens are already spent. So it warns
-          // rather than fails — and it is the line that catches a composer
-          // sending a chapter everything written before it (§5.8, CAL-054).
-          // The budget itself is not logged: it is a constant this file holds,
-          // and the mission id is how a reader looks it up.
-          if (meta.usage.inputTokens > mission.contextBudgetTokens) {
-            log.warn("ai.context-budget-exceeded", {
-              missionId: meta.missionId,
-              provider: meta.provider,
-              model: meta.model,
-              inputTokens: meta.usage.inputTokens,
-            });
-          }
-
-          return succeed({ value: interpreted.value, meta });
         }
 
         lastError = outcome.error;
@@ -372,7 +384,142 @@ export function createModelProviderPort(
       }
     }
 
-    return fail(lastError ?? new InternalError({ message: "the pipeline produced no outcome" }));
+    return {
+      attempts,
+      result: {
+        kind: "failure",
+        error: lastError ?? new InternalError({ message: "the pipeline produced no outcome" }),
+      },
+    };
+  }
+
+  /**
+   * The full policy: a pass, its answer judged, and — for a *form* failure
+   * only — one bounded repair pass carrying the correction (CAL-052).
+   *
+   * A substantively wrong answer never gets a second pass: re-asking the same
+   * question the same way returns the same answer, so the pass would only
+   * spend budget. Neither kind is ever handed to the backup model: switching
+   * endpoints is the treatment for a provider that will not answer, not for a
+   * model that answered the wrong thing.
+   */
+  async function run<TResponse extends { readonly usage: TokenUsage }, TValue>(
+    request: ModelRequest,
+    expects: MissionOutput["kind"],
+    invoke: (adapter: ProviderAdapter, call: ProviderCall) => Promise<TResponse>,
+    interpret: (response: TResponse, spent: TokenUsage) => Interpretation<TValue>,
+  ): Promise<Result<RunOutcome<TValue>>> {
+    const startedAt = scheduler.now();
+    const mission = registry[request.missionId];
+
+    // One mission, one treatment (§5.4). Asking a mission for the kind of
+    // answer it does not produce is a call-site bug, not a runtime condition:
+    // it would fail on every call, so it fails before one is made.
+    if (mission.output.kind !== expects) {
+      throw missionOutputMismatch();
+    }
+
+    let attemptCount = 0;
+    let prompt = request.prompt;
+    // Every answer served was paid for, the rejected ones included: a repair
+    // that reported only its own tokens would under-count the project's real
+    // cost (CAL-056).
+    let spent: TokenUsage = { inputTokens: 0, outputTokens: 0 };
+
+    for (let repairs = 0; ; repairs += 1) {
+      const pass = await deliver({ ...request, prompt }, mission, invoke, attemptCount);
+
+      attemptCount += pass.attempts;
+
+      if (pass.result.kind === "cancelled") {
+        return fail(generationCancelled());
+      }
+
+      if (pass.result.kind === "failure") {
+        return fail(pass.result.error);
+      }
+
+      const { response, capability, usedFallback } = pass.result;
+
+      spent = {
+        inputTokens: spent.inputTokens + response.usage.inputTokens,
+        outputTokens: spent.outputTokens + response.usage.outputTokens,
+      };
+
+      const interpreted = interpret(response, spent);
+
+      if (interpreted.kind === "value") {
+        const meta: ModelCallMeta = {
+          missionId: request.missionId,
+          provider: capability.provider,
+          model: capability.id,
+          usage: spent,
+          durationMs: scheduler.now() - startedAt,
+          attemptCount,
+          usedFallback,
+        };
+
+        // The model that finally served (CAL-050). `ai.model-fallback` says
+        // a switch happened; this says how the call ended, which is what a
+        // cost or incident view reads without joining two lines.
+        log.info("ai.model-served", {
+          missionId: meta.missionId,
+          provider: meta.provider,
+          model: meta.model,
+          attempt: meta.attemptCount,
+          durationMs: meta.durationMs,
+          inputTokens: meta.usage.inputTokens,
+          outputTokens: meta.usage.outputTokens,
+        });
+
+        // The context budget, made observable (CAL-051). The comparison is
+        // against the provider's own count, after the fact: an estimate
+        // before the call would refuse generations on a guess, and by the
+        // time the count is exact the tokens are already spent. So it warns
+        // rather than fails — and it is the line that catches a composer
+        // sending a chapter everything written before it (§5.8, CAL-054).
+        // The budget itself is not logged: it is a constant this file holds,
+        // and the mission id is how a reader looks it up.
+        if (meta.usage.inputTokens > mission.contextBudgetTokens) {
+          log.warn("ai.context-budget-exceeded", {
+            missionId: meta.missionId,
+            provider: meta.provider,
+            model: meta.model,
+            inputTokens: meta.usage.inputTokens,
+          });
+        }
+
+        return succeed({ value: interpreted.value, meta });
+      }
+
+      // What is allowed to be said about a rejected answer: which mission,
+      // which endpoint, how many violations and where the first one was. Never
+      // the answer, never the value at that path (§6, §9).
+      const rejection = {
+        missionId: request.missionId,
+        provider: capability.provider,
+        model: capability.id,
+        attempt: attemptCount,
+        fieldPath: interpreted.error.fieldPath,
+        itemCount: interpreted.issueCount,
+      };
+
+      if (interpreted.kind === "repairable" && repairs < repairPolicy.maxRepairAttempts) {
+        log.warn("ai.output-repair-attempted", rejection);
+        prompt = interpreted.repairPrompt;
+        continue;
+      }
+
+      // The clean, explicit failure §6 asks for, after a bounded number of
+      // attempts. The code says which of the two it was.
+      log.warn("ai.output-rejected", {
+        ...rejection,
+        errorCode: interpreted.error.code,
+        errorCategory: interpreted.error.category,
+      });
+
+      return fail(interpreted.error);
+    }
   }
 
   return {
@@ -381,10 +528,12 @@ export function createModelProviderPort(
         request,
         "prose",
         (adapter, call) => adapter.generateProse(call),
-        (response: ProviderProse): Result<string> =>
+        (response: ProviderProse, spent): Interpretation<string> =>
           response.text.trim().length === 0
-            ? fail(new ModelOutputInvalidError({ usage: response.usage }))
-            : succeed(response.text),
+            ? // Nothing to repair: an empty answer has no form to correct, and
+              // prose has no schema to correct it against.
+              { kind: "unusable", error: new ModelOutputInvalidError({ usage: spent }) }
+            : { kind: "value", value: response.text },
       );
 
       if (!result.ok) {
@@ -407,24 +556,46 @@ export function createModelProviderPort(
 
           return adapter.generateStructured(structuredCall);
         },
-        (response: ProviderValue): Result<Output> => {
+        (response: ProviderValue, spent): Interpretation<Output> => {
           // A model response is untrusted input (§6): parse first, and a
           // response that fails writes nothing and reports the field path —
           // never the field value.
           const parsed = request.schema.safeParse(response.value);
 
-          if (!parsed.success) {
-            const firstIssue = parsed.error.issues[0];
-
-            return fail(
-              new ModelOutputInvalidError({
-                fieldPath: firstIssue === undefined ? undefined : toFieldPath(firstIssue.path),
-                usage: response.usage,
-              }),
-            );
+          if (parsed.success) {
+            return { kind: "value", value: parsed.data };
           }
 
-          return succeed(parsed.data);
+          const issues = parsed.error.issues;
+
+          // Form or substance (CAL-052) — the whole difference between one
+          // targeted re-ask and a blind retry that cannot work.
+          if (classifyOutputFailure(issues, response.value, outputSchema) === "off-topic") {
+            return {
+              kind: "unusable",
+              error: new ModelOutputOffTopicError({ usage: spent }),
+              issueCount: issues.length,
+            };
+          }
+
+          const firstIssue = issues[0];
+
+          return {
+            kind: "repairable",
+            error: new ModelOutputInvalidError({
+              fieldPath: firstIssue === undefined ? undefined : toFieldPath(firstIssue.path),
+              usage: spent,
+            }),
+            issueCount: issues.length,
+            // Built from the *original* prompt, so a second repair asks the
+            // mission once and names the latest answer's violations — rather
+            // than stacking one correction on top of another.
+            repairPrompt: buildRepairPrompt({
+              prompt: request.prompt,
+              value: response.value,
+              issues,
+            }),
+          };
         },
       );
 

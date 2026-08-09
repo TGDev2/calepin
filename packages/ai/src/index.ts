@@ -35,7 +35,7 @@ export {
   type ProviderId,
 } from "./capabilities";
 export { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";
-export { ModelOutputInvalidError } from "./failures";
+export { ModelOutputInvalidError, ModelOutputOffTopicError } from "./failures";
 export {
   createProviderHealth,
   DEFAULT_PROVIDER_HEALTH_POLICY,
@@ -61,5 +61,11 @@ export type {
   StructuredGenerationResult,
   TokenUsage,
 } from "./port";
+export {
+  DEFAULT_REPAIR_POLICY,
+  OUTPUT_FAILURE_KINDS,
+  type OutputFailureKind,
+  type RepairPolicy,
+} from "./repair";
 export { DEFAULT_RETRY_POLICY, type RetryPolicy } from "./retry";
 export type { Scheduler } from "./timing";

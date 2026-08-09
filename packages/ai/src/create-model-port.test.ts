@@ -231,7 +231,7 @@ describe("createModelProviderPort — the happy path", () => {
 });
 
 describe("createModelProviderPort — unusable answers (§6)", () => {
-  it("refuses an answer that fails the schema: no retry, no fallback, field path only", async () => {
+  it("refuses an answer that fails the schema: no blind retry, no fallback, field path only", async () => {
     const { adapter, calls } = fakeAdapter({
       structured: () => ({ value: { itemCount: "three" }, usage: USAGE }),
     });
@@ -242,9 +242,16 @@ describe("createModelProviderPort — unusable answers (§6)", () => {
     expect(error.code).toBe("MODEL_OUTPUT_INVALID");
     expect(error.retryable).toBe(false);
     expect(error.fieldPath).toBe("itemCount");
-    // The tokens were genuinely consumed — the failure must not hide them.
-    expect((error as ModelOutputInvalidError).usage).toEqual(USAGE);
-    expect(calls).toHaveLength(1);
+    // The tokens were genuinely consumed — the failure must not hide them, and
+    // both passes were paid for (CAL-052).
+    expect((error as ModelOutputInvalidError).usage).toEqual({
+      inputTokens: USAGE.inputTokens * 2,
+      outputTokens: USAGE.outputTokens * 2,
+    });
+    // The one repair pass, and nothing beyond it: no retry budget was spent on
+    // an answer a retry cannot fix, and the backup model was never asked.
+    expect(calls).toHaveLength(2);
+    expect(calls.every((entry) => entry.call.model.id === "claude-opus-5")).toBe(true);
   });
 
   it("refuses empty prose the same way", async () => {
@@ -253,8 +260,202 @@ describe("createModelProviderPort — unusable answers (§6)", () => {
 
     const error = expectFailure(await port.generateProse(REQUEST));
 
+    // No repair pass: an empty answer has no form to correct, and prose has no
+    // schema to correct it against.
     expect(error.code).toBe("MODEL_OUTPUT_INVALID");
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("createModelProviderPort — structured output repair (CAL-052)", () => {
+  /** Answers the given values in order, then repeats the last one. */
+  function answering(values: readonly unknown[]) {
+    return fakeAdapter({
+      structured: (_call, index) => ({
+        value: values[Math.min(index, values.length) - 1],
+        usage: USAGE,
+      }),
+    });
+  }
+
+  it("asks for no repair when the first answer holds", async () => {
+    const { adapter, calls } = answering([{ itemCount: 3 }]);
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    const value = expectOk(await port.generateStructured(STRUCTURED_REQUEST));
+
+    expect(value.output).toEqual({ itemCount: 3 });
+    expect(value.attemptCount).toBe(1);
+    expect(value.usage).toEqual(USAGE);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("repairs a malformed answer, and the second pass carries the correction", async () => {
+    const { adapter, calls } = answering([{ itemCount: "three" }, { itemCount: 3 }]);
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    const value = expectOk(await port.generateStructured(STRUCTURED_REQUEST));
+
+    expect(value.output).toEqual({ itemCount: 3 });
+    expect(calls).toHaveLength(2);
+
+    // The first pass is the mission as composed upstream, untouched.
+    expect(calls[0]?.call.prompt).toBe("alpha");
+
+    // The second is a *targeted* re-ask: the same model, the same mission, the
+    // rejected answer, and the violation named. A provider call is stateless,
+    // so without the answer the model has nothing to correct.
+    const repair = calls[1]?.call;
+    expect(repair?.model.id).toBe("claude-opus-5");
+    expect(repair?.system).toBe("system words");
+    expect(repair?.prompt).toContain("alpha");
+    expect(repair?.prompt).toContain('{"itemCount":"three"}');
+    expect(repair?.prompt).toContain("- itemCount : type attendu « number »");
+
+    // Both answers were paid for, and the repair is a try like any other.
+    expect(value.usage).toEqual({
+      inputTokens: USAGE.inputTokens * 2,
+      outputTokens: USAGE.outputTokens * 2,
+    });
+    expect(value.attemptCount).toBe(2);
+  });
+
+  it("never repairs an answer that is not of the contract's kind", async () => {
+    const { adapter, calls } = answering(["a sentence instead of an object"]);
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    const error = expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
+
+    expect(error.code).toBe("MODEL_OUTPUT_OFF_TOPIC");
+    expect(error.category).toBe("provider");
+    expect(error.retryable).toBe(false);
+    // No field path: the failure is the answer as a whole, and naming a field
+    // of a contract it never attempted would point a reader at the wrong thing.
+    expect(error.fieldPath).toBeUndefined();
+    expect(calls).toHaveLength(1);
+  });
+
+  it("never repairs an answer that shares no field with the contract", async () => {
+    const { adapter, calls } = answering([{ status: "declined", reason: 3 }]);
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    const error = expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
+
+    expect(error.code).toBe("MODEL_OUTPUT_OFF_TOPIC");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("stops at the bound: one repair, then an explicit failure", async () => {
+    const { adapter, calls } = answering([{ itemCount: "three" }]);
+    const port = buildPort(adapter, new VirtualScheduler());
+
+    const error = expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
+
+    expect(error.code).toBe("MODEL_OUTPUT_INVALID");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("honours a bound of zero and a bound above one", async () => {
+    const none = answering([{ itemCount: "three" }]);
+    const twice = answering([{ itemCount: "three" }]);
+    const scheduler = new VirtualScheduler();
+
+    expectFailure(
+      await buildPort(none.adapter, scheduler, {
+        repairPolicy: { maxRepairAttempts: 0 },
+      }).generateStructured(STRUCTURED_REQUEST),
+    );
+    expectFailure(
+      await buildPort(twice.adapter, scheduler, {
+        repairPolicy: { maxRepairAttempts: 2 },
+      }).generateStructured(STRUCTURED_REQUEST),
+    );
+
+    expect(none.calls).toHaveLength(1);
+    expect(twice.calls).toHaveLength(3);
+  });
+
+  it("keeps the mission's own machinery around a repair pass", async () => {
+    // A rate limit hit *during* a repair is a rate limit, not an unusable
+    // answer: the repair re-enters the same retries and backoff.
+    const { adapter, calls } = fakeAdapter({
+      structured: (_call, index) => {
+        if (index === 1) {
+          return { value: { itemCount: "three" }, usage: USAGE };
+        }
+
+        if (index === 2) {
+          throw new RateLimitError({ retryAfterMs: 1000 });
+        }
+
+        return { value: { itemCount: 3 }, usage: USAGE };
+      },
+    });
+    const scheduler = new VirtualScheduler();
+    const port = buildPort(adapter, scheduler);
+
+    const value = expectOk(await scheduler.settle(port.generateStructured(STRUCTURED_REQUEST)));
+
+    expect(value.output).toEqual({ itemCount: 3 });
+    expect(calls).toHaveLength(3);
+    expect(value.attemptCount).toBe(3);
+    // The rate-limited attempt reported no usage, so only the two answers are
+    // counted.
+    expect(value.usage).toEqual({
+      inputTokens: USAGE.inputTokens * 2,
+      outputTokens: USAGE.outputTokens * 2,
+    });
+  });
+
+  it("says which kind of failure it was, and nothing about the answer (§9)", async () => {
+    const { adapter } = answering([{ itemCount: "REJECTED VALUE" }]);
+    const capture = createLogCapture();
+    const port = buildPort(adapter, new VirtualScheduler(), {
+      log: createLogger({ destination: capture.stream }),
+    });
+
+    expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
+
+    const lines = capture.lines();
+
+    expect(lines.find((line) => line["msg"] === "ai.output-repair-attempted")).toMatchObject({
+      missionId: STRUCTURED_MISSION,
+      provider: "anthropic",
+      model: "claude-opus-5",
+      attempt: 1,
+      fieldPath: "itemCount",
+      itemCount: 1,
+    });
+    expect(lines.find((line) => line["msg"] === "ai.output-rejected")).toMatchObject({
+      missionId: STRUCTURED_MISSION,
+      attempt: 2,
+      fieldPath: "itemCount",
+      errorCode: "MODEL_OUTPUT_INVALID",
+      errorCategory: "provider",
+    });
+
+    // The field path, never the field value — and nothing of the answer at all.
+    expect(JSON.stringify(lines)).not.toContain("REJECTED VALUE");
+  });
+
+  it("names an off-topic rejection by its own code", async () => {
+    const { adapter } = answering([{ status: "declined" }]);
+    const capture = createLogCapture();
+    const port = buildPort(adapter, new VirtualScheduler(), {
+      log: createLogger({ destination: capture.stream }),
+    });
+
+    expectFailure(await port.generateStructured(STRUCTURED_REQUEST));
+
+    const lines = capture.lines();
+
+    expect(lines.some((line) => line["msg"] === "ai.output-repair-attempted")).toBe(false);
+    expect(lines.find((line) => line["msg"] === "ai.output-rejected")).toMatchObject({
+      missionId: STRUCTURED_MISSION,
+      attempt: 1,
+      errorCode: "MODEL_OUTPUT_OFF_TOPIC",
+      errorCategory: "provider",
+    });
   });
 });
 
