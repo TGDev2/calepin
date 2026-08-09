@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/current-user";
 import { projectStatusLabel } from "@/lib/project-status-label";
 import { signInDestination } from "@/lib/sign-in-redirect";
+import { createProjectAction } from "./actions";
 
 import styles from "./page.module.css";
 
@@ -117,11 +118,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </form>
 
       {projects.length === 0 ? (
-        <p className={styles.empty}>
-          {isFiltered
-            ? "Aucun projet ne correspond à cette recherche."
-            : "Aucun projet pour l'instant."}
-        </p>
+        isFiltered ? (
+          <p className={styles.empty}>Aucun projet ne correspond à cette recherche.</p>
+        ) : (
+          <EmptyState />
+        )
       ) : (
         <ul className={styles.projects}>
           {projects.map((project) => (
@@ -132,6 +133,33 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </ul>
       )}
     </main>
+  );
+}
+
+function EmptyState() {
+  return (
+    <section className={styles.emptyState}>
+      <h2 className={styles.emptyTitle}>Aucun projet pour l'instant.</h2>
+
+      <p className={styles.emptyDescription}>
+        Calepin transforme une fiction courte en projet de roman structuré.
+      </p>
+
+      <div className={styles.journey}>
+        <p className={styles.journeyLabel}>Votre parcours :</p>
+        <ol className={styles.journeySteps}>
+          <li>Analysez votre texte source</li>
+          <li>Structurez votre univers</li>
+          <li>Écrivez votre roman</li>
+        </ol>
+      </div>
+
+      <form action={createProjectAction}>
+        <button type="submit" className={styles.createButton}>
+          Créer mon premier projet
+        </button>
+      </form>
+    </section>
   );
 }
 
