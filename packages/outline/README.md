@@ -31,3 +31,18 @@ Backlog: E10 — CAL-101 to CAL-111. Schemas: CAL-019, CAL-020.
   status alone rather than a Prisma type. The actual query —
   `prisma/queries/open-threads.ts` — expresses the same "not `CLOSED`"
   condition as a `where` clause, for whichever caller runs it today.
+
+`target-length/` — the target novel length interpreted into a chapter count
+and a per-chapter target (CAL-043). `prisma/schema.prisma` stores the choice
+(`SHORT`/`STANDARD`/`LONG`/`CUSTOM`); this is where the word ranges behind it
+and the chapter-count derivation live.
+
+- `TARGET_LENGTH_RANGES`, `CUSTOM_TARGET_WORD_COUNT_RANGE` — the three preset
+  word ranges and the bounds a custom choice must fall inside.
+- `resolveNovelTargetWordCount`, `estimateChapterCalibration` — a choice
+  resolved to one number (a preset's midpoint, or the custom value), then to
+  a chapter count and a per-chapter target derived from it. Pure, no database.
+- `getPlanGenerationContext` — `@calepin/shared`'s `GenerationContext`
+  (CAL-042), extended with the calibration. Built ahead of its producer, the
+  same way `getGenerationContextForProject` is: no mission calls this yet
+  (CAL-048, CAL-060 still to come).

@@ -30,6 +30,7 @@ import {
   duplicateProject,
   getGenerationContextForProject,
   getProjectForOwner,
+  getProjectTargetLength,
   listProjectDashboardRows,
   listProjectsForOwner,
   listRunningGenerations,
@@ -68,6 +69,7 @@ const ENTRY_POINTS = [
   "duplicateProject",
   "getGenerationContextForProject",
   "getProjectForOwner",
+  "getProjectTargetLength",
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "listRunningGenerations",
@@ -278,6 +280,21 @@ describe("owner access policy", () => {
       const theirs = await getGenerationContextForProject(
         forgedScope(bob.ownerId, alice.projectId),
       );
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
+    // CAL-043. `getPlanGenerationContext` (`@calepin/outline`) reads this
+    // before deriving a chapter calibration from it — it must not leak across
+    // an owner boundary any more than the project itself does.
+    it("getProjectTargetLength refuses another owner's project", async () => {
+      const mine = await getProjectTargetLength(aliceScope);
+      expect(mine.ok).toBe(true);
+      if (mine.ok) {
+        expect(mine.value).toEqual({ targetLength: "STANDARD", targetWordCount: null });
+      }
+
+      const theirs = await getProjectTargetLength(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs.ok).toBe(false);
       if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
     });

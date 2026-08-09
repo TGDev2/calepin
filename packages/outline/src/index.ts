@@ -22,4 +22,17 @@ export {
   type ResolvedPart,
   resolveOutline,
 } from "./order";
+export {
+  type ChapterCalibration,
+  CUSTOM_TARGET_WORD_COUNT_RANGE,
+  estimateChapterCalibration,
+  getPlanGenerationContext,
+  type NovelLengthChoice,
+  type PlanGenerationContext,
+  resolveNovelTargetWordCount,
+  TARGET_LENGTH_RANGES,
+  TARGET_LENGTHS,
+  type TargetLength,
+  type TargetLengthRange,
+} from "./target-length";
 export { isThreadOpen, listOpenThreads, type OpenableThread, type ThreadStatus } from "./thread";

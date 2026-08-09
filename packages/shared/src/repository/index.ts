@@ -56,11 +56,13 @@ export {
   type CreateProjectWithSourceTextInput,
   deleteProject,
   getProjectForOwner,
+  getProjectTargetLength,
   listProjectDashboardRows,
   listProjectsForOwner,
   type ProjectDashboardQuery,
   type ProjectDashboardRow,
   type ProjectStatus,
+  type ProjectTargetLength,
   updateProject,
   type UpdateProjectInput,
 } from "./project";

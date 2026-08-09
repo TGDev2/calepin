@@ -17,6 +17,7 @@
  * interface layer may never hold a Prisma import (CLAUDE.md §3.5).
  */
 
+import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline";
 import {
   detectSourceTextLanguage,
   SUPPORTED_SOURCE_TEXT_LANGUAGES,
@@ -124,7 +125,7 @@ export const TARGET_LENGTH_OPTIONS: readonly TargetLengthOption[] = [
   {
     value: "CUSTOM",
     label: "Longueur personnalisée",
-    caption: "Choisissez vous-même le nombre de mots visé.",
+    caption: `Choisissez vous-même le nombre de mots visé (entre ${CUSTOM_TARGET_WORD_COUNT_RANGE.min.toLocaleString("fr-FR")} et ${CUSTOM_TARGET_WORD_COUNT_RANGE.max.toLocaleString("fr-FR")}).`,
   },
 ];
 
@@ -235,9 +236,14 @@ export const FIELD_VALIDATORS: Record<
     if (draft.targetLength !== "CUSTOM") return null;
 
     const wordCount = Number.parseInt(draft.targetWordCount, 10);
-    return Number.isInteger(wordCount) && wordCount > 0
+    if (!Number.isInteger(wordCount) || wordCount <= 0) {
+      return "Merci d'indiquer un nombre de mots valide pour une longueur personnalisée.";
+    }
+
+    const { min, max } = CUSTOM_TARGET_WORD_COUNT_RANGE;
+    return wordCount >= min && wordCount <= max
       ? null
-      : "Merci d'indiquer un nombre de mots valide pour une longueur personnalisée.";
+      : `La longueur personnalisée doit être comprise entre ${min.toLocaleString("fr-FR")} et ${max.toLocaleString("fr-FR")} mots.`;
   },
 
   targetAudience: (draft) =>

@@ -1,3 +1,4 @@
+import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline";
 import {
   FRENCH_WORD_COUNT_CORPUS,
   FRENCH_WORD_COUNT_CORPUS_WORDS,
@@ -148,6 +149,39 @@ describe("validateProjectCreationDraft", () => {
     if (!result.ok) return;
     expect(result.value.targetLength).toBe("CUSTOM");
     expect(result.value.targetWordCount).toBe(95_000);
+  });
+
+  it("rejects a CUSTOM target length outside the validation bounds", () => {
+    for (const targetWordCount of [
+      String(CUSTOM_TARGET_WORD_COUNT_RANGE.min - 1),
+      String(CUSTOM_TARGET_WORD_COUNT_RANGE.max + 1),
+    ]) {
+      const result = validateProjectCreationDraft(
+        validDraft({ targetLength: "CUSTOM", targetWordCount }),
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.errors.targetLength).toContain(
+        CUSTOM_TARGET_WORD_COUNT_RANGE.min.toLocaleString("fr-FR"),
+      );
+      expect(result.errors.targetLength).toContain(
+        CUSTOM_TARGET_WORD_COUNT_RANGE.max.toLocaleString("fr-FR"),
+      );
+    }
+  });
+
+  it("accepts a CUSTOM target length exactly at the validation bounds", () => {
+    for (const targetWordCount of [
+      String(CUSTOM_TARGET_WORD_COUNT_RANGE.min),
+      String(CUSTOM_TARGET_WORD_COUNT_RANGE.max),
+    ]) {
+      const result = validateProjectCreationDraft(
+        validDraft({ targetLength: "CUSTOM", targetWordCount }),
+      );
+
+      expect(result.ok).toBe(true);
+    }
   });
 
   it("ignores a stray target word count on a non-CUSTOM length", () => {

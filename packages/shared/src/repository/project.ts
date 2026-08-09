@@ -222,6 +222,32 @@ export async function getProjectForOwner(input: { ownerId: string; projectId: st
 }
 
 /**
+ * The project's chosen novel length (CAL-043) — read ahead of its own
+ * consumer, `@calepin/outline`'s chapter-count calibration, the same way
+ * `getGenerationContextForProject` is read ahead of a mission that does not
+ * exist yet. `Project` is not owned by any domain, so this stays here rather
+ * than in the outline package that interprets it.
+ */
+export interface ProjectTargetLength {
+  readonly targetLength: $Enums.TargetLength;
+  /** Set if and only if `targetLength` is `CUSTOM` — the schema's own invariant. */
+  readonly targetWordCount: number | null;
+}
+
+export async function getProjectTargetLength(
+  scope: ProjectScope,
+): Promise<Result<ProjectTargetLength>> {
+  assertProjectScope(scope);
+
+  const project = await getDatabaseClient().project.findFirst({
+    where: { id: scope.projectId, [PROJECT_OWNER_FIELD]: scope.ownerId },
+    select: { targetLength: true, targetWordCount: true },
+  });
+
+  return project === null ? fail(notFound()) : succeed(project);
+}
+
+/**
  * Creates a project owned by `ownerId`.
  *
  * The caller must be inside an actor scope (`runWithActor`, CAL-022) — the
