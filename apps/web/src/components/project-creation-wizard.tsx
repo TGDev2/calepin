@@ -53,9 +53,11 @@ import {
   saveProjectCreationDraft,
   subscribeToDraftStorage,
 } from "@/lib/project-creation-draft-storage";
+import type { SourceTextImportResult } from "@/lib/source-text-import";
 
 import styles from "./project-creation-wizard.module.css";
 import { SourceTextCounter } from "./source-text-counter";
+import { SourceTextFileImport } from "./source-text-file-import";
 import { SubmitButton } from "./submit-button";
 
 /** Ties the counter to the textarea it measures, for a screen reader. */
@@ -87,9 +89,13 @@ export interface ProjectCreationWizardProps {
     state: ProjectCreationActionState,
     formData: FormData,
   ) => Promise<ProjectCreationActionState>;
+  readonly importSourceTextFileAction: (formData: FormData) => Promise<SourceTextImportResult>;
 }
 
-export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
+export function ProjectCreationWizard({
+  action,
+  importSourceTextFileAction,
+}: ProjectCreationWizardProps) {
   const router = useRouter();
   const [draft, setDraft] = useState<ProjectCreationDraft>(EMPTY_PROJECT_CREATION_DRAFT);
   const [stepIndex, setStepIndex] = useState(0);
@@ -251,6 +257,10 @@ export function ProjectCreationWizard({ action }: ProjectCreationWizardProps) {
             <label className={styles.label} htmlFor="project-creation-source-text">
               Texte source
             </label>
+            <SourceTextFileImport
+              action={importSourceTextFileAction}
+              onImported={(content) => updateField("sourceText", content)}
+            />
             <textarea
               id="project-creation-source-text"
               className={styles.textarea}

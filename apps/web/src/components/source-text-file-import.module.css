@@ -1,0 +1,39 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.import {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-1);
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.input {
+  font: inherit;
+  max-width: 100%;
+}
+
+.status {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+}

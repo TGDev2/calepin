@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ProjectCreationWizard } from "@/components/project-creation-wizard";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
+import { importSourceTextFileAction } from "@/lib/source-text-import-action";
 
 import { createProjectFromDraftAction } from "./actions";
 import styles from "./page.module.css";
@@ -23,7 +24,10 @@ export default async function NewProjectPage() {
   return (
     <main className={styles.main}>
       <h1 className={styles.title}>Créer un nouveau projet</h1>
-      <ProjectCreationWizard action={createProjectFromDraftAction} />
+      <ProjectCreationWizard
+        action={createProjectFromDraftAction}
+        importSourceTextFileAction={importSourceTextFileAction}
+      />
     </main>
   );
 }

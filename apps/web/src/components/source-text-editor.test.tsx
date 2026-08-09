@@ -2,12 +2,18 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { SourceTextEditState } from "@/lib/source-text-edit";
+import type { SourceTextImportResult } from "@/lib/source-text-import";
 
 import { SourceTextEditor } from "./source-text-editor";
 
 async function noopAction(previous: SourceTextEditState): Promise<SourceTextEditState> {
   /* never called in a static render */
   return previous;
+}
+
+async function noopImportAction(): Promise<SourceTextImportResult> {
+  /* never called in a static render */
+  return { ok: false, message: "" };
 }
 
 /**
@@ -29,6 +35,7 @@ function render(content: string, versionNumber = 1): string {
       content={content}
       versionNumber={versionNumber}
       action={noopAction}
+      importSourceTextFileAction={noopImportAction}
     />,
   );
 }

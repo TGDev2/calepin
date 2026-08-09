@@ -18,6 +18,10 @@ export const ERROR_CODES = [
   // validation
   "VALIDATION_FAILED",
   "SCHEMA_MISMATCH",
+  /** An uploaded source-text file's extension is not `.txt`, `.md` or `.docx`. */
+  "SOURCE_TEXT_IMPORT_UNSUPPORTED_FORMAT",
+  /** A `.txt`/`.md`/`.docx` file could not be read — corrupt, or not decodable. */
+  "SOURCE_TEXT_IMPORT_UNREADABLE",
 
   // not_found
   "NOT_FOUND",
@@ -89,6 +93,8 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 export const CATEGORY_BY_CODE = {
   VALIDATION_FAILED: "validation",
   SCHEMA_MISMATCH: "validation",
+  SOURCE_TEXT_IMPORT_UNSUPPORTED_FORMAT: "validation",
+  SOURCE_TEXT_IMPORT_UNREADABLE: "validation",
   NOT_FOUND: "not_found",
   FORBIDDEN: "forbidden",
   UNAUTHENTICATED: "forbidden",

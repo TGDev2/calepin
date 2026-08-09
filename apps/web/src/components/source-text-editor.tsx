@@ -32,15 +32,24 @@
  * The submit control is never disabled by client state. An over-limit text is
  * refused by the server, and a button that greys itself out is a check a
  * visitor with JavaScript off does not get.
+ *
+ * **A file import (CAL-047) sets the field the same way a paste does** — the
+ * DOM already owns the value, so the imported text is written straight onto
+ * the textarea through a `ref` (`textareaRef.current.value = …`), and `text`
+ * is updated alongside it so the counter reflects it immediately. No
+ * `defaultValue`-breaking re-render involved, the same reasoning that keeps
+ * the field uncontrolled in the first place.
  */
 
 import { SOURCE_TEXT_MAX_WORDS } from "@calepin/shared/text";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { INITIAL_SOURCE_TEXT_EDIT_STATE, type SourceTextEditState } from "@/lib/source-text-edit";
+import type { SourceTextImportResult } from "@/lib/source-text-import";
 
 import { SourceTextCounter } from "./source-text-counter";
 import styles from "./source-text-editor.module.css";
+import { SourceTextFileImport } from "./source-text-file-import";
 import { SubmitButton } from "./submit-button";
 
 const COUNTER_ID = "source-text-editor-counter";
@@ -55,6 +64,7 @@ export interface SourceTextEditorProps {
     previous: SourceTextEditState,
     formData: FormData,
   ) => Promise<SourceTextEditState>;
+  readonly importSourceTextFileAction: (formData: FormData) => Promise<SourceTextImportResult>;
 }
 
 /** The sentence under the button, once something has been submitted. */
@@ -82,12 +92,19 @@ export function SourceTextEditor({
   content,
   versionNumber,
   action,
+  importSourceTextFileAction,
 }: SourceTextEditorProps) {
   const [state, formAction] = useActionState(action, INITIAL_SOURCE_TEXT_EDIT_STATE);
   /** What the counter reads. The field itself is the DOM's — see the doc above. */
   const [text, setText] = useState(content);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const feedback = feedbackFor(state);
+
+  function handleImported(imported: string) {
+    if (textareaRef.current) textareaRef.current.value = imported;
+    setText(imported);
+  }
 
   return (
     <section className={styles.editor} aria-labelledby="source-text-heading">
@@ -105,7 +122,9 @@ export function SourceTextEditor({
         <label className={styles.label} htmlFor={FIELD_ID}>
           Votre texte de départ
         </label>
+        <SourceTextFileImport action={importSourceTextFileAction} onImported={handleImported} />
         <textarea
+          ref={textareaRef}
           id={FIELD_ID}
           name="content"
           className={styles.field}

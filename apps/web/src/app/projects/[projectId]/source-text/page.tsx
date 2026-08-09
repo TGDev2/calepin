@@ -15,6 +15,7 @@ import { SkeletonBlock } from "@/components/skeleton";
 import { SourceTextEditor } from "@/components/source-text-editor";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
+import { importSourceTextFileAction } from "@/lib/source-text-import-action";
 
 import { updateSourceTextAction } from "./actions";
 import styles from "./page.module.css";
@@ -92,6 +93,7 @@ async function SourceTextSection({ scope, projectId }: SourceTextSectionProps) {
         content={current.value.content}
         versionNumber={current.value.versionNumber}
         action={updateSourceTextAction}
+        importSourceTextFileAction={importSourceTextFileAction}
       />
 
       <section className={styles.history} aria-labelledby="history-heading">

@@ -1,0 +1,7 @@
+﻿Alpha   beta gamma.
+
+-- Bonjour, dit-il.
+- Bonsoir, repondit-elle.
+
+
+Fin.

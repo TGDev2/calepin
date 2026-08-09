@@ -40,6 +40,10 @@
       "types": "./src/repository/index.ts",
       "default": "./src/repository/index.ts"
     },
+    "./source-text-import": {
+      "types": "./src/source-text-import/index.ts",
+      "default": "./src/source-text-import/index.ts"
+    },
     "./errors": {
       "types": "./src/errors/index.ts",
       "default": "./src/errors/index.ts"
@@ -80,6 +84,7 @@
     "@auth/core": "^0.41.3",
     "@auth/prisma-adapter": "^2.11.3",
     "franc-min": "^6.2.0",
+    "mammoth": "^1.12.1",
     "nodemailer": "^7.0.7",
     "pino": "^10.3.1",
     "zod": "^4.4.3"
