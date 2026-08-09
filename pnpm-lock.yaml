@@ -131,6 +131,19 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/ai:
+    dependencies:
+      '@calepin/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      eslint:
+        specifier: ^9
+        version: 9.39.5(jiti@2.7.0)
+
   packages/analysis:
     dependencies:
       '@calepin/shared':

@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
    */
   transpilePackages: [
     "@calepin/shared",
+    "@calepin/ai",
     "@calepin/analysis",
     "@calepin/direction",
     "@calepin/bible",

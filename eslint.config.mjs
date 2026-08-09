@@ -9,6 +9,55 @@ import tseslint from "typescript-eslint";
 // same list as @calepin/shared's BUSINESS_DOMAINS.
 const DOMAINS = ["analysis", "direction", "bible", "outline", "manuscript", "coherence", "export"];
 
+// ESLint *replaces* a rule's options on every override, it never merges them
+// (CLAUDE.md §12). Every override below that re-declares no-restricted-imports
+// therefore re-lists the shared patterns it still wants — as named constants,
+// so forgetting one is visible in review instead of silently reopening a
+// boundary.
+
+// A package's public surface is its index (CLAUDE.md §3.4) — never reach into
+// another package's src/ directly.
+const REACH_INTO_SRC_PATTERN = {
+  group: ["@calepin/*/src/*", "@calepin/*/src"],
+  message: "Import a package's public entry point, not a path inside its src/.",
+};
+
+// No provider SDK outside @calepin/ai's adapters (CLAUDE.md §5, ADR-001,
+// CAL-048). The list names every SDK a call site could plausibly reach for —
+// first-party clients, cloud gateways and meta-frameworks alike; extend it
+// rather than argue a new one is unlikely.
+const PROVIDER_SDK_PATTERN = {
+  group: [
+    "@anthropic-ai/*",
+    "openai",
+    "@openai/*",
+    "@azure/openai",
+    "@azure-rest/ai-inference",
+    "@google/genai",
+    "@google/generative-ai",
+    "@google-cloud/vertexai",
+    "@aws-sdk/client-bedrock*",
+    "@mistralai/*",
+    "cohere-ai",
+    "@cohere-ai/*",
+    "groq-sdk",
+    "together-ai",
+    "ollama",
+    "ai",
+    "@ai-sdk/*",
+  ],
+  message:
+    "A model provider SDK lives only in @calepin/ai's adapters (CLAUDE.md §5, CAL-048). Go through the provider port instead.",
+};
+
+// @calepin/ai owns mechanics, never narrative meaning (CLAUDE.md §5.7): it may
+// depend on @calepin/shared only.
+const AI_DOMAIN_PATTERN = {
+  group: DOMAINS.map((domain) => `@calepin/${domain}`),
+  message:
+    "@calepin/ai knows nothing about narrative meaning — it depends on @calepin/shared only (CLAUDE.md §3.2, §5).",
+};
+
 // packages/<domain> may depend on @calepin/shared and @calepin/ai only —
 // never on another domain (CLAUDE.md §3.2, §5.3).
 const domainBoundaryOverrides = DOMAINS.map((domain) => ({
@@ -18,6 +67,8 @@ const domainBoundaryOverrides = DOMAINS.map((domain) => ({
       "error",
       {
         patterns: [
+          REACH_INTO_SRC_PATTERN,
+          PROVIDER_SDK_PATTERN,
           {
             group: DOMAINS.filter((other) => other !== domain).map((other) => `@calepin/${other}`),
             message:
@@ -43,23 +94,44 @@ const eslintConfig = defineConfig([
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",
       "no-duplicate-imports": "error",
-      // A package's public surface is its index (CLAUDE.md §3.4) — never
-      // reach into another package's src/ directly.
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              group: ["@calepin/*/src/*", "@calepin/*/src"],
-              message: "Import a package's public entry point, not a path inside its src/.",
-            },
-          ],
+          patterns: [REACH_INTO_SRC_PATTERN, PROVIDER_SDK_PATTERN],
         },
       ],
     },
   },
 
   ...domainBoundaryOverrides,
+
+  {
+    // The AI layer itself is provider-neutral: outside adapters/, the SDK ban
+    // holds there too, and a domain import is refused everywhere in it.
+    files: ["packages/ai/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [REACH_INTO_SRC_PATTERN, PROVIDER_SDK_PATTERN, AI_DOMAIN_PATTERN],
+        },
+      ],
+    },
+  },
+
+  {
+    // The one place a provider SDK may be imported (CAL-049, CAL-050). Must
+    // come after the packages/ai block above: the later object wins.
+    files: ["packages/ai/src/adapters/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [REACH_INTO_SRC_PATTERN, AI_DOMAIN_PATTERN],
+        },
+      ],
+    },
+  },
 
   {
     // @calepin/shared is the package everything else depends on — it must
@@ -70,6 +142,8 @@ const eslintConfig = defineConfig([
         "error",
         {
           patterns: [
+            REACH_INTO_SRC_PATTERN,
+            PROVIDER_SDK_PATTERN,
             {
               group: ["@calepin/*"],
               message: "@calepin/shared must depend on nothing.",
@@ -112,10 +186,6 @@ const eslintConfig = defineConfig([
     // client it could query directly. The two exceptions are the composition
     // root and the startup hook that imports it, named here the way the
     // process.env rule above names its own.
-    //
-    // The base no-restricted-imports patterns are repeated: ESLint replaces a
-    // rule's options rather than merging them, so omitting them here would
-    // silently drop the "public entry point only" guard for apps/web.
     files: ["apps/web/**/*.{ts,tsx}"],
     ignores: ["apps/web/src/lib/database.ts", "apps/web/src/instrumentation.ts"],
     rules: {
@@ -123,10 +193,8 @@ const eslintConfig = defineConfig([
         "error",
         {
           patterns: [
-            {
-              group: ["@calepin/*/src/*", "@calepin/*/src"],
-              message: "Import a package's public entry point, not a path inside its src/.",
-            },
+            REACH_INTO_SRC_PATTERN,
+            PROVIDER_SDK_PATTERN,
             {
               group: [
                 "@prisma/client",

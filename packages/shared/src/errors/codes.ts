@@ -35,6 +35,13 @@ export const ERROR_CODES = [
   "CONFLICT",
   "STALE_REVISION",
   /**
+   * The caller cancelled a generation in flight (CAL-048). Expected, so it is
+   * returned as a value, never thrown; `conflict` because completing the work
+   * would contradict a decision already taken about it — and a cancellation
+   * must never be blindly retried, which `conflict`'s default already says.
+   */
+  "GENERATION_CANCELLED",
+  /**
    * A project's status was recomputed from its rows and the answer is not
    * reachable from the status stored on the row (CAL-034). It is `conflict`
    * rather than `internal`: nothing about the request is malformed and no call
@@ -49,6 +56,13 @@ export const ERROR_CODES = [
   // provider
   "PROVIDER_UNAVAILABLE",
   "PROVIDER_REJECTED",
+  /**
+   * The model answered, but the answer is unusable — it fails the mission's
+   * schema, or the prose is empty (CAL-048). Marked non-retryable at its one
+   * construction site: a blind replay is not the treatment for a malformed
+   * output, CAL-052's targeted repair is.
+   */
+  "MODEL_OUTPUT_INVALID",
 
   // timeout
   "TIMEOUT",
@@ -72,6 +86,13 @@ export const ERROR_CODES = [
   "PROJECT_SCOPE_REQUIRED",
   /** No process shell registered a database client (CAL-023). Mis-wiring. */
   "DATABASE_NOT_CONFIGURED",
+  /**
+   * A mission routes to a model whose provider has no registered adapter
+   * (CAL-048) — the AI-layer parallel of `DATABASE_NOT_CONFIGURED`, and a
+   * mis-wiring for the same reason: the composition root failed to hand the
+   * port an adapter, no request could ever succeed, so it throws.
+   */
+  "MODEL_NOT_CONFIGURED",
   /**
    * A row being copied into a duplicated project references a row the copy does
    * not hold (CAL-035). Either the duplication plan is missing a model, or the
@@ -100,14 +121,17 @@ export const CATEGORY_BY_CODE = {
   UNAUTHENTICATED: "forbidden",
   CONFLICT: "conflict",
   STALE_REVISION: "conflict",
+  GENERATION_CANCELLED: "conflict",
   ILLEGAL_STATUS_TRANSITION: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",
+  MODEL_OUTPUT_INVALID: "provider",
   TIMEOUT: "timeout",
   INTERNAL_ERROR: "internal",
   AUDIT_ACTOR_REQUIRED: "internal",
   PROJECT_SCOPE_REQUIRED: "internal",
   DATABASE_NOT_CONFIGURED: "internal",
+  MODEL_NOT_CONFIGURED: "internal",
   PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

@@ -96,6 +96,8 @@ calepin/
 │   │   ├── src/obsolescence/  étapes rendues potentiellement obsolètes par une modification du texte source (`@calepin/shared/obsolescence`)
 │   │   ├── src/repository/    politique d'accès par propriétaire (`@calepin/shared/repository`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
+│   ├── ai/                    @calepin/ai — couche IA : port fournisseur, capacités des
+│   │                          modèles, routage des missions, réessais et repli (CAL-048)
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
 │   ├── direction/             @calepin/direction — directions romanesques divergentes
 │   ├── bible/                 @calepin/bible — référence narrative
@@ -131,6 +133,7 @@ qui expose la surface publique du domaine.
 | Paquet | Ce qu'il détient | Epic |
 |---|---|---|
 | `shared` | Primitives transverses : identifiants, types de résultat et d'erreur, helpers qui doivent se comporter à l'identique côté serveur, navigateur et worker. | — |
+| `ai` | Couche IA, jamais le sens narratif : port fournisseur unique, capacités déclarées des modèles, routage mission → modèle, limites de débit, expiration, annulation, repli. Les SDK fournisseurs n'existent que dans ses adaptateurs (règle de lint). | E05 |
 | `analysis` | Diagnostic narratif du texte source : résumé, prémisse, conflit, promesse, thèmes, personnages, fragilités, potentiel. Chaque élément porte une marque **factuel / interprétation**. | E07 |
 | `direction` | Trois directions romanesques **divergentes** issues de l'analyse validée, douze attributs chacune. L'une devient canonique. | E08 |
 | `bible` | La référence narrative : identité, style, personnages, relations, lieux, règles du monde, chronologie, faits canon (vérité, validité temporelle, connaissance par personnage). | E09 |
@@ -143,7 +146,8 @@ qui expose la surface publique du domaine.
 
 ```
 apps/*  ──►  n'importe quel paquet
-packages/<domaine>  ──►  @calepin/shared  uniquement
+packages/<domaine>  ──►  @calepin/shared, @calepin/ai  (déclaré explicitement)
+@calepin/ai  ──►  @calepin/shared
 @calepin/shared  ──►  rien
 ```
 
