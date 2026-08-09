@@ -28,6 +28,18 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuditedClient } from "./audited-client";
 
+/**
+ * Prisma emits the `query` event asynchronously relative to the promise the
+ * query itself resolves — under CI's I/O scheduling a trailing event from
+ * setup work can still be in flight when `queryLog` is reset, or the event
+ * for the call under test has not landed yet when the assertion runs.
+ * Yielding once past the I/O phase is enough for the engine's log channel to
+ * catch up before `queryLog` is trusted.
+ */
+async function flushQueryEvents(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
 describe("listProjectDashboardRows (CAL-032)", () => {
   const { prisma, setActor } = createAuditedClient();
   const queryLog: string[] = [];
@@ -170,8 +182,10 @@ describe("listProjectDashboardRows (CAL-032)", () => {
       expect(reconciled.ok).toBe(true);
     }
 
+    await flushQueryEvents();
     queryLog.length = 0;
     const rows = await listProjectDashboardRows(user.id);
+    await flushQueryEvents();
 
     expect(queryLog).toHaveLength(1);
 
@@ -229,6 +243,7 @@ describe("listProjectDashboardRows (CAL-032)", () => {
 
     queryLog.length = 0;
     const bySearch = await listProjectDashboardRows(user.id, { search: "beta" });
+    await flushQueryEvents();
     expect(queryLog).toHaveLength(1);
     expect(bySearch.map((row) => row.id)).toEqual([writingProject.id]);
 
