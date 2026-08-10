@@ -102,7 +102,11 @@ const SEARCHED_ROOTS = [
 ];
 
 /**
- * The two files that may name a model, and one test double.
+ * The three files that may name a model, and one test double.
+ *
+ * `pricing.ts` (CAL-056) is the tariff table, keyed by model exactly as
+ * `capabilities.ts`'s capability sheet is — a third declared-per-model
+ * registry, not a caller naming a model of its own choosing.
  *
  * `adapters/simulated.ts` fakes a provider's response, and a provider's
  * response names the model that served it. It lives under `src/` rather than
@@ -112,6 +116,7 @@ const SEARCHED_ROOTS = [
 const MODEL_ID_HOMES = [
   join("packages", "ai", "src", "capabilities.ts"),
   join("packages", "ai", "src", "mission-registry.ts"),
+  join("packages", "ai", "src", "pricing.ts"),
   join("packages", "ai", "src", "adapters", "simulated.ts"),
 ];
 

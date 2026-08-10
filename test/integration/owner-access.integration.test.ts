@@ -40,6 +40,7 @@ import {
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  readProjectCostSummary,
   readSourceTextObsolescence,
   reconcileProjectAggregates,
   requireOwnedRow,
@@ -81,6 +82,7 @@ const ENTRY_POINTS = [
   "listRunningGenerations",
   "listSourceTextVersions",
   "openProjectScope",
+  "readProjectCostSummary",
   "readProjectProgress",
   "readSourceTextObsolescence",
   "reconcileProjectAggregates",
@@ -312,6 +314,38 @@ describe("owner access policy", () => {
       }
 
       const theirs = await getProjectTargetLength(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
+    // CAL-056. `project-graph.ts` seeds one `GenerationAttempt` per owner
+    // (mission WRITE_SCENE, no usage recorded), so the owner's own summary is
+    // one attempt of real, deterministic zeros — enough to prove the read
+    // reaches the row without asserting on anything a full pricing fixture
+    // would need (`generation-cost.integration.test.ts` covers the totals).
+    it("readProjectCostSummary refuses another owner's project", async () => {
+      const mine = await readProjectCostSummary(aliceScope);
+      expect(mine.ok).toBe(true);
+      if (mine.ok) {
+        expect(mine.value).toEqual({
+          attemptCount: 1,
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedCostUsd: "0.000000",
+          byMission: [
+            {
+              mission: "WRITE_SCENE",
+              attemptCount: 1,
+              inputTokens: 0,
+              outputTokens: 0,
+              estimatedCostUsd: "0.000000",
+            },
+          ],
+          byDay: [expect.objectContaining({ attemptCount: 1 })],
+        });
+      }
+
+      const theirs = await readProjectCostSummary(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs.ok).toBe(false);
       if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
     });

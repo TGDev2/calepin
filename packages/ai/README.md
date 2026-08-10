@@ -10,7 +10,8 @@ narrative rule, and never restates a domain schema.
 - `missions.ts` — the ten mission identifiers, pinned against the
   `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
-  may route to. No pricing: CAL-056 owns the configurable tariff table.
+  may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
+  tariff table.
 - `mission-registry.ts` — one entry per mission. **The one file a model change
   touches** (grown into the full registry by CAL-051, below).
 - `port.ts` — `ModelProviderPort`, the only surface business code sees:
@@ -99,13 +100,13 @@ narrative rule, and never restates a domain schema.
   already spent by then; refusing on an estimate would kill generations on a
   guess. It is what will catch a context composer that sends chapter 12 the
   eleven chapters before it (CAL-054).
-- **Expected cost is stated in tokens, never money.** CAL-056 owns the tariff
-  table; `expectedUsage` is the shape it multiplies.
+- **Expected cost is stated in tokens, never money.** `pricing.ts`'s tariff
+  table is what multiplies it; `expectedUsage` is the shape that table takes.
 
 ## What exists (CAL-052)
 
 - `repair.ts` — the answer to an answer that failed its mission's schema, and
-  the distinction §6 asks for: *erreur de forme* against *erreur de fond*.
+  the distinction §6 asks for: _erreur de forme_ against _erreur de fond_.
   `classifyOutputFailure` is structural and never semantic, because this layer
   may not know what a chapter means. Two signals make an answer off-topic —
   it is **not of the contract's kind** (a string, a list, a null, or no JSON at
@@ -116,7 +117,7 @@ narrative rule, and never restates a domain schema.
   the rejected answer and one clause per violation. The answer travels back
   because a provider call is stateless: without it the model has nothing to
   correct and the pass is a blind retry wearing a repair's name. The clauses
-  are built from issue *codes*, never from issue messages — a validator's
+  are built from issue _codes_, never from issue messages — a validator's
   message is the one place a received value can appear.
 - `RepairPolicy` — the bound, explicit and injectable. **One** repair pass by
   default; `0` disables it. A repair is a full pass, so a rate limit hit during
@@ -153,7 +154,7 @@ narrative rule, and never restates a domain schema.
   carry another's text.
 - **Variables are declared and typed** — `text`, `number`, `list` — and all of
   them are required; an optional section is a `list`, and an empty one renders
-  as a dash. `currentPrompt(id)` is typed as the *last* version, so shipping a
+  as a dash. `currentPrompt(id)` is typed as the _last_ version, so shipping a
   version that adds a variable breaks every call site that does not supply it,
   at compile time. `registry.test.ts` checks the two directions no compiler
   can: every placeholder is declared, and every declared variable is used.
@@ -165,7 +166,7 @@ narrative rule, and never restates a domain schema.
   were filled with never is.
 - **The repair re-ask became a prompt** (`prompts/repair.ts`), scoped to the
   pipeline rather than to a mission: it serves every mission and names none.
-  The derived pass keeps the *mission* prompt's id and version, because
+  The derived pass keeps the _mission_ prompt's id and version, because
   `GenerationAttempt` has one `promptVersion` column and recording the repair
   resource's own would attribute the answer to the wrong prompt. `repair.ts`
   keeps the classification and the bound, and now holds no instruction to a
@@ -173,7 +174,7 @@ narrative rule, and never restates a domain schema.
 - **The comparison tool**: `comparePromptVersions(id, from, to)` returns the
   variable contract's changes — added, removed, retyped — and a line-level diff
   of both texts; `formatPromptComparison` renders it; `pnpm prompt:diff` is the
-  command. Two versions of the *same* prompt only: two different prompts share
+  command. Two versions of the _same_ prompt only: two different prompts share
   no variable set, so a diff of them says nothing about either.
 
 ## What exists (CAL-054)
@@ -242,7 +243,7 @@ narrative rule, and never restates a domain schema.
   the third rung has already stopped covering chapter by chapter. Enough parts
   to exceed the budget fails the composition rather than shedding one.
 - `context/summarize.ts` — the two summarising assemblies, and the place where
-  this engine's usual answer does not apply. A writing context is a *selection*
+  this engine's usual answer does not apply. A writing context is a _selection_
   from a memory, so when it does not fit there is always something less
   necessary to shed; a summarising context **is** its subject, and a summary of
   half a chapter reads exactly like a summary of the chapter. So
@@ -250,13 +251,22 @@ narrative rule, and never restates a domain schema.
   `composePartSummaryContext` has exactly one rung — detail falling back to
   brief for every chapter, which loses resolution and never loses a chapter.
 
+## What exists (CAL-056)
+
+- `pricing.ts` — the configurable tariff table: one entry per `ModelId`, USD
+  per million input/output tokens, and `estimateCostUsd(model, usage)`, the
+  one function that turns a measured `TokenUsage` into money. A decimal
+  string at `GenerationAttempt.estimatedCostUsd`'s own precision, never a
+  float. Reading and aggregating the cost this produces is
+  `@calepin/shared/repository`'s `readProjectCostSummary` — this layer prices
+  a call, it does not persist or sum one.
+
 ## What arrives in its own task
 
-Token accounting and pricing (CAL-056) · the credentials both adapters take,
-resolved from the validated config module by the process shell (CAL-060) ·
-context assemblies for the remaining missions, in the epics that own them
-(`check-coherence` in E13, `extract-facts` in E12), over the same `context/`
-engine.
+The credentials both adapters take, resolved from the validated config
+module by the process shell (CAL-060) · context assemblies for the remaining
+missions, in the epics that own them (`check-coherence` in E13,
+`extract-facts` in E12), over the same `context/` engine.
 
 ## Hard rules
 

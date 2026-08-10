@@ -86,6 +86,7 @@ export type {
   StructuredGenerationResult,
   TokenUsage,
 } from "./port";
+export { estimateCostUsd, MODEL_PRICING, type ModelPricing } from "./pricing";
 export {
   assertMissionPrompt,
   comparePrompts,
