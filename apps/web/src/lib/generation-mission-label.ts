@@ -2,8 +2,8 @@ import type { GenerationMission } from "@calepin/shared/repository";
 
 /**
  * The French label for a generation mission, same shape as
- * `project-status-label.ts`. Order matches the ten mission identifiers
- * CLAUDE.md's glossary lists (CAL-051).
+ * `project-status-label.ts`. Order matches the eleven mission identifiers
+ * CLAUDE.md's glossary lists (CAL-051, CAL-055).
  *
  * Presentation only: what a mission actually does belongs to the mission
  * registry (`@calepin/ai`, CAL-051), not here.
@@ -19,6 +19,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   CHECK_COHERENCE: "Contrôle de cohérence",
   FIX_ISSUE: "Correction d'un problème",
   SUMMARIZE_CHAPTER: "Résumé d'un chapitre",
+  SUMMARIZE_PART: "Résumé d'une partie",
 };
 
 export function generationMissionLabel(mission: GenerationMission): string {

@@ -94,6 +94,8 @@ model User {
   analysisAnnotations      AnalysisAnnotation[]      @relation("AnalysisAnnotationAuthor")
   biblesValidated          Bible[]                   @relation("BibleValidatedBy")
   chapterRevisionsCreated  ChapterRevision[]
+  chapterSummariesCreated  ChapterSummaryRevision[]
+  partSummariesCreated     PartSummaryRevision[]
   exportsRequested         Export[]                  @relation("ExportRequestedBy")
 
   /// The audit trail (CAL-022): every mutable row this account last modified.
@@ -1533,6 +1535,11 @@ model Part {
   outline  Outline   @relation(fields: [outlineId], references: [id], onDelete: Cascade)
   chapters Chapter[]
 
+  /// The summaries of what this part's chapters turned out to contain
+  /// (CAL-055) — append-only, and retrospective where the four attributes
+  /// above are the plan.
+  summaryRevisions PartSummaryRevision[]
+
   // The target of Chapter's part key.
   @@unique([outlineId, id])
   // A model may name a part and business code resolves the primary key
@@ -1850,6 +1857,8 @@ model ChapterRevision {
 
   /// The passages of this revision a quality issue points at (CAL-021).
   qualityIssuePassages QualityIssuePassage[]
+  /// The summaries made *from* this revision (CAL-055).
+  summaries            ChapterSummaryRevision[]
 
   // Also the index the current revision is read by. Two concurrent writes
   // collide here as a unique violation instead of silently losing one.
@@ -1861,6 +1870,116 @@ model ChapterRevision {
   // and Chapter already carry.
   @@unique([chapterId, id])
   @@map("chapter_revisions")
+}
+
+/// The two summaries of one chapter (CAL-055) — append-only, like the text they
+/// are made from.
+///
+/// The pair is one row rather than two, because they are produced by one pass
+/// over one revision and are only ever true together: a brief summary of
+/// revision 4 sitting beside a detailed summary of revision 2 is a memory that
+/// contradicts itself, and there is no constraint that could forbid it once the
+/// two are separate rows.
+///
+/// **The foreign key names the revision, not the chapter.** A summary is made
+/// *from* a state of the text, so `[chapterId, chapterRevisionId]` points at
+/// ChapterRevision's own `@@unique([chapterId, id])` — which is what makes a
+/// summary of another chapter's revision unstorable rather than merely
+/// unlikely, the pattern ChapterOutline and QualityIssuePassage already use.
+/// It is also the provenance CAL-134 reads: the summary is in doubt when the
+/// chapter has a revision newer than the one named here, and that is a
+/// comparison of two numbers, never a judgement about the prose.
+///
+/// There is deliberately no `origin` enum beside ChapterRevision's. This table
+/// has one producer — the summarising mission — and `generationId` already
+/// separates a generated row from one written by hand. A second member nothing
+/// writes is a decision taken early and paid for twice.
+///
+/// The current summary of a chapter is the one with the highest revisionNumber,
+/// and there is no `isCurrent` column, for the reason ChapterRevision records.
+model ChapterSummaryRevision {
+  id                String @id @default(cuid())
+  chapterId         String
+  chapterRevisionId String
+
+  revisionNumber  Int
+  /// Résumé court — ~50 words, the one every distant chapter is remembered by.
+  briefSummary    String
+  /// Résumé détaillé — ~200 words, carried for the nearest chapters only.
+  detailedSummary String
+
+  /// Counted at write time by `countWords`, never supplied by the caller. Word
+  /// counts are among the few things §9 lets a log carry, which is what makes
+  /// a compression pass observable without quoting a line of it.
+  briefWordCount    Int
+  detailedWordCount Int
+
+  /// The generation that produced this row (CAL-021), null for a row written
+  /// directly — a seed, a fixture, an import. Same link, and the same reason,
+  /// as ChapterRevision.generationId.
+  generationId String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  // Cascade through the revision rather than through the chapter: there is one
+  // path to Chapter and it is this one, so a chapter deletion still takes its
+  // summaries (chapter -> chapter_revisions -> here, one subtree, one
+  // statement) and no second foreign key can disagree with the first about
+  // which chapter this row belongs to.
+  chapterRevision ChapterRevision @relation(fields: [chapterId, chapterRevisionId], references: [chapterId, id], onDelete: Cascade)
+  // Restrict, as ChapterRevision.createdBy already is: who asked for a version
+  // is the audit trail and must not be silently orphaned. Deleting a project
+  // still works — this table cascades away before the reference is checked.
+  createdBy       User            @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // SetNull: losing the trace must never cost the author their memory of a
+  // chapter.
+  generation      Generation?     @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  // Also the index the current summary is read by. Two concurrent summarising
+  // passes collide here as a unique violation instead of silently losing one.
+  @@unique([chapterId, revisionNumber])
+  // PostgreSQL does not index a foreign key on its own, and the obsolescence
+  // read walks this column.
+  @@index([chapterRevisionId])
+  @@map("chapter_summary_revisions")
+}
+
+/// The summary of one part (CAL-055) — append-only, and the level above the
+/// chapter in the same hierarchy.
+///
+/// It exists so a novel's distant past keeps costing something. A writing
+/// context can afford one summary per part where it cannot afford one per
+/// chapter, so when the composer's ladder drops the farthest chapter summaries
+/// the part still covers that span — which is the whole reason the hierarchy
+/// has two levels rather than one.
+///
+/// **No provenance column, deliberately.** A part summary is made from its
+/// chapters' current summaries, so naming one of them would name an arbitrary
+/// member of a set, and naming all of them is a link table for a question
+/// `createdAt` already answers: the part summary is in doubt when a chapter
+/// summary under it is newer. The same reading SourceTextObsolescence uses one
+/// level up, and for the same reason — provenance, never quality.
+model PartSummaryRevision {
+  id     String @id @default(cuid())
+  partId String
+
+  revisionNumber Int
+  summary        String
+  /// Counted at write time, like the chapter's.
+  wordCount      Int
+
+  generationId String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  part       Part        @relation(fields: [partId], references: [id], onDelete: Cascade)
+  createdBy  User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@unique([partId, revisionNumber])
+  @@map("part_summary_revisions")
 }
 
 /// The three states of a narrative thread (CAL-020), in the command's own
@@ -1991,6 +2110,7 @@ enum GenerationMission {
   CHECK_COHERENCE // contrôler la cohérence
   FIX_ISSUE // corriger un problème ciblé
   SUMMARIZE_CHAPTER // résumer un chapitre
+  SUMMARIZE_PART // résumer une partie
 
   @@map("generation_mission")
 }
@@ -2133,6 +2253,9 @@ model Generation {
   /// What this generation produced, when it produced a versioned entity.
   analysisSectionRevisions AnalysisSectionRevision[]
   chapterRevisions         ChapterRevision[]
+  /// The summaries this generation produced (CAL-055).
+  chapterSummaryRevisions  ChapterSummaryRevision[]
+  partSummaryRevisions     PartSummaryRevision[]
   /// The quality issues this generation surfaced, when it was a CHECK_COHERENCE
   /// run (CAL-021).
   qualityIssues            QualityIssue[]

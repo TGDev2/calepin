@@ -49,6 +49,27 @@ export interface PrecedingChapterSummary {
 }
 
 /**
+ * One preceding part, represented by its summary — the coarse level of the
+ * memory (CAL-055).
+ *
+ * `distance` is structural recency in *parts*: 1 is the part immediately before
+ * the target chapter's own. Only parts entirely behind the target are offered;
+ * the part the chapter is being written into is represented by its chapters,
+ * which are all the composer has of it and all it should have.
+ *
+ * There is no `briefSummary`/`detailedSummary` pair here on purpose. A part has
+ * one summary because it is already the compressed level: a second, longer one
+ * would be the chapter summaries again, at the price of the thing they were
+ * compressed to avoid.
+ */
+export interface PartSummary {
+  readonly id: string;
+  /** 1 = the part immediately before the target chapter's own; always ≥ 1. */
+  readonly distance: number;
+  readonly summary: string;
+}
+
+/**
  * A verbatim earlier passage continuity requires — *extrait nécessaire*.
  *
  * `priority` is caller-assigned, 1 being the most necessary; the composer
@@ -87,8 +108,49 @@ export interface SceneContextInput {
   /** The `Character` and `Place` ids the target outline names. */
   readonly outlineEntityIds: readonly string[];
   readonly canonFacts: readonly CanonFactCandidate[];
+  /** The summaries of the parts entirely behind the target chapter (CAL-055). */
+  readonly precedingParts: readonly PartSummary[];
   readonly precedingChapters: readonly PrecedingChapterSummary[];
   readonly continuityExcerpts: readonly ContinuityExcerptCandidate[];
+}
+
+/**
+ * What `composeChapterSummaryContext` needs (CAL-055).
+ *
+ * The word targets are the domain's — `@calepin/manuscript` owns them, because
+ * they are also the bound its schema validates the answer against, and one
+ * number stated twice is one number that will disagree with itself. This layer
+ * renders what it is handed.
+ */
+export interface ChapterSummaryContextInput {
+  readonly language: string;
+  /** The revision being summarised, in full: it is the subject, not context. */
+  readonly chapterText: string;
+  readonly briefWordTarget: number;
+  readonly detailedWordTarget: number;
+}
+
+/** One already-summarised chapter, offered to the part composition. */
+export interface PartSummaryChapter {
+  readonly id: string;
+  readonly briefSummary: string;
+  readonly detailedSummary?: string;
+}
+
+/**
+ * What `composePartSummaryContext` needs (CAL-055).
+ *
+ * `chapters` arrives in reading order and stays in it: a part's arc is the
+ * order of what happened, and sorting here would be this layer deciding
+ * something narrative (§5.7). No chapter text has a field.
+ */
+export interface PartSummaryContextInput {
+  readonly language: string;
+  readonly partTitle: string;
+  readonly wordTarget: number;
+  /** The part's planning attributes, already phrased; empty when it has none. */
+  readonly plannedArc: readonly string[];
+  readonly chapters: readonly PartSummaryChapter[];
 }
 
 /**
@@ -108,6 +170,12 @@ export interface ContextCompositionReport {
   /** Ladder steps walked before the estimate fit. 0 = nothing degraded. */
   readonly degradationStepsApplied: number;
   readonly facts: { readonly offered: number; readonly selected: number };
+  /**
+   * Part summaries carried. There is no `dropped` counterpart: they are not
+   * degradable, so offered and selected are the same number by construction —
+   * stated as one field rather than as two that can never differ.
+   */
+  readonly partSummaries: number;
   readonly summaries: {
     readonly offered: number;
     readonly detailed: number;

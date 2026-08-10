@@ -204,6 +204,28 @@ export async function createProjectGraph(
     },
   });
 
+  const chapterSummary = await prisma.chapterSummaryRevision.create({
+    data: {
+      chapterId: chapter.id,
+      chapterRevisionId: chapterRevision.id,
+      revisionNumber: 1,
+      briefSummary: "fixture",
+      detailedSummary: "fixture",
+      briefWordCount: 1,
+      detailedWordCount: 1,
+      createdById: user.id,
+    },
+  });
+  const partSummary = await prisma.partSummaryRevision.create({
+    data: {
+      partId: part.id,
+      revisionNumber: 1,
+      summary: "fixture",
+      wordCount: 1,
+      createdById: user.id,
+    },
+  });
+
   const thread = await prisma.thread.create({
     data: {
       outlineId: outline.id,
@@ -297,6 +319,8 @@ export async function createProjectGraph(
       ChapterOutlineCharacter: outlineCharacter.id,
       ChapterOutlineFact: outlineFact.id,
       ChapterRevision: chapterRevision.id,
+      ChapterSummaryRevision: chapterSummary.id,
+      PartSummaryRevision: partSummary.id,
       Thread: thread.id,
       ThreadContinuation: continuation.id,
       Generation: generation.id,

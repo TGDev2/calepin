@@ -64,6 +64,14 @@ export const ERROR_CODES = [
    * which is a state the caller can repair, not a bug it can only report.
    */
   "ILLEGAL_STATUS_TRANSITION",
+  /**
+   * A chapter was asked for its summaries before it was validated (CAL-055).
+   * `conflict` rather than `validation`: nothing about the request is
+   * malformed, the chapter is simply not yet in a state where summarising it
+   * means anything — and the remedy is an action the author takes, not a field
+   * they correct.
+   */
+  "CHAPTER_NOT_VALIDATED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -181,6 +189,7 @@ export const CATEGORY_BY_CODE = {
   STALE_REVISION: "conflict",
   GENERATION_CANCELLED: "conflict",
   ILLEGAL_STATUS_TRANSITION: "conflict",
+  CHAPTER_NOT_VALIDATED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

@@ -33,6 +33,7 @@ import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
 import { FIX_ISSUE_PROMPTS } from "./missions/fix-issue";
 import { PROPOSE_DIRECTIONS_PROMPTS } from "./missions/propose-directions";
 import { SUMMARIZE_CHAPTER_PROMPTS } from "./missions/summarize-chapter";
+import { SUMMARIZE_PART_PROMPTS } from "./missions/summarize-part";
 import { WRITE_SCENE_PROMPTS } from "./missions/write-scene";
 import { REPAIR_STRUCTURED_OUTPUT_PROMPTS } from "./repair";
 import type { PromptDefinition, PromptId } from "./types";
@@ -53,6 +54,7 @@ export const PROMPT_REGISTRY = {
   "check-coherence": CHECK_COHERENCE_PROMPTS,
   "fix-issue": FIX_ISSUE_PROMPTS,
   "summarize-chapter": SUMMARIZE_CHAPTER_PROMPTS,
+  "summarize-part": SUMMARIZE_PART_PROMPTS,
   "repair-structured-output": REPAIR_STRUCTURED_OUTPUT_PROMPTS,
 } as const satisfies PromptRegistry;
 

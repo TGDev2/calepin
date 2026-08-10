@@ -125,4 +125,44 @@ describe("the provider-SDK boundary", () => {
       expect(await restrictedImportsAt(home, sharedImport)).toEqual([]);
     }
   }, 15_000);
+
+  /**
+   * The other direction of the same rule, and the one that was quietly broken
+   * until CAL-055 exercised it.
+   *
+   * `ai` — the Vercel SDK — is banned by name, and ESLint matches a `group`
+   * entry with minimatch's `matchBase`, so a pattern with no slash is compared
+   * against the *basename* of the specifier. `@calepin/ai`'s basename is `ai`,
+   * so the rule refused this repository's own AI layer everywhere: in every
+   * domain package, which §3.2 lets depend on it, and in `apps/web`, which may
+   * depend on anything. No file had ever imported it, so nothing failed.
+   *
+   * A ban that also forbids the thing it exists to route callers *towards* is
+   * worth a test of its own, because the next person to hit it will read the
+   * message and conclude the architecture forbids the import.
+   */
+  it("still lets its callers reach @calepin/ai itself", async () => {
+    const aiLayerImport = 'import { MISSION_IDS } from "@calepin/ai";';
+
+    for (const path of [
+      "packages/manuscript/src/index.ts",
+      "packages/bible/src/index.ts",
+      "packages/coherence/src/index.ts",
+      "apps/web/src/lib/current-user.ts",
+    ]) {
+      expect(await restrictedImportsAt(path, aiLayerImport), path).toEqual([]);
+    }
+  }, 15_000);
+
+  it("keeps refusing the Vercel SDK the bare name belongs to", async () => {
+    for (const source of [
+      'import { generateText } from "ai";',
+      'import { tool } from "ai/tools";',
+    ]) {
+      expect(
+        await restrictedImportsAt("packages/manuscript/src/index.ts", source),
+        source,
+      ).toHaveLength(1);
+    }
+  }, 15_000);
 });

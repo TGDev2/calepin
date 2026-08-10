@@ -1159,6 +1159,105 @@ describe("prisma schema", () => {
       });
     });
 
+    // CAL-055. The two levels of the summary hierarchy — the memory every later
+    // chapter is written against, versioned exactly like the text it is made
+    // from.
+    describe("the hierarchical summaries", () => {
+      it("carries both summaries of a chapter on one row, with their word counts", () => {
+        const summary = modelBlock("ChapterSummaryRevision");
+
+        for (const field of [
+          "briefSummary",
+          "detailedSummary",
+          "briefWordCount",
+          "detailedWordCount",
+        ]) {
+          expect(summary).toMatch(new RegExp(`^\\s*${field}\\s+(String|Int)(?!\\?)`, "m"));
+        }
+      });
+
+      // One row rather than two, and the reason is that they can never be
+      // separately true: a brief summary of revision 4 beside a detailed one of
+      // revision 2 is a memory that contradicts itself, and no constraint could
+      // forbid it once the two are separate rows.
+      it("keeps a chapter's two summaries inseparable", () => {
+        expect(requiredScalarFields("ChapterSummaryRevision")).toEqual([
+          "id",
+          "chapterId",
+          "chapterRevisionId",
+          "revisionNumber",
+          "briefSummary",
+          "detailedSummary",
+          "briefWordCount",
+          "detailedWordCount",
+          "createdById",
+        ]);
+      });
+
+      // The provenance the whole design turns on: a summary is made *from* a
+      // state of the text, so the foreign key names the revision through
+      // ChapterRevision's own (chapterId, id) key. A summary of another
+      // chapter's revision is then unstorable rather than merely unlikely.
+      it("names the revision it summarises, through the chapter that owns it", () => {
+        expect(modelBlock("ChapterSummaryRevision")).toMatch(
+          /chapterRevision\s+ChapterRevision\s+@relation\(fields: \[chapterId, chapterRevisionId\], references: \[chapterId, id\]/,
+        );
+        expect(modelBlock("ChapterRevision")).toMatch(/@@unique\(\[chapterId, id\]\)/);
+      });
+
+      // There is exactly one path from a chapter summary to a chapter, and it
+      // is the one above. A second relation to Chapter could disagree with it.
+      it("reaches a chapter only through that revision", () => {
+        expect(modelBlock("ChapterSummaryRevision")).not.toMatch(
+          /^\s*chapter\s+Chapter\s+@relation/m,
+        );
+      });
+
+      it("appends numbered revisions at both levels and keeps no current flag", () => {
+        const levels: [string, string][] = [
+          ["ChapterSummaryRevision", "chapterId"],
+          ["PartSummaryRevision", "partId"],
+        ];
+
+        for (const [model, parent] of levels) {
+          const block = modelBlock(model);
+
+          expect(block).toMatch(/^\s*revisionNumber\s+Int(?!\?)/m);
+          expect(block).toMatch(new RegExp(`@@unique\\(\\[${parent}, revisionNumber\\]\\)`));
+          expect(block).not.toMatch(/^\s*(isCurrent|current|isLatest)\s/m);
+          expect(block).not.toMatch(/^\s*updatedAt\s/m);
+        }
+      });
+
+      // A part has one summary, not a brief/detailed pair: it is already the
+      // compressed level, and a longer one would be its chapters again.
+      it("gives a part one summary and no second resolution of it", () => {
+        const summary = modelBlock("PartSummaryRevision");
+
+        expect(summary).toMatch(/^\s*summary\s+String(?!\?)/m);
+        expect(summary).not.toMatch(/^\s*(briefSummary|detailedSummary)\s/m);
+      });
+
+      // No provenance column on the part, deliberately: naming one chapter
+      // summary would name an arbitrary member of a set, and createdAt already
+      // answers "is this older than a summary underneath it".
+      it("leaves the part summary's freshness to its timestamp", () => {
+        const summary = modelBlock("PartSummaryRevision");
+
+        expect(summary).toMatch(/^\s*createdAt\s+DateTime @default\(now\(\)\)/m);
+        expect(summary).not.toMatch(/^\s*(chapterSummaryRevisionId|sourceSummaryId)\s/m);
+      });
+
+      it("refuses to orphan the author, and survives losing the generation", () => {
+        for (const model of ["ChapterSummaryRevision", "PartSummaryRevision"]) {
+          expect(modelBlock(model)).toMatch(/createdBy\s+User\s+@relation\([^)]*Restrict/);
+          expect(modelBlock(model)).toMatch(
+            /generation\s+Generation\?\s+@relation\([^)]*onDelete: SetNull/,
+          );
+        }
+      });
+    });
+
     describe("staying inside one project", () => {
       it("ties a chapter to an outline written against its own bible", () => {
         expect(modelBlock("Chapter")).toMatch(/references: \[bibleId, id\]/);
@@ -1204,6 +1303,8 @@ describe("prisma schema", () => {
         ["ChapterOutlineCharacter", "chapter_outline_characters"],
         ["ChapterOutlineFact", "chapter_outline_facts"],
         ["ChapterRevision", "chapter_revisions"],
+        ["ChapterSummaryRevision", "chapter_summary_revisions"],
+        ["PartSummaryRevision", "part_summary_revisions"],
       ];
 
       for (const [model, table] of tables) {
@@ -1342,10 +1443,10 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The ten of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The eleven of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the ten missions of the registry, and only those", () => {
+      it("declares the eleven missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "PROPOSE_DIRECTIONS",
@@ -1357,6 +1458,7 @@ describe("prisma schema", () => {
           "CHECK_COHERENCE",
           "FIX_ISSUE",
           "SUMMARIZE_CHAPTER",
+          "SUMMARIZE_PART", // CAL-055
         ]);
       });
 
@@ -1708,6 +1810,8 @@ describe("audit fields (CAL-022)", () => {
     "ChapterOutlineCharacter",
     "ChapterOutlineFact",
     "ChapterRevision",
+    "ChapterSummaryRevision",
+    "PartSummaryRevision",
     "ThreadContinuation",
     "GenerationAttempt",
     "QualityIssuePassage",

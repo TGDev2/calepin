@@ -20,7 +20,7 @@
 
 import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
-import { succeed } from "@calepin/shared/errors";
+import { fail, NotFoundError, succeed } from "@calepin/shared/errors";
 import {
   computeProjectAggregates,
   createProject,
@@ -48,6 +48,7 @@ import {
   type UpdateProjectInput,
   updateSourceText,
   withProjectAggregates,
+  withProjectTransaction,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -91,6 +92,7 @@ const ENTRY_POINTS = [
   "updateSourceText",
   "withProjectAggregates",
   "withProjectStatus",
+  "withProjectTransaction",
 ];
 
 /** Its pure helpers: they build or check a value and reach nothing. */
@@ -449,6 +451,90 @@ describe("owner access policy", () => {
       const mine = await computeProjectAggregates(aliceScope);
       expect(mine.ok).toBe(true);
       if (mine.ok) expect(mine.value).toEqual({ writtenChapterCount: 1, totalWordCount: 1 });
+    });
+
+    /**
+     * CAL-055's seam, and the one entry point here that protects nothing by
+     * itself.
+     *
+     * `withProjectTransaction` deliberately takes no lock and re-proves no
+     * ownership: it opens a transaction and hands out a client, so that a
+     * domain repository whose write moves no derived column has a seam to write
+     * through without holding a database client of its own (§3.5). What
+     * protects the rows is the `scopedWhere` on each statement inside it, and
+     * that is exactly what is asserted — the body runs for a forged scope, and
+     * still reaches nothing.
+     *
+     * A forged scope that got this far would be caught by `assertProjectScope`
+     * before the transaction opens; a *genuine* scope on the intruder's own
+     * project is the harder case, and the one below.
+     */
+    it("the plain transaction seam refuses a forged scope and scopes what it opens", async () => {
+      const forged = forgedScope(bob.ownerId, alice.projectId);
+
+      let ranUnderForgedScope = false;
+      const wrapped = await withProjectTransaction(forged, async () => {
+        ranUnderForgedScope = true;
+        return succeed();
+      });
+
+      expect(wrapped.ok).toBe(false);
+      expect(ranUnderForgedScope).toBe(false);
+
+      // With a scope that is genuinely bob's, the transaction opens — and the
+      // statements inside it still reach none of alice's rows, because the
+      // filter names the owner rather than the project alone.
+      const scoped = await withProjectTransaction(bobScope, async (tx) =>
+        succeed(
+          await tx.chapterRevision.count({
+            where: scopedWhere("ChapterRevision", bobScope, { id: alice.rows.ChapterRevision }),
+          }),
+        ),
+      );
+
+      expect(scoped.ok).toBe(true);
+      if (scoped.ok) expect(scoped.value).toBe(0);
+
+      // The same statement against his own row finds it, so the zero above
+      // means "not yours" rather than "the query was wrong".
+      const own = await withProjectTransaction(bobScope, async (tx) =>
+        succeed(
+          await tx.chapterRevision.count({
+            where: scopedWhere("ChapterRevision", bobScope, { id: bob.rows.ChapterRevision }),
+          }),
+        ),
+      );
+
+      expect(own.ok).toBe(true);
+      if (own.ok) expect(own.value).toBe(1);
+    });
+
+    // A failing `Result` from the body rolls the transaction back rather than
+    // committing it — Prisma rolls back on a throw and on nothing else, so this
+    // is what keeps "writes nothing at all" (§6) true of a multi-statement body.
+    it("rolls the transaction back when the body reports a failure", async () => {
+      const before = await prisma.partSummaryRevision.count({
+        where: { partId: bob.rows.Part },
+      });
+
+      const rolled = await withProjectTransaction(bobScope, async (tx) => {
+        await tx.partSummaryRevision.create({
+          data: {
+            partId: bob.rows.Part,
+            revisionNumber: 99,
+            summary: "fixture",
+            wordCount: 1,
+            createdById: bob.ownerId,
+          },
+        });
+
+        return fail(new NotFoundError({ message: "the body decided to fail after writing" }));
+      });
+
+      expect(rolled.ok).toBe(false);
+      expect(await prisma.partSummaryRevision.count({ where: { partId: bob.rows.Part } })).toBe(
+        before,
+      );
     });
 
     // CAL-046. These four are the only entry points that read or write the

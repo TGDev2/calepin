@@ -182,9 +182,15 @@ importers:
 
   packages/manuscript:
     dependencies:
+      '@calepin/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@calepin/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/outline:
     dependencies:

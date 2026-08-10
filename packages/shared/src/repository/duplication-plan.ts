@@ -190,6 +190,23 @@ export const DUPLICATION_PLAN = [
     model: "ChapterRevision",
     references: { chapterId: "Chapter", generationId: "Generation", createdById: "User" },
   },
+  // The summaries travel with the text they were made from (CAL-055). They are
+  // work the copy would otherwise have to pay a model to redo, and the memory
+  // every later chapter of the copy is written against; leaving them behind
+  // would hand the duplicate a manuscript with no past.
+  {
+    model: "ChapterSummaryRevision",
+    references: {
+      chapterId: "Chapter",
+      chapterRevisionId: "ChapterRevision",
+      generationId: "Generation",
+      createdById: "User",
+    },
+  },
+  {
+    model: "PartSummaryRevision",
+    references: { partId: "Part", generationId: "Generation", createdById: "User" },
+  },
 
   {
     model: "Thread",

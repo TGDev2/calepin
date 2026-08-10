@@ -1,14 +1,22 @@
 /**
  * The dynamic context composer (CAL-054) — §5.8 made structural.
  *
- * For the writing mission it assembles the seven ingredients — the permanent
- * instructions (the prompt's own text), the relevant bible section, the target
- * chapter's plan, the canon facts actually concerned, the preceding chapters'
- * summaries, the excerpts continuity strictly requires, and the author's
- * request — into the current `write-scene` prompt, under the mission's
+ * For the writing mission it assembles the seven ingredients §5.8 names — the
+ * permanent instructions (the prompt's own text), the relevant bible section,
+ * the target chapter's plan, the canon facts actually concerned, the preceding
+ * chapters' summaries, the excerpts continuity strictly requires, and the
+ * author's request — into the current `write-scene` prompt, under the mission's
  * declared budget. The full text of a preceding chapter has no way in: no
  * input field carries it, and every field that carries prose has a ceiling an
  * entire chapter cannot pass.
+ *
+ * CAL-055 added a second resolution of the fifth: the preceding *parts'*
+ * summaries, carried beside the chapters' and never degraded. It is not an
+ * eighth ingredient so much as the coarse end of one — and it is what makes
+ * ladder step 3 honest. Dropping the farthest chapter summaries used to leave
+ * the early novel unrepresented; now it leaves it represented at part
+ * granularity, which is what a memory independent of the raw text is supposed
+ * to look like.
  *
  * The budget is measured on the **rendered** prompt — the exact text a
  * provider would receive — by walking the degradation ladder until the
@@ -65,6 +73,11 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
   const excerpts = selectContinuityExcerpts(input.continuityExcerpts);
   // Story order — farthest first — so the model reads the past in sequence.
   const summaries = [...input.precedingChapters].sort((a, b) => b.distance - a.distance);
+  // The coarse level, in the same order and never selected down: every part
+  // behind the target is carried, because that is what makes dropping the
+  // farthest chapter summaries survivable (CAL-055, `DEGRADABLE_ITEM_KINDS`).
+  const parts = [...input.precedingParts].sort((a, b) => b.distance - a.distance);
+  const partSummaries = parts.map((part) => part.summary);
 
   const definition = currentPrompt("write-scene");
   const budgetTokens = MISSION_REGISTRY["write-scene"].contextBudgetTokens;
@@ -92,6 +105,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
       authorInstructions: input.authorInstructions,
       freedomConstraints: input.freedomConstraints,
       canonFacts: facts.map((fact) => fact.statement),
+      partSummaries,
       precedingSummaries: keptSummaries.map((chapter) =>
         carriesDetail(chapter, state)
           ? (chapter.detailedSummary ?? chapter.briefSummary)
@@ -113,6 +127,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
           estimatedTokens,
           degradationStepsApplied: step,
           facts: { offered: input.canonFacts.length, selected: facts.length },
+          partSummaries: parts.length,
           summaries: {
             offered: input.precedingChapters.length,
             detailed: detailedCount,
@@ -158,6 +173,11 @@ function findOversizedItem(input: SceneContextInput): string | undefined {
       kind: "canonFact" as const,
       path: `canonFacts.${fact.id}`,
       text: fact.statement,
+    })),
+    ...input.precedingParts.map((part) => ({
+      kind: "partSummary" as const,
+      path: `precedingParts.${part.id}`,
+      text: part.summary,
     })),
     ...input.precedingChapters.flatMap((chapter) => [
       {

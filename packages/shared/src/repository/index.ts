@@ -97,3 +97,4 @@ export {
   updateSourceText,
   type UpdateSourceTextInput,
 } from "./source-text";
+export { withProjectTransaction } from "./transaction";

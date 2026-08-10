@@ -26,6 +26,9 @@ const REACH_INTO_SRC_PATTERN = {
 // CAL-048). The list names every SDK a call site could plausibly reach for —
 // first-party clients, cloud gateways and meta-frameworks alike; extend it
 // rather than argue a new one is unlikely.
+const PROVIDER_SDK_MESSAGE =
+  "A model provider SDK lives only in @calepin/ai's adapters (CLAUDE.md §5, CAL-048). Go through the provider port instead.";
+
 const PROVIDER_SDK_PATTERN = {
   group: [
     "@anthropic-ai/*",
@@ -43,11 +46,24 @@ const PROVIDER_SDK_PATTERN = {
     "groq-sdk",
     "together-ai",
     "ollama",
-    "ai",
     "@ai-sdk/*",
   ],
-  message:
-    "A model provider SDK lives only in @calepin/ai's adapters (CLAUDE.md §5, CAL-048). Go through the provider port instead.",
+  message: PROVIDER_SDK_MESSAGE,
+};
+
+// The Vercel AI SDK is published as the bare name `ai`, and that one cannot go
+// in the group above. ESLint matches a `group` entry with minimatch's
+// `matchBase`, so a pattern containing no slash is compared against the
+// *basename* of the specifier — and the basename of `@calepin/ai` is `ai`. The
+// bare entry therefore banned this repository's own AI layer everywhere,
+// including `apps/web`, which §3.2 explicitly allows to import it. It went
+// unnoticed until CAL-055 made `@calepin/manuscript` the first domain package
+// to declare the dependency §3.2 has always permitted; the symptom named the
+// provider-SDK rule, which is the last rule anyone would suspect of matching a
+// workspace package. An anchored regex is exact and has no basename fallback.
+const VERCEL_AI_SDK_PATTERN = {
+  regex: "^ai(/.*)?$",
+  message: PROVIDER_SDK_MESSAGE,
 };
 
 // @calepin/ai owns mechanics, never narrative meaning (CLAUDE.md §5.7): it may
@@ -69,6 +85,7 @@ const domainBoundaryOverrides = DOMAINS.map((domain) => ({
         patterns: [
           REACH_INTO_SRC_PATTERN,
           PROVIDER_SDK_PATTERN,
+          VERCEL_AI_SDK_PATTERN,
           {
             group: DOMAINS.filter((other) => other !== domain).map((other) => `@calepin/${other}`),
             message:
@@ -97,7 +114,7 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          patterns: [REACH_INTO_SRC_PATTERN, PROVIDER_SDK_PATTERN],
+          patterns: [REACH_INTO_SRC_PATTERN, PROVIDER_SDK_PATTERN, VERCEL_AI_SDK_PATTERN],
         },
       ],
     },
@@ -113,7 +130,12 @@ const eslintConfig = defineConfig([
       "no-restricted-imports": [
         "error",
         {
-          patterns: [REACH_INTO_SRC_PATTERN, PROVIDER_SDK_PATTERN, AI_DOMAIN_PATTERN],
+          patterns: [
+            REACH_INTO_SRC_PATTERN,
+            PROVIDER_SDK_PATTERN,
+            VERCEL_AI_SDK_PATTERN,
+            AI_DOMAIN_PATTERN,
+          ],
         },
       ],
     },
@@ -144,6 +166,7 @@ const eslintConfig = defineConfig([
           patterns: [
             REACH_INTO_SRC_PATTERN,
             PROVIDER_SDK_PATTERN,
+            VERCEL_AI_SDK_PATTERN,
             {
               group: ["@calepin/*"],
               message: "@calepin/shared must depend on nothing.",
@@ -195,6 +218,7 @@ const eslintConfig = defineConfig([
           patterns: [
             REACH_INTO_SRC_PATTERN,
             PROVIDER_SDK_PATTERN,
+            VERCEL_AI_SDK_PATTERN,
             {
               group: [
                 "@prisma/client",

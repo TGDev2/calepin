@@ -81,6 +81,12 @@ function chapterTwelveInput(overrides: Partial<SceneContextInput> = {}): SceneCo
         subjectIds: ["char-z"],
       },
     ],
+    // Chapters 1-4 and 5-8 are behind the target; 9-12 is the part being
+    // written into, and is represented by its chapters alone (CAL-055).
+    precedingParts: [
+      { id: "part-1", distance: 2, summary: "Résumé de la première partie : marqueur-partie-1." },
+      { id: "part-2", distance: 1, summary: "Résumé de la deuxième partie : marqueur-partie-2." },
+    ],
     precedingChapters,
     continuityExcerpts: [
       { id: "end-of-11", distance: 1, priority: 1, text: fullChapterText(11).slice(-600) },
@@ -251,6 +257,7 @@ describe("composeSceneContext — the degradation ladder", () => {
       composeSceneContext(
         chapterTwelveInput({
           canonFacts: [],
+          precedingParts: [],
           precedingChapters: [],
           continuityExcerpts: [],
           outlineEntityIds: [],
@@ -260,7 +267,95 @@ describe("composeSceneContext — the degradation ladder", () => {
 
     expect(report.degradationStepsApplied).toBe(0);
     expect(report.facts).toEqual({ offered: 0, selected: 0 });
+    expect(report.partSummaries).toBe(0);
     expect(report.summaries).toEqual({ offered: 0, detailed: 0, brief: 0, dropped: 0 });
     expect(report.excerpts).toEqual({ offered: 0, selected: 0 });
+  });
+});
+
+/**
+ * CAL-055 — the coarse level of the memory, and the reason the rung above is
+ * survivable.
+ */
+describe("composeSceneContext — the part summaries", () => {
+  it("carries every preceding part, in story order, farthest first", () => {
+    const { prompt, report } = unwrap(composeSceneContext(chapterTwelveInput()));
+
+    expect(report.partSummaries).toBe(2);
+    expect(prompt.text).toContain("marqueur-partie-1");
+    expect(prompt.text).toContain("marqueur-partie-2");
+    expect(prompt.text.indexOf("marqueur-partie-1")).toBeLessThan(
+      prompt.text.indexOf("marqueur-partie-2"),
+    );
+  });
+
+  /**
+   * The load-bearing one. Dropping the farthest chapter summaries used to leave
+   * the early novel unrepresented; the whole point of the second level is that
+   * it no longer does. Same fixture as the ladder test above, plus the parts —
+   * and the assertion is that what survives the drop is the part, not nothing.
+   */
+  it("keeps covering the span whose chapter summaries the ladder dropped", () => {
+    const manyChapters: readonly PrecedingChapterSummary[] = Array.from({ length: 210 }, (_, i) => {
+      const distance = i + 1;
+      const label = `résumé-d${distance} `;
+
+      return {
+        id: `far-${distance}`,
+        distance,
+        briefSummary: label + "s".repeat(1_150 - label.length),
+      };
+    });
+
+    const { prompt, report } = unwrap(
+      composeSceneContext(
+        chapterTwelveInput({
+          precedingChapters: manyChapters,
+          continuityExcerpts: [],
+          canonFacts: [],
+        }),
+      ),
+    );
+
+    expect(report.summaries.dropped).toBeGreaterThan(0);
+    // The chapter summaries of the distant past are gone...
+    expect(prompt.text).not.toContain("résumé-d210 ");
+    // ...and both parts are still there, undegraded.
+    expect(report.partSummaries).toBe(2);
+    expect(prompt.text).toContain("marqueur-partie-1");
+    expect(prompt.text).toContain("marqueur-partie-2");
+  });
+
+  // Not on the ladder at all: a part summary stands for a whole part, so
+  // dropping one loses more novel per token than anything else on it. Enough
+  // parts to blow the budget fails the composition rather than shedding them.
+  it("fails rather than drop a part summary", () => {
+    const manyParts = Array.from({ length: 300 }, (_, i) => ({
+      id: `part-${i + 1}`,
+      distance: i + 1,
+      summary: "p".repeat(3_500),
+    }));
+
+    const failure = unwrapError(
+      composeSceneContext(chapterTwelveInput({ precedingParts: manyParts })),
+    );
+
+    expect(failure.code).toBe("CONTEXT_BUDGET_EXCEEDED");
+  });
+
+  // The same refusal the chapter summaries get, and for the same reason: a
+  // chapter travelling under a summary's name would be replayed into every
+  // later context.
+  it("refuses a part summary an entire part could hide in", () => {
+    const failure = unwrapError(
+      composeSceneContext(
+        chapterTwelveInput({
+          precedingParts: [{ id: "part-9", distance: 1, summary: fullChapterText(9) }],
+        }),
+      ),
+    );
+
+    expect(failure.code).toBe("CONTEXT_ITEM_OVERSIZED");
+    expect(failure.fieldPath).toBe("precedingParts.part-9");
   });
 });

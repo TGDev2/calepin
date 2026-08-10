@@ -19,3 +19,36 @@ export {
   restoreChapterRevision,
   type RestoreChapterRevisionInput,
 } from "./chapter/revision";
+export {
+  type AppendChapterSummaryInput,
+  appendChapterSummaryRevision,
+  type AppendPartSummaryInput,
+  appendPartSummaryRevision,
+  type ChapterSummarySnapshot,
+  type ChapterSummarySubject,
+  type PartSummarySnapshot,
+  type PartSummarySubject,
+  type PrecedingSummaries,
+  readChapterSummarySubject,
+  readCurrentChapterSummary,
+  readPartSummarySubject,
+  readPrecedingSummaries,
+} from "./summary/repository";
+export {
+  type ChapterSummary,
+  chapterSummarySchema,
+  CONTEXT_CHAR_CEILINGS,
+  type PartSummary,
+  partSummarySchema,
+  SUMMARY_CHAR_CEILINGS,
+  SUMMARY_WORD_TARGETS,
+} from "./summary/schema";
+export {
+  type RefreshedSummaries,
+  refreshSummariesForValidatedChapter,
+  SUMMARIZABLE_CHAPTER_STATUSES,
+  summarizeChapter,
+  type SummarizeChapterInput,
+  summarizePart,
+  type SummarizePartInput,
+} from "./summary/summarize";

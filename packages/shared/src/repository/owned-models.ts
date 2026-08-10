@@ -87,6 +87,14 @@ export const PROJECT_OWNED_MODELS = {
     path: ["chapterOutline", "chapter", "outline", "project"],
   },
   ChapterRevision: { table: "chapter_revisions", path: ["chapter", "outline", "project"] },
+  // Through the revision it summarises, which is the only path this model has
+  // to a chapter — the point of naming the revision rather than the chapter
+  // (CAL-055).
+  ChapterSummaryRevision: {
+    table: "chapter_summary_revisions",
+    path: ["chapterRevision", "chapter", "outline", "project"],
+  },
+  PartSummaryRevision: { table: "part_summary_revisions", path: ["part", "outline", "project"] },
   Thread: { table: "threads", path: ["outline", "project"] },
   ThreadContinuation: { table: "thread_continuations", path: ["thread", "outline", "project"] },
 

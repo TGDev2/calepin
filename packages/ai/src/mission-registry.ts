@@ -251,7 +251,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the ten and the most frequent after `extract-facts`: one
+   * The cheapest of the eleven and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */
@@ -265,5 +265,28 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "manuscript" },
     contextBudgetTokens: 40_000,
     expectedUsage: { inputTokens: 10_000, outputTokens: 2_000 },
+  },
+
+  /**
+   * The level above (CAL-055): a part's arc, compressed out of its chapters'
+   * summaries rather than out of their prose.
+   *
+   * Cheaper than `summarize-chapter` on both sides. The input is already
+   * compressed — thirty chapters of brief and detailed summary come to well
+   * under the budget below — and the output is one summary rather than two, so
+   * the ceiling is halved. It runs once per validated chapter, like its
+   * sibling, and it produces nothing a reader reads, which is the whole reason
+   * both stay on Sonnet.
+   */
+  "summarize-part": {
+    id: "summarize-part",
+    model: "claude-sonnet-5",
+    fallbackModel: "anthropic.claude-sonnet-5",
+    effort: "low",
+    maxOutputTokens: 2_000,
+    timeoutMs: 120_000,
+    output: { kind: "structured", schemaOwner: "manuscript" },
+    contextBudgetTokens: 30_000,
+    expectedUsage: { inputTokens: 8_000, outputTokens: 1_000 },
   },
 } as const satisfies MissionRegistry;

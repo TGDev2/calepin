@@ -79,11 +79,12 @@ narrative rule, and never restates a domain schema.
   | `check-coherence`        | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
   | `fix-issue`              | Opus 5   | medium | 16 k    | 300 s   | coherence  | 60 k   | 15 k / 6 k      |
   | `summarize-chapter`      | Sonnet 5 | low    | 4 k     | 120 s   | manuscript | 40 k   | 10 k / 2 k      |
+  | `summarize-part`         | Sonnet 5 | low    | 2 k     | 120 s   | manuscript | 30 k   | 8 k / 1 k       |
 
-  The backup is always the same model on Bedrock. Two missions leave Opus:
-  `extract-facts` and `summarize-chapter` run after every chapter and produce
-  no prose a reader reads, which is where the recurring cost is and where a
-  cheaper model changes nothing visible.
+  The backup is always the same model on Bedrock. Three missions leave Opus:
+  `extract-facts`, `summarize-chapter` and `summarize-part` run after every
+  validated chapter and produce no prose a reader reads, which is where the
+  recurring cost is and where a cheaper model changes nothing visible.
 
 - **The schema column is a reference, never a copy** (§5.5). A structured
   entry names the domain package that owns its Zod schema; the schema itself
@@ -212,13 +213,50 @@ narrative rule, and never restates a domain schema.
   product exists to prevent). A ladder that ends still over budget fails the
   whole composition (`CONTEXT_BUDGET_EXCEEDED`) and nothing is sent.
 
+## What exists (CAL-055)
+
+- **An eleventh mission**, `summarize-part`, and the second level of the
+  memory. A part summary is not a second call to `summarize-chapter`: §5.4
+  admits no general-purpose prompt, and compressing a part's arc out of its
+  chapters' summaries is a different instruction, a different input and a
+  different budget. A deterministic concatenation was considered and rejected —
+  twelve chapters at fifty words is longer than one detailed chapter summary
+  and compresses nothing, so it could not do the one job the level exists for.
+- `summarize-chapter` **V2**: it names the five kinds of material that carry
+  consequence — conséquences, décisions, révélations, changements d'état,
+  changements de relation — rather than leaving "what changes for the rest" to
+  be interpreted, which is exactly what `low` effort will not do reliably. The
+  two lengths arrive as variables, so the target the prompt states and the bound
+  the schema enforces are one number owned by `@calepin/manuscript`. V1 stays
+  beside it: an attempt that recorded version 1 must still resolve to the text
+  that produced it.
+- `write-scene` **V2**, one hole wider: `partSummaries`, rendered before the
+  chapter summaries and labelled as a coarser resolution of the same past —
+  read the other way round, a model treats the coarse list as a repetition of
+  the fine one and re-narrates it.
+- **Part summaries are never degraded.** The ladder still sheds detail, then
+  excerpts, then the farthest brief summaries; `DEGRADABLE_ITEM_KINDS` names
+  those three and says why the fourth is not among them. A part summary costs
+  about what one detailed chapter summary costs and stands for a whole part, so
+  dropping one is the worst trade on the board — and it is precisely the span
+  the third rung has already stopped covering chapter by chapter. Enough parts
+  to exceed the budget fails the composition rather than shedding one.
+- `context/summarize.ts` — the two summarising assemblies, and the place where
+  this engine's usual answer does not apply. A writing context is a *selection*
+  from a memory, so when it does not fit there is always something less
+  necessary to shed; a summarising context **is** its subject, and a summary of
+  half a chapter reads exactly like a summary of the chapter. So
+  `composeChapterSummaryContext` has no ladder at all, and
+  `composePartSummaryContext` has exactly one rung — detail falling back to
+  brief for every chapter, which loses resolution and never loses a chapter.
+
 ## What arrives in its own task
 
 Token accounting and pricing (CAL-056) · the credentials both adapters take,
 resolved from the validated config module by the process shell (CAL-060) ·
-context assemblies for the other missions, in the epics that own them
-(`check-coherence` in E13, `extract-facts` and `summarize-chapter` in E12),
-over the same `context/` engine.
+context assemblies for the remaining missions, in the epics that own them
+(`check-coherence` in E13, `extract-facts` in E12), over the same `context/`
+engine.
 
 ## Hard rules
 

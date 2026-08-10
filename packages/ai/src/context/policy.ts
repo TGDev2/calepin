@@ -28,6 +28,11 @@ export const CONTEXT_ITEM_CEILINGS = {
   canonFact: 200,
   briefSummary: 400,
   detailedSummary: 1_200,
+  // The same as a detailed chapter summary, because they are asked for at the
+  // same length (CAL-055): a part summary is the detailed level of the coarse
+  // tier, not a third size. Still an order of magnitude under a chapter, which
+  // is the only thing these ceilings exist to refuse.
+  partSummary: 1_200,
   continuityExcerpt: 1_000,
 } as const;
 
@@ -45,6 +50,24 @@ export const MAX_CONTINUITY_EXCERPTS = 3;
  * right failure is `CONTEXT_BUDGET_EXCEEDED`, not a quieter context.
  */
 export const MIN_SUMMARY_COUNT = 3;
+
+/**
+ * Part summaries are not on the ladder at all (CAL-055), and that is a policy
+ * statement rather than an omission — recorded here, beside the rungs, so the
+ * next task that adds one has to disagree with it in writing.
+ *
+ * A part summary costs about what one chapter's detailed summary costs and
+ * stands for a whole part. Dropping one is therefore the worst trade on the
+ * board: it loses more novel per token reclaimed than any other item, and it
+ * loses precisely the span that step 3 has already stopped covering chapter by
+ * chapter. The coarse level exists to make step 3 survivable; degrading it
+ * would undo the reason it was added.
+ */
+export const DEGRADABLE_ITEM_KINDS = [
+  "detailedSummary",
+  "continuityExcerpt",
+  "briefSummary",
+] as const satisfies readonly ContextItemKind[];
 
 /**
  * The facts actually concerned — *faits réellement concernés*.

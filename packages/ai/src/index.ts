@@ -36,19 +36,28 @@ export {
 } from "./capabilities";
 export {
   type CanonFactCandidate,
+  type ChapterSummaryContextInput,
+  composeChapterSummaryContext,
   type ComposedSceneContext,
+  type ComposedSummaryContext,
+  composePartSummaryContext,
   composeSceneContext,
   CONTEXT_ITEM_CEILINGS,
   type ContextCompositionReport,
   type ContextItemKind,
   type ContinuityExcerptCandidate,
+  DEGRADABLE_ITEM_KINDS,
   DETAILED_SUMMARY_WINDOW,
   ESTIMATED_CHARS_PER_TOKEN,
   estimateTokens,
   MAX_CONTINUITY_EXCERPTS,
   MIN_SUMMARY_COUNT,
+  type PartSummary,
+  type PartSummaryChapter,
+  type PartSummaryContextInput,
   type PrecedingChapterSummary,
   type SceneContextInput,
+  type SummaryCompositionReport,
 } from "./context";
 export { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";
 export { ModelOutputInvalidError, ModelOutputOffTopicError } from "./failures";
