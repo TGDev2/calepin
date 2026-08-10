@@ -146,6 +146,19 @@ export const ERROR_CODES = [
    */
   "QUEUE_NOT_CONFIGURED",
   /**
+   * This process has no handler for the work it was handed (CAL-061) — a job
+   * name its queue does not know, or a generation whose mission no executor is
+   * registered for.
+   *
+   * `internal` because it is a deployment fact rather than anything about the
+   * request, and **it is never used to close a generation**: during a rolling
+   * release a job written by the new version is routinely picked up by an old
+   * worker, and the right answer there is to leave the row where it is for a
+   * worker that does know, not to fail the author's work. Nothing is spent
+   * while it waits.
+   */
+  "JOB_NOT_HANDLED",
+  /**
    * A mission routes to a model whose provider has no registered adapter
    * (CAL-048) — the AI-layer parallel of `DATABASE_NOT_CONFIGURED`, and a
    * mis-wiring for the same reason: the composition root failed to hand the
@@ -198,6 +211,19 @@ export const ERROR_CODES = [
    */
   "GENERATION_INTERRUPTED",
   /**
+   * A generation ran out of tries (CAL-061). The reconciliation sweep is the
+   * only thing that redelivers a `QUEUED` row, and it stops at
+   * `MAX_GENERATION_ATTEMPTS` — otherwise a failure that never stops being
+   * transient is an unbounded spend, redelivered every minute for as long as
+   * the provider stays broken.
+   *
+   * A loop breaker, not a retry policy: how long to wait between tries and
+   * which failures deserve one is CAL-063's. `internal` because the last cause
+   * is already recorded on each attempt, and what this code adds is that
+   * *Calepin* gave up.
+   */
+  "GENERATION_ATTEMPTS_EXHAUSTED",
+  /**
    * A row being copied into a duplicated project references a row the copy does
    * not hold (CAL-035). Either the duplication plan is missing a model, or the
    * graph reaches outside the project it is supposed to be confined to — both
@@ -243,11 +269,13 @@ export const CATEGORY_BY_CODE = {
   PROJECT_SCOPE_REQUIRED: "internal",
   DATABASE_NOT_CONFIGURED: "internal",
   QUEUE_NOT_CONFIGURED: "internal",
+  JOB_NOT_HANDLED: "internal",
   MODEL_NOT_CONFIGURED: "internal",
   MISSION_OUTPUT_MISMATCH: "internal",
   PROMPT_NOT_REGISTERED: "internal",
   PROMPT_NOT_RENDERED: "internal",
   PROMPT_VARIABLE_INVALID: "internal",
   GENERATION_INTERRUPTED: "internal",
+  GENERATION_ATTEMPTS_EXHAUSTED: "internal",
   PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

@@ -25,6 +25,8 @@
 import { Redis, type RedisOptions } from "ioredis";
 
 import { InternalError } from "../errors/app-error";
+import { errorLogFields } from "../errors/log-fields";
+import { logger as processLogger } from "../logging";
 
 export const QUEUE_CONNECTION_ROLES = ["producer", "consumer"] as const;
 
@@ -55,7 +57,21 @@ export interface CreateQueueConnectionOptions {
 }
 
 export function createQueueConnection(options: CreateQueueConnectionOptions): Redis {
-  return new Redis(options.url, queueConnectionOptions(options.role));
+  const connection = new Redis(options.url, queueConnectionOptions(options.role));
+
+  // Node throws an unhandled `error` event rather than ignoring it, so a client
+  // with no listener turns a Redis blip into a dead process. BullMQ attaches its
+  // own the moment a `Queue` or a `Worker` wraps the connection — but a producer
+  // is registered at boot and may not be wrapped until the first enqueue, which
+  // is a window a web server spends its whole idle life in. Logged at debug: a
+  // reconnecting client emits one of these per attempt, and an outage worth
+  // knowing about surfaces as a `QUEUE_UNAVAILABLE` on the command that needed
+  // it (CAL-061).
+  connection.on("error", (error: unknown) => {
+    processLogger.debug("queue.connection-error", errorLogFields(error));
+  });
+
+  return connection;
 }
 
 /**

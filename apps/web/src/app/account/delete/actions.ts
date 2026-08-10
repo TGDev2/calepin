@@ -6,10 +6,12 @@
  * It composes and nothing more, which is what the interface layer is for
  * (§3.3): the session says who is asking, `@calepin/shared/account` decides and
  * performs, and this file supplies the two adapters the deletion needs outside
- * PostgreSQL. Neither exists yet — no S3 client and no BullMQ connection are in
- * the repository (CLAUDE.md §13) — so it passes the stand-ins that succeed on
- * an empty list and refuse a non-empty one, rather than a no-op that would
- * report a purge nobody performed.
+ * PostgreSQL. The queue one is real since CAL-061 — the moment a generation can
+ * have a job, the stand-in's deliberate refusal of a non-empty list would fail
+ * the deletion of any author with work in flight, which is exactly what it was
+ * put there to make impossible to miss. Storage has no client yet (CAL-165), so
+ * it keeps the stand-in rather than a no-op that would report a purge nobody
+ * performed.
  *
  * **Both outcomes redirect.** A refusal comes back to the page's own URL with
  * the reason in the query string, so the message is part of a server-rendered
@@ -22,13 +24,10 @@
  * messages rather than here.
  */
 
-import {
-  deleteAccount,
-  unavailableQueueCancellation,
-  unavailableStoragePurge,
-} from "@calepin/shared/account";
+import { deleteAccount, unavailableStoragePurge } from "@calepin/shared/account";
 import { errorLogFields } from "@calepin/shared/errors";
 import { logger } from "@calepin/shared/logging";
+import { createQueueCancellation } from "@calepin/shared/queue";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -59,7 +58,7 @@ export async function deleteAccountAction(formData: FormData): Promise<void> {
         userId: user.id,
         confirmation,
         storage: unavailableStoragePurge,
-        queue: unavailableQueueCancellation,
+        queue: createQueueCancellation(),
       });
 
       if (outcome.ok) return null;

@@ -45,14 +45,26 @@ export {
   type ProjectCostSummary,
   readProjectCostSummary,
 } from "./generation-cost";
+export {
+  type DeliverableGenerationQuery,
+  exhaustSpentGenerations,
+  type GenerationRunTarget,
+  listDeliverableGenerations,
+  readGenerationForRun,
+  reclaimExpiredAttempts,
+  requeueOrphanedGenerations,
+} from "./generation-delivery";
 export { type MissionMeasurement, readMissionMeasurements } from "./generation-measurements";
 export {
+  type AttemptLeaseRenewal,
   claimGenerationAttempt,
   type ClaimGenerationAttemptInput,
   completeGenerationAttempt,
   createGenerationPersistence,
   DEFAULT_ATTEMPT_LEASE_MS,
   type GenerationPersistenceOptions,
+  renewGenerationAttemptLease,
+  type RenewGenerationAttemptLeaseInput,
   replayGeneration,
   type ReservedGeneration,
   reserveGeneration,

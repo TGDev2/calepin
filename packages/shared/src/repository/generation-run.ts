@@ -461,6 +461,58 @@ export async function completeGenerationAttempt(
   });
 }
 
+/** Whether a renewal moved the lease, or found the attempt no longer ours. */
+export type AttemptLeaseRenewal = "renewed" | "lost";
+
+export interface RenewGenerationAttemptLeaseInput {
+  readonly generationId: string;
+  readonly attempt: number;
+  readonly leaseMs?: number;
+  readonly now?: Date;
+}
+
+/**
+ * Pushes an attempt's lease back while the work is still running (CAL-061).
+ *
+ * `DEFAULT_ATTEMPT_LEASE_MS` is thirty minutes because nothing renewed it: with
+ * no renewal the lease has to outlast the longest mission, or a healthy call is
+ * reclaimed under itself and its answer thrown away. Renewal inverts that — the
+ * lease only has to outlast a plausible pause, so it can be minutes instead of
+ * half an hour, and a killed worker is noticed that much sooner.
+ *
+ * `lost` is not an error. It means a sweep or another claim decided this attempt
+ * was dead and reclaimed it; the row is no longer `RUNNING` and no renewal can
+ * bring it back. The caller stops renewing and lets the run finish — its
+ * completion will find the attempt closed and report `already-completed`, which
+ * is the `superseded` path and the one that keeps a discarded answer from being
+ * written beside the replacement's.
+ */
+export async function renewGenerationAttemptLease(
+  scope: ProjectScope,
+  input: RenewGenerationAttemptLeaseInput,
+): Promise<Result<AttemptLeaseRenewal>> {
+  assertProjectScope(scope);
+
+  const leaseMs = input.leaseMs ?? DEFAULT_ATTEMPT_LEASE_MS;
+
+  if (!Number.isInteger(leaseMs) || leaseMs < 0) {
+    throw new InternalError({ message: "a lease must be a non-negative whole number of ms" });
+  }
+
+  const now = input.now ?? new Date();
+
+  const renewed = await getDatabaseClient().generationAttempt.updateMany({
+    where: scopedWhere("GenerationAttempt", scope, {
+      generationId: input.generationId,
+      attempt: input.attempt,
+      status: "RUNNING",
+    }),
+    data: { leaseExpiresAt: new Date(now.getTime() + leaseMs) },
+  });
+
+  return succeed(renewed.count > 0 ? "renewed" : "lost");
+}
+
 /**
  * Reopens a failed generation so the next claim can try again.
  *

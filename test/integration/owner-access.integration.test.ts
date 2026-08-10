@@ -42,10 +42,12 @@ import {
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  readGenerationForRun,
   readMissionMeasurements,
   readProjectCostSummary,
   readSourceTextObsolescence,
   reconcileProjectAggregates,
+  renewGenerationAttemptLease,
   replayGeneration,
   requireOwnedRow,
   reserveGeneration,
@@ -96,6 +98,7 @@ const ENTRY_POINTS = [
   "reconcileProjectAggregates",
   "reconcileProjectStatus",
   "refreshProjectStatus",
+  "renewGenerationAttemptLease",
   "replayGeneration",
   "requireOwnedRow",
   "reserveGeneration",
@@ -105,6 +108,30 @@ const ENTRY_POINTS = [
   "withProjectAggregates",
   "withProjectStatus",
   "withProjectTransaction",
+];
+
+/**
+ * The five functions that are **ungated on purpose** (CAL-061).
+ *
+ * A reconciliation sweep acts for nobody: it looks at every project at once, and
+ * there is no owner to open a scope with. Listing them separately is what keeps
+ * the carve-out a decision rather than an omission — a sixth name appearing here
+ * is a review conversation, and a sixth name appearing in neither list fails the
+ * assertion below.
+ *
+ * Four of them are statements over status columns that return a count and read
+ * nothing an owner could care about. The fifth, `readGenerationForRun`, is the
+ * one that makes the other four safe: it resolves *whose* a generation is, so
+ * the job runner can open a real scope and do everything afterwards through the
+ * gated functions. Its own test is that the owner it names is the true one —
+ * everything downstream is only as scoped as that answer is right.
+ */
+const SYSTEM_ENTRY_POINTS = [
+  "exhaustSpentGenerations",
+  "listDeliverableGenerations",
+  "readGenerationForRun",
+  "reclaimExpiredAttempts",
+  "requeueOrphanedGenerations",
 ];
 
 /**
@@ -278,7 +305,7 @@ describe("owner access policy", () => {
         .map(([name]) => name)
         .sort();
 
-      expect(exported).toEqual([...ENTRY_POINTS, ...HELPERS].sort());
+      expect(exported).toEqual([...ENTRY_POINTS, ...SYSTEM_ENTRY_POINTS, ...HELPERS].sort());
     });
 
     it("openProjectScope refuses another owner's project", async () => {
@@ -435,6 +462,65 @@ describe("owner access policy", () => {
 
       expect(theirs.ok).toBe(false);
       if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
+    // CAL-061. Renewal is a write, and the one a long generation makes over and
+    // over: a forged scope reaching it would let one author hold another's
+    // attempt open indefinitely, which is the opposite of what the lease exists
+    // for. `lost` and not a refusal, because the statement is the same shape as
+    // "somebody reclaimed this" — nothing moved, so nothing is claimed.
+    it("renewGenerationAttemptLease moves no lease but the owner's", async () => {
+      const before = await prisma.generationAttempt.findUniqueOrThrow({
+        where: { id: alice.rows.GenerationAttempt },
+      });
+
+      const theirs = await renewGenerationAttemptLease(forgedScope(bob.ownerId, alice.projectId), {
+        generationId: alice.rows.Generation,
+        attempt: 1,
+        leaseMs: 60_000,
+      });
+      expect(theirs.ok && theirs.value).toBe("lost");
+      expect(
+        (
+          await prisma.generationAttempt.findUniqueOrThrow({
+            where: { id: alice.rows.GenerationAttempt },
+          })
+        ).leaseExpiresAt,
+      ).toEqual(before.leaseExpiresAt);
+
+      const mine = await renewGenerationAttemptLease(aliceScope, {
+        generationId: alice.rows.Generation,
+        attempt: 1,
+        leaseMs: 60_000,
+      });
+      expect(mine.ok && mine.value).toBe("renewed");
+    });
+
+    // CAL-061. The one ungated read, and the hinge the other four hang on: the
+    // job runner opens its `ProjectScope` from the owner this returns, so every
+    // scoped call it makes afterwards is exactly as confined as this answer is
+    // correct. It takes no scope by design — a sweep acts for nobody — which is
+    // why what is asserted here is truthfulness rather than refusal.
+    it("readGenerationForRun names the true owner of the generation it reads", async () => {
+      const target = await readGenerationForRun(alice.rows.Generation);
+
+      expect(target).toMatchObject({
+        id: alice.rows.Generation,
+        projectId: alice.projectId,
+        ownerId: alice.ownerId,
+        mission: "WRITE_SCENE",
+      });
+      expect(target?.ownerId).not.toBe(bob.ownerId);
+
+      // A scope opened from it reaches the project, and one opened from anyone
+      // else's id does not — which is the property the runner depends on.
+      const opened = await openProjectScope({
+        ownerId: target?.ownerId ?? "",
+        projectId: target?.projectId ?? "",
+      });
+      expect(opened.ok).toBe(true);
+
+      expect(await readGenerationForRun("no_such_generation")).toBeNull();
     });
 
     it("readMissionMeasurements refuses another owner's project", async () => {

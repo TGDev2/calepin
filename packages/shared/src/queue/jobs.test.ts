@@ -9,8 +9,10 @@ describe("the job registry", () => {
   });
 
   it("keeps the queue list closed", () => {
-    expect(isQueueName("generation")).toBe(false);
-    expect(QUEUE_NAMES).toEqual(["maintenance"]);
+    // A queue is a deployment fact — something has to consume it — so the union
+    // is the list of queues that exist, and nothing else is one.
+    expect(isQueueName("export")).toBe(false);
+    expect(QUEUE_NAMES).toEqual(["generation", "maintenance"]);
   });
 });
 

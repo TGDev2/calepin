@@ -29,6 +29,7 @@ import {
   configureQueueConnection,
   createGracefulShutdown,
   createQueueConnection,
+  defineJob,
   enqueueJob,
   getQueue,
   handlePing,
@@ -57,7 +58,7 @@ let consumer: QueueConnection;
 let events: QueueEvents;
 
 /** Everything a test started, torn down even when it fails half way. */
-const started: Worker<PingPayload, PingResult>[] = [];
+const started: Worker[] = [];
 
 function ping(): PingPayload {
   return { token: randomUUID(), issuedAt: Date.now() };
@@ -118,10 +119,10 @@ describe("the dummy job, end to end", () => {
     const payload = ping();
 
     const worker = startQueueWorker({
-      contract: PING_JOB,
+      queue: PING_JOB.queue,
       connection: consumer,
       logger,
-      handle: (received) => handlePing(received),
+      jobs: [defineJob(PING_JOB, (received) => handlePing(received))],
     });
     started.push(worker);
 
@@ -161,10 +162,10 @@ describe("the dummy job, end to end", () => {
     const logger = createLogger({ level: "debug", destination: capture.stream });
 
     const worker = startQueueWorker({
-      contract: PING_JOB,
+      queue: PING_JOB.queue,
       connection: consumer,
       logger,
-      handle: (received) => handlePing(received),
+      jobs: [defineJob(PING_JOB, (received) => handlePing(received))],
     });
     started.push(worker);
 
@@ -200,15 +201,17 @@ describe("shutting the worker down", () => {
     let finished = false;
 
     const worker = startQueueWorker({
-      contract: PING_JOB,
+      queue: PING_JOB.queue,
       connection: consumer,
       logger: createLogger({ level: "silent" }),
-      handle: async (received) => {
-        await held.promise;
-        finished = true;
+      jobs: [
+        defineJob(PING_JOB, async (received) => {
+          await held.promise;
+          finished = true;
 
-        return handlePing(received);
-      },
+          return handlePing(received);
+        }),
+      ],
     });
     started.push(worker);
 
@@ -250,15 +253,17 @@ describe("shutting the worker down", () => {
     const held = deferred();
 
     const first = startQueueWorker({
-      contract: PING_JOB,
+      queue: PING_JOB.queue,
       connection: consumer,
       concurrency: 1,
       logger: createLogger({ level: "silent" }),
-      handle: async (received) => {
-        await held.promise;
+      jobs: [
+        defineJob(PING_JOB, async (received) => {
+          await held.promise;
 
-        return handlePing(received);
-      },
+          return handlePing(received);
+        }),
+      ],
     });
     started.push(first);
 
@@ -286,10 +291,10 @@ describe("shutting the worker down", () => {
 
     // And a replacement worker — a new deployment — picks it up.
     const second = startQueueWorker({
-      contract: PING_JOB,
+      queue: PING_JOB.queue,
       connection: consumer,
       logger: createLogger({ level: "silent" }),
-      handle: (received) => handlePing(received),
+      jobs: [defineJob(PING_JOB, (received) => handlePing(received))],
     });
     started.push(second);
 

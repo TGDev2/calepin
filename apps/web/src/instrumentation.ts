@@ -12,6 +12,15 @@
  * client and hands it to `@calepin/shared/database`; importing it at boot means
  * a broken wiring fails when the server starts rather than on the first query a
  * user happens to trigger.
+ *
+ * And the queue connection, for the same reason and with the same shape
+ * (CAL-061). `apps/web` is a **producer**: it asks for work and reads the state
+ * of that work from the `Generation` row, never from Redis. So the connection
+ * fails a command fast rather than waiting out someone else's outage, and a
+ * server action gets `enqueueJob` — three identifiers back — rather than a
+ * client it could run commands on. Registered at boot rather than lazily so a
+ * mis-wired deployment says so at startup instead of during the first
+ * generation an author paid for.
  */
 import type { Instrumentation } from "next";
 
@@ -19,9 +28,12 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { env } = await import("@calepin/shared/config");
     const { configureLogger, logger } = await import("@calepin/shared/logging");
+    const { configureQueueConnection, createQueueConnection } =
+      await import("@calepin/shared/queue");
     await import("./lib/database");
 
     configureLogger({ level: env.LOG_LEVEL });
+    configureQueueConnection(createQueueConnection({ url: env.REDIS_URL, role: "producer" }));
     logger.info("app.started");
   }
 }
