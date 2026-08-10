@@ -120,6 +120,35 @@ export const GENERATION_STALE_AFTER_MS = 2 * RECONCILIATION_INTERVAL_MS;
 export const RECONCILIATION_BATCH_SIZE = 100;
 
 /**
+ * How long a finished BullMQ job is kept before the cleanup sweep removes it
+ * (CAL-069), when the shell does not pass its own configured threshold.
+ *
+ * Matches `DEFAULT_JOB_OPTIONS`'s own age split: a completed job is evidence
+ * for a day, a failed one for a week, because the failed one is the one
+ * someone comes looking for. `DEFAULT_JOB_OPTIONS` already prunes a queue's
+ * completed/failed sets on this schedule as new jobs finish; this is the same
+ * threshold applied by a sweep that runs whether or not anything new finishes,
+ * so a quiet queue does not keep every job it ever ran.
+ */
+export const DEFAULT_CLEANUP_COMPLETED_JOB_TTL_MS = 24 * 3600 * 1000;
+export const DEFAULT_CLEANUP_FAILED_JOB_TTL_MS = 7 * 24 * 3600 * 1000;
+
+/**
+ * How often the cleanup sweep runs (CAL-069). An hour: what it prunes is
+ * measured in days, so nothing is lost by not running it every minute the way
+ * the reconciliation sweep does.
+ */
+export const QUEUE_CLEANUP_INTERVAL_MS = 3600 * 1000;
+
+/**
+ * How many finished jobs one queue, one sweep, one state (`completed` or
+ * `failed`) will remove. A bound on the work one pass does, not on the
+ * cleanup itself: what is left over is picked up on the next sweep, and the
+ * sweep says so in its log rather than reporting a clean pass.
+ */
+export const QUEUE_CLEANUP_BATCH_SIZE = 1000;
+
+/**
  * How long a worker's claim on an attempt is believed while the runner renews
  * it (CAL-061).
  *

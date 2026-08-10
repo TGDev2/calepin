@@ -30,6 +30,8 @@ async function main(): Promise<void> {
 
   const { configureLogger, logger } = await import("@calepin/shared/logging");
   const {
+    CLEAN_QUEUES_JOB,
+    cleanQueues,
     closeProducers,
     configureQueueConnection,
     createGracefulShutdown,
@@ -46,6 +48,7 @@ async function main(): Promise<void> {
     reconcileGenerations,
     runGenerationJob,
     scheduleGenerationReconciliation,
+    scheduleQueueCleanup,
     startQueueWorker,
   } = await import("@calepin/shared/queue");
   const { disconnectDatabase } = await import("./database");
@@ -115,6 +118,12 @@ async function main(): Promise<void> {
       jobs: [
         defineJob(PING_JOB, (payload) => handlePing(payload)),
         defineJob(RECONCILE_GENERATIONS_JOB, () => reconcileGenerations()),
+        defineJob(CLEAN_QUEUES_JOB, () =>
+          cleanQueues({
+            completedJobTtlMs: env.QUEUE_CLEANUP_COMPLETED_JOB_TTL_MS,
+            failedJobTtlMs: env.QUEUE_CLEANUP_FAILED_JOB_TTL_MS,
+          }),
+        ),
       ],
     }),
   ];
@@ -128,6 +137,16 @@ async function main(): Promise<void> {
   } catch (error: unknown) {
     const { errorLogFields } = await import("@calepin/shared/errors");
     logger.error("worker.reconciliation-not-scheduled", errorLogFields(error));
+  }
+
+  // Same reasoning, for the cleanup sweep: a failure here leaves finished jobs
+  // to accumulate in Redis, not a generation unrecovered — worth logging and
+  // nothing more.
+  try {
+    await scheduleQueueCleanup();
+  } catch (error: unknown) {
+    const { errorLogFields } = await import("@calepin/shared/errors");
+    logger.error("worker.cleanup-not-scheduled", errorLogFields(error));
   }
 
   const shutdown = createGracefulShutdown({

@@ -78,6 +78,20 @@ export const envSchema = z.object({
   GENERATION_FAST_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(12),
   GENERATION_SLOW_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(6),
   GENERATION_AUDIT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  /**
+   * How long a finished BullMQ job is kept before the cleanup sweep purges it
+   * (CAL-069) — the configurable threshold the retention policy is tuned by.
+   * `Generation` and `GenerationAttempt` stay in PostgreSQL regardless, since
+   * they are the source of history a queue job never was (§9); this only
+   * bounds how long the transport envelope itself lingers in Redis. Optional,
+   * for the same reason as the concurrency variables above: an existing
+   * `.env` should not be forced to gain a required line. The defaults match
+   * `DEFAULT_JOB_OPTIONS`'s own split — a completed job is evidence for a
+   * day, a failed one for a week, because the failed one is the one someone
+   * comes looking for.
+   */
+  QUEUE_CLEANUP_COMPLETED_JOB_TTL_MS: z.coerce.number().int().positive().default(86_400_000),
+  QUEUE_CLEANUP_FAILED_JOB_TTL_MS: z.coerce.number().int().positive().default(604_800_000),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
   S3_BUCKET: z.string().min(1),

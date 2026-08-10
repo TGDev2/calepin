@@ -17,6 +17,21 @@
 
 export type { CreateQueueCancellationOptions } from "./cancellation";
 export { createQueueCancellation } from "./cancellation";
+export type {
+  CleanQueuesOptions,
+  CleanQueuesPayload,
+  CleanQueuesResult,
+  ScheduleQueueCleanupOptions,
+} from "./cleanup";
+export {
+  CLEAN_QUEUES_JOB,
+  cleanQueues,
+  cleanQueuesPayloadSchema,
+  cleanQueuesResultSchema,
+  QUEUE_CLEANUP_SCHEDULER,
+  scheduleQueueCleanup,
+  unscheduleQueueCleanup,
+} from "./cleanup";
 export type { CreateQueueConnectionOptions, QueueConnectionRole } from "./connection";
 export {
   configureQueueConnection,
@@ -61,6 +76,8 @@ export type { EnqueuedJob } from "./producer";
 export { closeProducers, enqueueJob, getQueue } from "./producer";
 export type { GenerationQueueName, QueueName } from "./queues";
 export {
+  DEFAULT_CLEANUP_COMPLETED_JOB_TTL_MS,
+  DEFAULT_CLEANUP_FAILED_JOB_TTL_MS,
   DEFAULT_JOB_OPTIONS,
   DEFAULT_WORKER_CONCURRENCY,
   GENERATION_JOB_OPTIONS,
@@ -69,6 +86,8 @@ export {
   GENERATION_QUEUE_NAMES,
   GENERATION_STALE_AFTER_MS,
   isQueueName,
+  QUEUE_CLEANUP_BATCH_SIZE,
+  QUEUE_CLEANUP_INTERVAL_MS,
   QUEUE_NAMES,
   QUEUE_PREFIX,
   RECONCILIATION_BATCH_SIZE,
