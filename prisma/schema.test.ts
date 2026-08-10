@@ -125,10 +125,16 @@ function toScreamingSnake(field: string): string {
  * later.
  */
 function sharedStringUnion(path: string, name: string): string[] {
-  const source = readFileSync(
-    fileURLToPath(new URL(`../packages/shared/src/${path}`, import.meta.url)),
-    "utf8",
-  );
+  return workspaceStringUnion(`packages/shared/src/${path}`, name);
+}
+
+/**
+ * The same pin for a union any workspace package owns — CAL-070 mirrors
+ * `AnalysisSection` and `AnalysisElementKind` from `@calepin/analysis`, where
+ * the mission's output schema is written over them.
+ */
+function workspaceStringUnion(path: string, name: string): string[] {
+  const source = readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
   const block = new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(source);
   if (!block?.[1]) throw new Error(`${name} is not declared in ${path}`);
 
@@ -298,6 +304,19 @@ describe("prisma schema", () => {
 
     it("distinguishes a generated revision from an edited one", () => {
       expect(enumMembers("AnalysisRevisionOrigin")).toEqual(["GENERATED", "EDITED"]);
+    });
+
+    // §4.2's carve-out, pinned the way PROJECT_STATUSES and FREEDOM_LEVELS
+    // are: `@calepin/analysis` mirrors both enums so the mission's output
+    // schema speaks the column's spelling, and neither list can move alone
+    // (CAL-070).
+    it("mirrors the lists the analysis output schema is written over", () => {
+      expect(enumMembers("AnalysisSection")).toEqual(
+        workspaceStringUnion("packages/analysis/src/schema.ts", "ANALYSIS_SECTIONS"),
+      );
+      expect(enumMembers("AnalysisElementKind")).toEqual(
+        workspaceStringUnion("packages/analysis/src/schema.ts", "ANALYSIS_ELEMENT_KINDS"),
+      );
     });
 
     it("marks every element, since the column admits no null", () => {
