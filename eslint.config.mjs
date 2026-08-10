@@ -183,7 +183,7 @@ const eslintConfig = defineConfig([
     // @calepin/shared/config. The three ignored files are framework/test
     // wiring that runs before or outside that config: Next's own runtime
     // flag, Playwright's CI convention.
-    files: ["apps/web/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
+    files: ["apps/web/**/*.{ts,tsx}", "apps/worker/**/*.{ts,tsx}", "packages/*/src/**/*.{ts,tsx}"],
     ignores: [
       "packages/shared/src/config/env.ts",
       "apps/web/src/instrumentation.ts",

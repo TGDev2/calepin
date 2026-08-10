@@ -1,0 +1,26 @@
+{
+  "name": "@calepin/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "ping": "tsx src/ping.ts",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@calepin/shared": "workspace:*",
+    "@prisma/client": "^6.19.3",
+    "bullmq": "^6.0.10",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "eslint": "^9",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

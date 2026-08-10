@@ -52,10 +52,10 @@ jobs:
     timeout-minutes: 8
     # Postgres and Redis are attached here per the task spec. The unit
     # project touches no network (CLAUDE.md §8) and the integration project
-    # starts its own ephemeral Postgres via Testcontainers (test/integration/
-    # global-setup.ts) rather than using these — see CLAUDE.md §2. They are
-    # provided anyway so this job is ready for CAL-011 (Prisma) and CAL-060
-    # (BullMQ worker) without touching the pipeline again.
+    # starts its own ephemeral Postgres *and Redis* via Testcontainers
+    # (test/integration/global-setup.ts) rather than using these — see
+    # CLAUDE.md §2. They are provided anyway so the job stays usable for a
+    # suite that wants a standing service instead.
     services:
       postgres:
         image: postgres:16-alpine
@@ -101,8 +101,9 @@ jobs:
     # add a real connection": CAL-024 is it. The session suite signs a browser
     # in and reloads twice, which is a session row in a real database — so the
     # job now attaches Postgres and applies the committed migrations to it.
-    # Redis and S3 are still shape-valid values only; nothing connects to them
-    # until CAL-060.
+    # Redis and S3 are still shape-valid values only here: the browser journey
+    # reaches no queue, and the worker is a separate process this job does not
+    # start (CAL-060 covers it with its own integration suite instead).
     services:
       postgres:
         image: postgres:16-alpine

@@ -105,6 +105,16 @@ export const ERROR_CODES = [
    * same answer, so the attempt would only spend budget.
    */
   "MODEL_OUTPUT_OFF_TOPIC",
+  /**
+   * Redis refused or dropped the command that would have enqueued the job
+   * (CAL-060). `provider` rather than `internal` on purpose: ADR-001 calls
+   * Redis *a hard availability dependency of the core feature, not a cache*, so
+   * an outage here is the same class of event as a model endpoint being down —
+   * transient, retryable, and nothing the author did wrong. The category's
+   * French message already says the only two things that matter, that the
+   * service is momentarily unavailable and that the project is intact.
+   */
+  "QUEUE_UNAVAILABLE",
 
   // timeout
   "TIMEOUT",
@@ -128,6 +138,13 @@ export const ERROR_CODES = [
   "PROJECT_SCOPE_REQUIRED",
   /** No process shell registered a database client (CAL-023). Mis-wiring. */
   "DATABASE_NOT_CONFIGURED",
+  /**
+   * No process shell registered a queue connection (CAL-060) — the transport
+   * parallel of `DATABASE_NOT_CONFIGURED`, and mis-wiring for the same reason.
+   * It throws rather than being returned: a process that reaches an enqueue
+   * with no connection registered is broken, not unlucky.
+   */
+  "QUEUE_NOT_CONFIGURED",
   /**
    * A mission routes to a model whose provider has no registered adapter
    * (CAL-048) — the AI-layer parallel of `DATABASE_NOT_CONFIGURED`, and a
@@ -219,11 +236,13 @@ export const CATEGORY_BY_CODE = {
   PROVIDER_REJECTED: "provider",
   MODEL_OUTPUT_INVALID: "provider",
   MODEL_OUTPUT_OFF_TOPIC: "provider",
+  QUEUE_UNAVAILABLE: "provider",
   TIMEOUT: "timeout",
   INTERNAL_ERROR: "internal",
   AUDIT_ACTOR_REQUIRED: "internal",
   PROJECT_SCOPE_REQUIRED: "internal",
   DATABASE_NOT_CONFIGURED: "internal",
+  QUEUE_NOT_CONFIGURED: "internal",
   MODEL_NOT_CONFIGURED: "internal",
   MISSION_OUTPUT_MISMATCH: "internal",
   PROMPT_NOT_REGISTERED: "internal",

@@ -75,6 +75,10 @@
     "./project-status": {
       "types": "./src/project-status/index.ts",
       "default": "./src/project-status/index.ts"
+    },
+    "./queue": {
+      "types": "./src/queue/index.ts",
+      "default": "./src/queue/index.ts"
     }
   },
   "scripts": {
@@ -83,7 +87,9 @@
   "dependencies": {
     "@auth/core": "^0.41.3",
     "@auth/prisma-adapter": "^2.11.3",
+    "bullmq": "^6.0.10",
     "franc-min": "^6.2.0",
+    "ioredis": "^5.11.1",
     "mammoth": "^1.12.1",
     "nodemailer": "^7.0.7",
     "pino": "^10.3.1",

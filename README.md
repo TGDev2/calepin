@@ -16,20 +16,28 @@ le backlog de réalisation est dans [`Calepin_backlog.md`](./Calepin_backlog.md)
 ## Démarrer
 
 ```bash
-pnpm install        # installe les 10 projets du workspace
+pnpm install        # installe les 12 projets du workspace
 pnpm dev:services    # PostgreSQL, Redis, MinIO — via Docker Compose
-cp apps/web/.env.example apps/web/.env  # variables d'environnement locales
+cp apps/web/.env.example apps/web/.env        # variables d'environnement locales
+cp apps/worker/.env.example apps/worker/.env  # idem, côté worker
 pnpm dev             # http://localhost:3000
+pnpm worker          # le consommateur BullMQ, dans un second terminal
 ```
 
 `pnpm dev:services` démarre les trois services en arrière-plan
 (`docker compose up -d`) ; `docker compose ps` montre leur état une fois
 `healthy`. Les données vivent dans des volumes Docker nommés et survivent à un
-`docker compose down` (sans `-v`). `apps/web/.env` est validé au démarrage par
-`@calepin/shared/config` (schéma Zod, `packages/shared/src/config`) ; le `.env`
-de la racine ne porte que `DATABASE_URL`, pour la CLI Prisma qui ne lit que
-celui-là. PostgreSQL est câblé par le schéma Prisma (`prisma/`) ; Redis attend
-encore le worker (CAL-060) et S3 son premier export (E18).
+`docker compose down` (sans `-v`). `apps/web/.env` et `apps/worker/.env` sont
+validés au démarrage par `@calepin/shared/config` (schéma Zod,
+`packages/shared/src/config`) ; le `.env` de la racine ne porte que
+`DATABASE_URL`, pour la CLI Prisma qui ne lit que celui-là. PostgreSQL est câblé
+par le schéma Prisma (`prisma/`) et Redis par la file BullMQ que le worker
+consomme (CAL-060) ; S3 attend encore son premier export (E18).
+
+Le chemin complet se vérifie en trois commandes : `pnpm dev:services`, puis
+`pnpm worker` dans un terminal, puis `pnpm worker:ping` dans un autre. La tâche
+factice est produite par le second processus, consommée par le premier, et le
+même `jobId` apparaît dans les deux journaux.
 
 | Service | Port hôte | Identifiants locaux |
 |---|---|---|
@@ -45,9 +53,11 @@ reprend telles quelles.
 
 Autres scripts à la racine : `pnpm typecheck` (tous les paquets, plus
 `prisma/`), `pnpm start` (sert le build de production), `pnpm build` (build de
-production), `pnpm test` (Vitest, unitaire), `pnpm test:integration` (Vitest,
-base PostgreSQL isolée par exécution via Testcontainers, migrations appliquées —
-nécessite Docker), `pnpm test:e2e` (Playwright, `apps/web`), `pnpm db:seed`
+production), `pnpm worker:dev` (worker relancé à chaque modification),
+`pnpm worker:ping` (produit une tâche factice et rend la main), `pnpm test`
+(Vitest, unitaire), `pnpm test:integration` (Vitest, PostgreSQL **et** Redis
+isolés par exécution via Testcontainers, migrations appliquées — nécessite
+Docker), `pnpm test:e2e` (Playwright, `apps/web`), `pnpm db:seed`
 (peuple la base de données locale avec un utilisateur de démonstration, trois
 projets et un texte source de nouvelle courte).
 
@@ -60,7 +70,7 @@ CI importeraient un client jamais généré.
 ```
 calepin/
 ├── apps/
-│   └── web/                  @calepin/web — application Next.js 16, App Router
+│   ├── web/                  @calepin/web — application Next.js 16, App Router
 │       ├── next.config.ts    transpilePackages : compile les paquets depuis leurs sources TS
 │       ├── playwright.config.ts  configuration Playwright (E2E)
 │       ├── public/
@@ -76,6 +86,12 @@ calepin/
 │       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
 │       ├── src/instrumentation.ts  environnement, niveau du journal, `onRequestError`
 │       └── tests/e2e/        specs Playwright
+│   └── worker/               @calepin/worker — le consommateur BullMQ, `pnpm worker`
+│       ├── .env.example      mêmes variables que l'application ; `envSchema` est unique
+│       ├── src/main.ts       la coquille : environnement, journal, base, files, arrêt propre
+│       ├── src/database.ts   composition du client Prisma, jumelle de celle du web
+│       ├── src/environment.ts  charge `.env` avant tout import qui le lit
+│       └── src/ping.ts       produit une tâche factice et rend la main (`pnpm worker:ping`)
 │
 ├── docs/
 │   └── adr/                  décisions d'architecture — ADR-001 : forme du
@@ -94,6 +110,7 @@ calepin/
 │   │   ├── src/generation/    cycle de vie d'une tentative de génération, clé d'idempotence (`@calepin/shared/generation`)
 │   │   ├── src/logging/       journal Pino, corrélation, liste blanche de champs (`@calepin/shared/logging`)
 │   │   ├── src/obsolescence/  étapes rendues potentiellement obsolètes par une modification du texte source (`@calepin/shared/obsolescence`)
+│   │   ├── src/queue/         connexion Redis, files déclarées, contrats de tâche, arrêt propre (`@calepin/shared/queue`)
 │   │   ├── src/repository/    politique d'accès par propriétaire (`@calepin/shared/repository`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── ai/                    @calepin/ai — couche IA : port fournisseur, capacités des
@@ -157,9 +174,10 @@ Un domaine qui doit en importer un autre exige d'ajouter explicitement l'entrée
 tant que la dépendance n'est pas déclarée, ce qui rend la décision visible en
 revue au lieu de la laisser passer en silence.
 
-Cette contrainte n'est pas décorative. Un second processus est acquis — un
-worker BullMQ démarré par `pnpm worker` (CAL-060) — et il appelle le même code
-métier que l'application web. Le métier ne peut donc pas vivre dans `apps/web`.
+Cette contrainte n'est pas décorative. Un second processus existe depuis
+CAL-060 — le worker BullMQ démarré par `pnpm worker` — et il appelle le même
+code métier que l'application web. Le métier ne peut donc pas vivre dans
+`apps/web`.
 
 ## Choix techniques
 
@@ -197,15 +215,6 @@ métier que l'application web. Le métier ne peut donc pas vivre dans `apps/web`
   l'erreur reçue ; elles affichent le message français et l'empreinte (`digest`)
   que la ligne de journal porte elle aussi, ce qui permet de relier l'écran à la
   trace.
-
-## Emplacements réservés
-
-Ces répertoires n'existent pas encore ; ils appartiennent à des tâches à venir
-et ne sont pas créés à vide.
-
-| Emplacement | Tâche |
-|---|---|
-| `apps/worker/` | CAL-060 — worker BullMQ, `pnpm worker` |
 
 ## Conventions
 

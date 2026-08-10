@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "pnpm --filter @calepin/web dev",
     "dev:services": "docker compose up -d",
+    "worker": "pnpm --filter @calepin/worker start",
+    "worker:dev": "pnpm --filter @calepin/worker dev",
+    "worker:ping": "pnpm --filter @calepin/worker ping",
     "build": "pnpm --filter @calepin/web build",
     "start": "pnpm --filter @calepin/web start",
     "postinstall": "prisma generate",
@@ -38,6 +41,8 @@
     "@calepin/shared": "workspace:*",
     "@playwright/test": "^1.62.1",
     "@testcontainers/postgresql": "^12.1.0",
+    "@testcontainers/redis": "^12.1.0",
+    "bullmq": "^6.0.10",
     "@types/pg": "^8.21.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",

@@ -8,3 +8,7 @@ packages:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+  # BullMQ's msgpackr pulls in a native encoder as an optional accelerator
+  # (CAL-060). It falls back to the JavaScript path when absent, and a queue
+  # whose payloads are identifiers and counts has nothing to accelerate.
+  - msgpackr-extract

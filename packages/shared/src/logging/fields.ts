@@ -22,6 +22,21 @@ export interface LogFields {
   revisionId?: string;
   chapterId?: string;
   jobId?: string;
+  /**
+   * Which queue and which job kind (CAL-060). Both are members of closed
+   * unions declared in `@calepin/shared/queue` — `QUEUE_NAMES` and the job
+   * registry — so neither can hold prose, and without them a worker's lines
+   * cannot be told apart once a second queue exists.
+   */
+  queueName?: string;
+  jobName?: string;
+  /**
+   * Which signal asked the process to stop (CAL-060). A POSIX signal name, so
+   * a closed set of identifiers. Allowlisted because *why* a worker stopped is
+   * the first thing an operator asks of a shutdown line, and the event name
+   * alone cannot say it without one event per signal.
+   */
+  signal?: string;
 
   missionId?: string;
   /**
@@ -83,6 +98,9 @@ const LOG_FIELD_ALLOWLIST = {
   revisionId: true,
   chapterId: true,
   jobId: true,
+  queueName: true,
+  jobName: true,
+  signal: true,
   missionId: true,
   promptId: true,
   promptVersion: true,
