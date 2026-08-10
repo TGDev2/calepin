@@ -4,7 +4,12 @@
  * so the code, the flag and the message cannot drift apart.
  */
 
-import { ConflictError, InternalError, ProviderError } from "@calepin/shared/errors";
+import {
+  ConflictError,
+  InternalError,
+  ProviderError,
+  ValidationError,
+} from "@calepin/shared/errors";
 
 import type { TokenUsage } from "./port";
 
@@ -113,5 +118,41 @@ export function missionOutputMismatch(): InternalError {
   return new InternalError({
     code: "MISSION_OUTPUT_MISMATCH",
     message: "the mission's declared output kind is not the one the caller asked for",
+  });
+}
+
+/**
+ * The material selected for a mission does not fit its context budget even at
+ * the bottom of the degradation ladder (CAL-054). Expected, so a value: the
+ * caller — ultimately the author — holds the remedy, which is less material.
+ * Not retryable: the same input composes to the same size every time.
+ */
+export function contextBudgetExceeded(): ValidationError {
+  return new ValidationError({
+    code: "CONTEXT_BUDGET_EXCEEDED",
+    message: "the composed context exceeds the mission's budget even fully degraded",
+    userMessage:
+      "Le contexte nécessaire dépasse la capacité prévue pour cette opération. " +
+      "Réduisez les consignes ou les extraits fournis, puis relancez.",
+    retryable: false,
+  });
+}
+
+/**
+ * One item offered to the composer exceeds the ceiling of its kind (CAL-054) —
+ * a chapter where a summary or an excerpt belongs. Refused rather than
+ * degraded, because accepting it quietly is the one way §5.8 dies while every
+ * list stays short. The `fieldPath` names the kind and the item's id; the text
+ * itself never travels (§9).
+ */
+export function contextItemOversized(fieldPath: string): ValidationError {
+  return new ValidationError({
+    code: "CONTEXT_ITEM_OVERSIZED",
+    message: "a context item exceeds the ceiling of its kind",
+    userMessage:
+      "Un des éléments fournis est trop long pour être transmis tel quel. " +
+      "Raccourcissez-le, puis relancez l'opération.",
+    retryable: false,
+    fieldPath,
   });
 }

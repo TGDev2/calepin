@@ -175,11 +175,50 @@ narrative rule, and never restates a domain schema.
   command. Two versions of the *same* prompt only: two different prompts share
   no variable set, so a diff of them says nothing about either.
 
+## What exists (CAL-054)
+
+- `context/` — the dynamic context composer, §5.8 made structural.
+  `composeSceneContext(input)` assembles the seven ingredients of a writing
+  context — the permanent instructions (the prompt's own text), the bible's
+  style section, the target chapter's plan, the canon facts actually
+  concerned, the preceding chapters' summaries, the excerpts continuity
+  strictly requires, and the author's request — into the current `write-scene`
+  prompt, and returns `Result<{ prompt, report }>`: a branded `MissionPrompt`
+  and a §9-safe report (counts, identifiers, token numbers — never text).
+- **A preceding chapter's full text has no way in.** No input field carries
+  one, and every field that carries prose has a per-kind ceiling
+  (`CONTEXT_ITEM_CEILINGS`) an entire chapter cannot pass — an oversized item
+  is refused (`CONTEXT_ITEM_OVERSIZED`), never quietly truncated. The
+  acceptance criterion is a test: the chapter-12 context contains none of the
+  eleven preceding chapters in full.
+- **Selection is structural, never semantic** (§5.7). A canon fact enters when
+  the outline names it (`ChapterOutlineFact`) or when one of its subjects is
+  an entity the outline names — id intersection, statements unread; named
+  before linked. Excerpts: the top `MAX_CONTINUITY_EXCERPTS` by
+  caller-assigned priority. Summaries: every preceding chapter, detailed for
+  the nearest `DETAILED_SUMMARY_WINDOW`, brief beyond.
+- **The budget is the mission's** (`contextBudgetTokens`, CAL-051) **and it is
+  measured on the rendered prompt** — the exact text a provider would receive
+  — with a deliberately conservative estimate (`ESTIMATED_CHARS_PER_TOKEN`,
+  3 against the ~3.5–4 French prose measures). The exact check stays the
+  pipeline's post-hoc `ai.context-budget-exceeded` against the provider's own
+  count; over-estimating here degrades slightly more, under-estimating would
+  spend the tokens before the pipeline could see it.
+- **Degradation is an explicit ladder, prose first, structure last**: detailed
+  summaries fall back to brief (farthest first), then excerpts drop (lowest
+  priority first), then the farthest brief summaries drop — never the nearest
+  `MIN_SUMMARY_COUNT`, never the outline, the style, the constraints, the
+  author's request or a fact (a dropped fact invites the contradiction the
+  product exists to prevent). A ladder that ends still over budget fails the
+  whole composition (`CONTEXT_BUDGET_EXCEEDED`) and nothing is sent.
+
 ## What arrives in its own task
 
-Context composer (CAL-054) · token accounting and pricing (CAL-056) · the
-credentials both adapters take, resolved from the validated config module by
-the process shell (CAL-060).
+Token accounting and pricing (CAL-056) · the credentials both adapters take,
+resolved from the validated config module by the process shell (CAL-060) ·
+context assemblies for the other missions, in the epics that own them
+(`check-coherence` in E13, `extract-facts` and `summarize-chapter` in E12),
+over the same `context/` engine.
 
 ## Hard rules
 

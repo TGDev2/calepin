@@ -22,6 +22,21 @@ export const ERROR_CODES = [
   "SOURCE_TEXT_IMPORT_UNSUPPORTED_FORMAT",
   /** A `.txt`/`.md`/`.docx` file could not be read — corrupt, or not decodable. */
   "SOURCE_TEXT_IMPORT_UNREADABLE",
+  /**
+   * The material selected for a mission does not fit its context budget even
+   * fully degraded (CAL-054). `validation` rather than `internal`: the code
+   * did its job, the caller's material is what does not fit, and the remedy —
+   * less material — is the caller's. Nothing was sent.
+   */
+  "CONTEXT_BUDGET_EXCEEDED",
+  /**
+   * One item offered to the context composer exceeds the ceiling of its kind
+   * (CAL-054) — a chapter where a summary or an excerpt belongs. Refusing it
+   * is what makes §5.8's "never the whole novel" structural rather than a
+   * hope about callers; the fieldPath names the kind and the id, never the
+   * text.
+   */
+  "CONTEXT_ITEM_OVERSIZED",
 
   // not_found
   "NOT_FOUND",
@@ -157,6 +172,8 @@ export const CATEGORY_BY_CODE = {
   SCHEMA_MISMATCH: "validation",
   SOURCE_TEXT_IMPORT_UNSUPPORTED_FORMAT: "validation",
   SOURCE_TEXT_IMPORT_UNREADABLE: "validation",
+  CONTEXT_BUDGET_EXCEEDED: "validation",
+  CONTEXT_ITEM_OVERSIZED: "validation",
   NOT_FOUND: "not_found",
   FORBIDDEN: "forbidden",
   UNAUTHENTICATED: "forbidden",

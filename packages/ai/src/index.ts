@@ -34,6 +34,22 @@ export {
   PROVIDER_IDS,
   type ProviderId,
 } from "./capabilities";
+export {
+  type CanonFactCandidate,
+  type ComposedSceneContext,
+  composeSceneContext,
+  CONTEXT_ITEM_CEILINGS,
+  type ContextCompositionReport,
+  type ContextItemKind,
+  type ContinuityExcerptCandidate,
+  DETAILED_SUMMARY_WINDOW,
+  ESTIMATED_CHARS_PER_TOKEN,
+  estimateTokens,
+  MAX_CONTINUITY_EXCERPTS,
+  MIN_SUMMARY_COUNT,
+  type PrecedingChapterSummary,
+  type SceneContextInput,
+} from "./context";
 export { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";
 export { ModelOutputInvalidError, ModelOutputOffTopicError } from "./failures";
 export {
