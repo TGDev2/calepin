@@ -48,7 +48,11 @@ import {
   type GenerationFailureClass,
   generationIdempotencyKey,
   type GenerationPersistence,
+  generationWriteTarget,
+  isProjectWideWriteTarget,
   MAX_GENERATION_ATTEMPTS,
+  missionsWritingTo,
+  WRITE_TARGET_RETRY_DELAY_MS,
 } from "../generation";
 import { logger } from "../logging";
 import type { GenerationMission } from "./generation";
@@ -300,6 +304,82 @@ async function readGenerationConcurrencyCapacity(
 }
 
 /**
+ * Puts a queued generation back in front of the sweep at a given moment — the
+ * one write a refusal that is a *wait* performs.
+ *
+ * No attempt is opened and nothing failed, so there is nothing to classify and
+ * `failureClass` stays null; what the row needs is a deadline, or it would sit
+ * out the sweep's full staleness window before being reconsidered at all. Both
+ * waits share this: over its owner's capacity (CAL-065), and behind another
+ * generation writing the same target (CAL-067).
+ */
+function deferQueuedGeneration(
+  tx: TransactionClient,
+  scope: ProjectScope,
+  generationId: string,
+  dueAt: Date,
+): Promise<number> {
+  return tx.$executeRaw`
+    UPDATE "generations"
+    SET "nextAttemptAt" = ${dueAt}
+    WHERE "id" = ${generationId}
+      AND "status" = 'QUEUED'
+      AND "projectId" IN (
+        SELECT "id" FROM "projects"
+        WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+      )
+  `;
+}
+
+/**
+ * Whether another generation of this project is already writing where this one
+ * would write (CAL-067).
+ *
+ * **The lock is these rows, not a row of its own.** A write target is held by a
+ * generation that is `RUNNING` on it, so it is released by the same three things
+ * that end a generation — it completes, it is cancelled, or its worker dies and
+ * `requeueOrphanedGenerations` returns it to `QUEUED`. There is nothing to
+ * expire separately and nothing that can disagree with the lease.
+ *
+ * The comparison is on the *write target* and not on `targetId`, because those
+ * are different questions: `CREATE_CHARACTER_SHEET` names a character and
+ * `EXTRACT_FACTS` names a chapter, and both write the one bible a project has.
+ * `../generation/write-target` holds the table; this reads it.
+ *
+ * Correct only because it runs under the claim's `FOR UPDATE OF g, u`: two
+ * generations on one chapter necessarily share an owner, so the owner row lock
+ * CAL-065 already takes is what stops two claims passing this check at once.
+ */
+async function isWriteTargetHeld(
+  tx: TransactionClient,
+  scope: ProjectScope,
+  generationId: string,
+): Promise<boolean> {
+  const own = await tx.generation.findFirst({
+    where: scopedWhere("Generation", scope, { id: generationId }),
+    select: { mission: true, targetId: true },
+  });
+
+  if (own === null) return false;
+
+  const target = generationWriteTarget(own.mission, own.targetId);
+
+  const holder = await tx.generation.findFirst({
+    where: scopedWhere("Generation", scope, {
+      id: { not: generationId },
+      status: "RUNNING",
+      mission: { in: missionsWritingTo(target.kind) },
+      // Omitted for a kind the project has exactly one of: two missions writing
+      // into one bible collide however their own targets are spelled.
+      ...(isProjectWideWriteTarget(target.kind) ? {} : { targetId: target.id }),
+    }),
+    select: { id: true },
+  });
+
+  return holder !== null;
+}
+
+/**
  * Decides whether an attempt is owed, and opens one if it is.
  *
  * Everything happens under the generation's own row lock, which is what makes
@@ -318,6 +398,14 @@ async function readGenerationConcurrencyCapacity(
  * every project they hold, is serialised for the few statements below, which is
  * exactly what makes "count the owner's running generations, then decide"
  * atomic instead of a check two concurrent claims could each pass at once.
+ *
+ * **CAL-067's write lock rides on that same owner lock**, and could not exist
+ * without it. Two generations that would write one chapter belong to one author
+ * by construction, so serialising an owner's claims is already serialising every
+ * contest for a write target — the lock check below is a `SELECT` under a lock
+ * that was already being taken, not a mechanism of its own. What it adds is the
+ * answer: a target another generation is `RUNNING` on refuses this claim as
+ * `target-locked`, and the row waits rather than being dropped.
  */
 export async function claimGenerationAttempt(
   scope: ProjectScope,
@@ -348,23 +436,31 @@ export async function claimGenerationAttempt(
       // `requeueOrphanedGenerations` is the fallback if it ever needs to
       // re-enter the queue instead.
       if (status === "QUEUED") {
+        // The write lock comes first (CAL-067). A held target is a correctness
+        // constraint and a slot is only a budget one, so the more specific
+        // reason is the one worth reporting when both apply — and an author
+        // reading "another generation is writing this chapter" learns something
+        // a capacity message would have hidden.
+        if (await isWriteTargetHeld(tx, scope, input.generationId)) {
+          await deferQueuedGeneration(
+            tx,
+            scope,
+            input.generationId,
+            new Date(now.getTime() + WRITE_TARGET_RETRY_DELAY_MS),
+          );
+
+          return succeed({ kind: "refused", reason: "target-locked" } as const);
+        }
+
         const capacity = await readGenerationConcurrencyCapacity(tx, scope, input.generationId);
 
         if (capacity.atCapacity) {
-          // No attempt is opened and nothing failed, so there is nothing to
-          // classify (`failureClass` stays null) — but the row still needs a
-          // deadline, or it would wait out the sweep's full staleness window
-          // before being reconsidered at all.
-          await tx.$executeRaw`
-            UPDATE "generations"
-            SET "nextAttemptAt" = ${new Date(now.getTime() + CAPACITY_RETRY_DELAY_MS)}
-            WHERE "id" = ${input.generationId}
-              AND "status" = 'QUEUED'
-              AND "projectId" IN (
-                SELECT "id" FROM "projects"
-                WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
-              )
-          `;
+          await deferQueuedGeneration(
+            tx,
+            scope,
+            input.generationId,
+            new Date(now.getTime() + CAPACITY_RETRY_DELAY_MS),
+          );
 
           return succeed({ kind: "refused", reason: "at-capacity" } as const);
         }

@@ -73,11 +73,20 @@ export function GenerationIndicator({
               <> — nouvelle tentative programmée après un incident</>
             )}
             {/*
-             * The queue position (CAL-065) — only a `QUEUED` row carries one,
-             * so it never appears alongside a step or a percentage, which are
-             * only ever reported once a generation is actually running.
+             * Why this one is waiting, for a `QUEUED` row — a step and a
+             * percentage are only ever reported once a generation is actually
+             * running, so neither of these appears beside them.
+             *
+             * The write lock (CAL-067) outranks the queue position (CAL-065)
+             * when both apply: "position 2" tells an author nothing they can
+             * act on, while "another generation is already working on this
+             * part of the novel" is the whole reason their second request is
+             * queued rather than refused. It names no chapter — a banner is a
+             * technical surface and §9 keeps titles off it.
              */}
-            {generation.queuePosition === null ? null : (
+            {generation.blockedByWriteTarget ? (
+              <> — en attente&nbsp;: une autre génération modifie déjà cette partie du roman</>
+            ) : generation.queuePosition === null ? null : (
               <> — en file d’attente, position {generation.queuePosition}</>
             )}
             {generation.progressStep === null ? null : <> — {generation.progressStep}</>}

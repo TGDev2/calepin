@@ -14,6 +14,7 @@ function running(view: Partial<RunningGenerationView> = {}): RunningGenerationVi
     progressPercent: null,
     failureClass: null,
     queuePosition: null,
+    blockedByWriteTarget: false,
     ...view,
   };
 }
@@ -110,6 +111,27 @@ describe("GenerationIndicator", () => {
     );
 
     expect(html).not.toContain("file d’attente");
+  });
+
+  /**
+   * CAL-067. A concurrent ask on a chapter someone is already writing must be
+   * *queued and not silently refused* — and a queue position alone does not
+   * say that, because an author cannot tell a position they are advancing
+   * through from one they are stuck behind.
+   */
+  it("says why a generation is waiting when another holds its write target", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator
+        projectId="project-1"
+        initial={[running({ queuePosition: 2, blockedByWriteTarget: true })]}
+        cancelAction={cancel}
+      />,
+    );
+
+    expect(html).toContain("une autre génération modifie");
+    // The specific reason replaces the rank rather than being added to it:
+    // "position 2" is noise once the real answer is on screen.
+    expect(html).not.toContain("position 2");
   });
 
   /**

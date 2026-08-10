@@ -270,6 +270,7 @@ describe("runGenerationAttempt, when the claim refuses", () => {
     ["cancelled"],
     ["in-flight"],
     ["at-capacity"],
+    ["target-locked"],
   ] as const)("asks no provider and writes nothing: %s", async (reason) => {
     let produced = false;
     const persist = refusing({ kind: "refused", reason, attempt: 2 });

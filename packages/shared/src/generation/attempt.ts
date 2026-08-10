@@ -73,9 +73,16 @@ import type { GenerationRetryPolicy } from "./retry";
 /**
  * Why a claim did not open an attempt. Every one of them is an ordinary state
  * of the world under a queue, never a fault: the first three say the task is
- * over, the fourth says someone else is on it, and the fifth says a slot is
- * owed but none is free right now (CAL-065) — the row stays `QUEUED` and the
- * reconciliation sweep offers it again shortly.
+ * over, the fourth says someone else is on this generation, and the last two
+ * say the work is owed but cannot start yet — no slot is free (CAL-065), or
+ * another generation is already writing the chapter, the bible or the plan this
+ * one would write (CAL-067).
+ *
+ * **The last two are waits, and the distinction matters to a caller.** The row
+ * stays `QUEUED` with a near deadline, nothing is classified as a failure, and
+ * the reconciliation sweep offers it again shortly — so a concurrent ask is
+ * queued rather than dropped, which is CAL-067's requirement stated as a
+ * return value.
  */
 export const GENERATION_CLAIM_REFUSALS = [
   "already-succeeded",
@@ -83,6 +90,7 @@ export const GENERATION_CLAIM_REFUSALS = [
   "cancelled",
   "in-flight",
   "at-capacity",
+  "target-locked",
 ] as const;
 
 export type GenerationClaimRefusal = (typeof GENERATION_CLAIM_REFUSALS)[number];

@@ -151,6 +151,7 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
           progressPercent: row.progressPercent,
           failureClass: row.failureClass,
           queuePosition: row.queuePosition,
+          blockedByWriteTarget: row.blockedByWriteTarget,
         }))}
         cancelAction={cancelGenerationAction}
       />

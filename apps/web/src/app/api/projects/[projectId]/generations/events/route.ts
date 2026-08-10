@@ -65,6 +65,7 @@ export async function GET(
             progressPercent: row.progressPercent,
             failureClass: row.failureClass,
             queuePosition: row.queuePosition,
+            blockedByWriteTarget: row.blockedByWriteTarget,
           }));
 
           if (!closed) controller.enqueue(encoder.encode(`data: ${JSON.stringify(rows)}\n\n`));

@@ -58,3 +58,14 @@ export {
   MAX_GENERATION_ATTEMPTS,
   nextGenerationAttemptAt,
 } from "./retry";
+export type { GenerationWriteTarget, GenerationWriteTargetKind } from "./write-target";
+export {
+  GENERATION_WRITE_TARGET_KINDS,
+  generationWriteTarget,
+  isProjectWideWriteTarget,
+  MISSION_WRITE_TARGET_KIND,
+  missionsWritingTo,
+  PROJECT_WIDE_WRITE_TARGET_KINDS,
+  sameWriteTarget,
+  WRITE_TARGET_RETRY_DELAY_MS,
+} from "./write-target";

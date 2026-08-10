@@ -33,6 +33,14 @@ export interface RunningGenerationView {
   readonly failureClass: GenerationFailureClass | null;
   /** This row's rank among the project's queued generations (CAL-065). */
   readonly queuePosition: number | null;
+  /**
+   * True when this queued row is waiting on CAL-067's write lock — another
+   * generation is already writing the chapter, the bible or the plan it would
+   * write. A boolean, never the holder's identity: which generation holds the
+   * target is of no use to a reader, and naming its own target would put a
+   * chapter title on a frame that crosses to a browser.
+   */
+  readonly blockedByWriteTarget: boolean;
 }
 
 /** The two members of `EventSource` this module actually uses. */

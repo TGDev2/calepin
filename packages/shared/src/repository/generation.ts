@@ -22,6 +22,7 @@ import type { ErrorCategory } from "../errors/categories";
 import { ERROR_CODES, type ErrorCode } from "../errors/codes";
 import { fail, type Result, succeed } from "../errors/result";
 import type { GenerationFailureClass } from "../generation/retry";
+import { generationWriteTarget, sameWriteTarget } from "../generation/write-target";
 import { buildGenerationContext, type GenerationContext } from "../generation-context";
 import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
@@ -65,6 +66,18 @@ export interface RunningGeneration {
    * report.
    */
   readonly queuePosition: number | null;
+  /**
+   * True when this queued generation is waiting on the write lock (CAL-067) —
+   * another generation of the project is `RUNNING` on the chapter, the bible or
+   * the plan this one would write.
+   *
+   * The specification asks that a concurrent ask be *queued and not silently
+   * refused*, and this is the second half of that: the claim keeps the row
+   * `QUEUED`, and this is what lets a screen say why nothing is moving instead
+   * of showing a queue position an author has no way to interpret. Always false
+   * for a `RUNNING` row — it is the one holding a target, not waiting on one.
+   */
+  readonly blockedByWriteTarget: boolean;
 }
 
 /**
@@ -74,6 +87,13 @@ export interface RunningGeneration {
  * `queuePosition` is computed here, over the array this query already fetches
  * in that same order — no second query, no window function: a running count
  * of the `QUEUED` rows seen so far *is* each one's rank.
+ *
+ * `blockedByWriteTarget` comes out of the same array for the same reason. The
+ * lock of CAL-067 is derived from the project's `RUNNING` rows and this query
+ * has already fetched every one of them, so the answer is a comparison in
+ * memory rather than a second statement — and it is the same comparison
+ * `claimGenerationAttempt` makes, through the same table, so a screen cannot
+ * disagree with the arbiter about who is waiting on whom.
  */
 export async function listRunningGenerations(scope: ProjectScope): Promise<RunningGeneration[]> {
   assertProjectScope(scope);
@@ -84,6 +104,7 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
     select: {
       id: true,
       mission: true,
+      targetId: true,
       status: true,
       createdAt: true,
       progressStep: true,
@@ -92,13 +113,20 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
     },
   });
 
+  const held = rows
+    .filter((row) => row.status === "RUNNING")
+    .map((row) => generationWriteTarget(row.mission, row.targetId));
+
   let queued = 0;
 
-  return rows.map((row) => ({
+  return rows.map(({ targetId, ...row }) => ({
     ...row,
     status: row.status as RunningGenerationStatus,
     failureClass: toFailureClass(row.failureClass),
     queuePosition: row.status === "QUEUED" ? (queued += 1) : null,
+    blockedByWriteTarget:
+      row.status === "QUEUED" &&
+      held.some((target) => sameWriteTarget(target, generationWriteTarget(row.mission, targetId))),
   }));
 }
 
