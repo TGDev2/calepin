@@ -48,6 +48,7 @@ export {
   readProjectCostSummary,
 } from "./generation-cost";
 export {
+  type DeliverableGeneration,
   type DeliverableGenerationQuery,
   exhaustSpentGenerations,
   type GenerationRunTarget,

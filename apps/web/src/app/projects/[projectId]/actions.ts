@@ -148,7 +148,7 @@ export async function replayGenerationAction(formData: FormData): Promise<void> 
           : replayed;
       }
 
-      const enqueued = await enqueueGeneration(replayed.value.id);
+      const enqueued = await enqueueGeneration(replayed.value.id, replayed.value.mission);
 
       if (!enqueued.ok) {
         // Said out loud, because a partial pass that stayed silent looks exactly

@@ -184,13 +184,21 @@ export interface DeliverableGenerationQuery {
   readonly limit: number;
 }
 
+/** What the sweep needs to redeliver one generation: its id and its queue. */
+export interface DeliverableGeneration {
+  readonly id: string;
+  /** Picks which of the three generation queues (CAL-066) the sweep enqueues to. */
+  readonly mission: $Enums.GenerationMission;
+}
+
 /**
- * The identifiers of the generations a sweep should hand back to the queue,
- * oldest first — the order `@@index([status, createdAt])` already serves.
+ * The generations a sweep should hand back to the queue, oldest first — the
+ * order `@@index([status, createdAt])` already serves.
  *
- * Identifiers only. What the sweep does with them is enqueue a job named by the
- * id, which Redis deduplicates against one already there, so asking whether a
- * job exists would be a round trip that changes no decision.
+ * Identifiers and a mission, nothing narrative (§9). What the sweep does with
+ * them is enqueue a job named by the id, which Redis deduplicates against one
+ * already there, so asking whether a job exists would be a round trip that
+ * changes no decision.
  *
  * **Two ways to be deliverable, and the second one is CAL-063's.** A row with no
  * retry deadline is deliverable once it has sat in `QUEUED` past the staleness
@@ -204,7 +212,7 @@ export interface DeliverableGenerationQuery {
  */
 export async function listDeliverableGenerations(
   query: DeliverableGenerationQuery,
-): Promise<string[]> {
+): Promise<DeliverableGeneration[]> {
   const rows = await getDatabaseClient().generation.findMany({
     where: {
       status: "QUEUED",
@@ -215,8 +223,8 @@ export async function listDeliverableGenerations(
     },
     orderBy: { createdAt: "asc" },
     take: query.limit,
-    select: { id: true },
+    select: { id: true, mission: true },
   });
 
-  return rows.map((row) => row.id);
+  return rows;
 }

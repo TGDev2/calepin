@@ -53,8 +53,14 @@ import {
   updateGenerationProgress,
 } from "../repository";
 import type { JobContract } from "./jobs";
+import { MISSION_PRIORITY, MISSION_QUEUE } from "./mission-routing";
 import { type EnqueuedJob, enqueueJob } from "./producer";
-import { GENERATION_JOB_OPTIONS, GENERATION_LEASE_MS, GENERATION_LEASE_RENEWAL_MS } from "./queues";
+import {
+  GENERATION_JOB_OPTIONS,
+  GENERATION_LEASE_MS,
+  GENERATION_LEASE_RENEWAL_MS,
+  type GenerationQueueName,
+} from "./queues";
 
 /** The mission enum, under this module's own name — see `../repository`. */
 export type GenerationMission = $Enums.GenerationMission;
@@ -86,26 +92,59 @@ export const generationJobResultSchema = z.object({
 
 export type GenerationJobResult = z.infer<typeof generationJobResultSchema>;
 
-export const GENERATION_JOB: JobContract<GenerationJobPayload, GenerationJobResult> = {
-  queue: "generation",
+/**
+ * One contract per generation queue (CAL-066), same job name and same
+ * payload/result shape — only `.queue` differs. `MISSION_QUEUE` is what picks
+ * which one a given generation travels through.
+ */
+export const GENERATION_FAST_JOB: JobContract<GenerationJobPayload, GenerationJobResult> = {
+  queue: "generation-fast",
   name: "run-generation",
   payload: generationJobPayloadSchema,
   result: generationJobResultSchema,
 };
 
+export const GENERATION_SLOW_JOB: JobContract<GenerationJobPayload, GenerationJobResult> = {
+  queue: "generation-slow",
+  name: "run-generation",
+  payload: generationJobPayloadSchema,
+  result: generationJobResultSchema,
+};
+
+export const GENERATION_AUDIT_JOB: JobContract<GenerationJobPayload, GenerationJobResult> = {
+  queue: "generation-audit",
+  name: "run-generation",
+  payload: generationJobPayloadSchema,
+  result: generationJobResultSchema,
+};
+
+export const GENERATION_JOBS: Readonly<
+  Record<GenerationQueueName, JobContract<GenerationJobPayload, GenerationJobResult>>
+> = {
+  "generation-fast": GENERATION_FAST_JOB,
+  "generation-slow": GENERATION_SLOW_JOB,
+  "generation-audit": GENERATION_AUDIT_JOB,
+};
+
 /**
- * Hands a generation to the queue.
+ * Hands a generation to the queue its mission belongs to (CAL-066), at the
+ * priority that mission carries within it.
  *
  * Safe to call on a generation that already has a job: the id makes the second
  * one a duplicate Redis drops. That is what lets both the producer of the ask
  * and the reconciliation sweep call it without either having to know what the
  * other did.
  */
-export function enqueueGeneration(generationId: string): Promise<Result<EnqueuedJob>> {
+export function enqueueGeneration(
+  generationId: string,
+  mission: GenerationMission,
+): Promise<Result<EnqueuedJob>> {
+  const queue = MISSION_QUEUE[mission];
+
   return enqueueJob(
-    GENERATION_JOB,
+    GENERATION_JOBS[queue],
     { generationId },
-    { jobId: generationId, ...GENERATION_JOB_OPTIONS },
+    { jobId: generationId, priority: MISSION_PRIORITY[mission], ...GENERATION_JOB_OPTIONS },
   );
 }
 

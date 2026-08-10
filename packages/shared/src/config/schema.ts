@@ -53,17 +53,31 @@ export const envSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().min(1),
   REDIS_URL: z.string().url(),
   /**
-   * How many generation jobs one worker process runs at once (CAL-065).
+   * How many generation jobs each of the three generation-queue workers runs
+   * at once (CAL-065, split per queue by CAL-066's mission-profile split).
    * Optional, with a default, so an existing `.env` is not forced to gain a
    * required line the way a variable with no default would (`tasks/lessons.md`
    * already records that trap). The per-user and per-project caps enforced at
-   * the claim (`@calepin/shared/repository`) are the real policy; this is only
-   * the process-level ceiling that has to be raised above the historical `1`
+   * the claim (`@calepin/shared/repository`) are the real policy on how many
+   * generations may run at once; these are the process-level ceiling above
+   * each queue that has to be raised above the historical `1`
    * (`DEFAULT_WORKER_CONCURRENCY`, `@calepin/shared/queue`) for those caps to
    * mean anything at all — with a single worker slot, only one generation
    * could ever run regardless of what either cap allowed.
+   *
+   * The three defaults follow the same profile `@calepin/ai/mission-registry`
+   * already gives each mission: `generation-fast`'s three missions are cheap
+   * and short (Sonnet, `low` effort, ≤60s), so more can run in parallel
+   * without much cost or rate-limit exposure; `generation-slow`'s seven are
+   * expensive and long (Opus, medium-to-high effort, up to 600s), so the
+   * ceiling is kept low to bound simultaneous spend; `generation-audit`'s one
+   * mission is the single most demanding call of the eleven (`xhigh` effort)
+   * and is isolated with its own modest ceiling so an audit backlog never
+   * competes with authoring generations for the same slots.
    */
-  GENERATION_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(10),
+  GENERATION_FAST_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(12),
+  GENERATION_SLOW_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(6),
+  GENERATION_AUDIT_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(3),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
   S3_BUCKET: z.string().min(1),

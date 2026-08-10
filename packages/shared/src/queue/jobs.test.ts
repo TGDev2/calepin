@@ -12,7 +12,12 @@ describe("the job registry", () => {
     // A queue is a deployment fact — something has to consume it — so the union
     // is the list of queues that exist, and nothing else is one.
     expect(isQueueName("export")).toBe(false);
-    expect(QUEUE_NAMES).toEqual(["generation", "maintenance"]);
+    expect(QUEUE_NAMES).toEqual([
+      "generation-fast",
+      "generation-slow",
+      "generation-audit",
+      "maintenance",
+    ]);
   });
 });
 

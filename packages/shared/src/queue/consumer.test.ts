@@ -86,7 +86,7 @@ describe("startQueueWorker's routing table", () => {
     // queue, not a job name, so a handler on the wrong worker is a job that is
     // taken and then rejected.
     expect(() =>
-      startQueueWorker({ queue: "generation", jobs: [ping, other], connection }),
+      startQueueWorker({ queue: "generation-fast", jobs: [ping, other], connection }),
     ).toThrow(/another queue/);
   });
 

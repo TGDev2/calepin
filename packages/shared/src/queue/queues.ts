@@ -7,16 +7,31 @@
  * string at a call site. Adding one is a one-line diff, and the type then
  * forces every producer and every worker to name a queue that exists.
  *
- * Two today. `generation` carries the work an author paid for, one job per
- * `Generation` row (CAL-061); `maintenance` carries everything the system does
- * for itself — the health probe and the reconciliation sweep. They are separate
- * queues rather than two job names on one because a generation is minutes long
- * and the sweep must not queue behind it: with `DEFAULT_WORKER_CONCURRENCY` at
- * one, sharing a queue would mean the recovery task waits for the very
- * generation it exists to recover.
+ * Four today. `maintenance` carries everything the system does for itself —
+ * the health probe and the reconciliation sweep — kept apart from every
+ * generation queue for the reason CAL-061 already established: a generation
+ * is minutes long, and the sweep must not queue behind one.
+ *
+ * The work an author paid for (CAL-061) is split three ways by mission
+ * profile instead of sharing one queue (CAL-066): `generation-fast` for
+ * extraction and summaries, `generation-slow` for authoring and planning,
+ * `generation-audit` for coherence checking. Each mission routes to exactly
+ * one of the three (`../queue/mission-routing.ts`'s `MISSION_QUEUE`), and
+ * each gets its own worker with its own concurrency — the same reasoning
+ * that keeps `maintenance` separate, applied one level down: a long
+ * `write-scene` call must never sit in front of a short `extract-facts` one
+ * with nothing to reorder them.
  */
 
-export const QUEUE_NAMES = ["generation", "maintenance"] as const;
+export const GENERATION_QUEUE_NAMES = [
+  "generation-fast",
+  "generation-slow",
+  "generation-audit",
+] as const;
+
+export type GenerationQueueName = (typeof GENERATION_QUEUE_NAMES)[number];
+
+export const QUEUE_NAMES = [...GENERATION_QUEUE_NAMES, "maintenance"] as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
@@ -139,13 +154,15 @@ export const GENERATION_LEASE_RENEWAL_MS = 5_000;
  *
  * The `maintenance` queue's worker (the health probe and the reconciliation
  * sweep) stays on this default — one at a time is exactly right for jobs the
- * system runs for itself. The `generation` queue's worker no longer does: it is
- * started with `GENERATION_WORKER_CONCURRENCY` instead (CAL-065), because the
- * real policy on how many generations may run at once is the per-user and
- * per-project cap enforced at the claim (`@calepin/shared/repository`), and a
- * process-wide ceiling of one would make that cap meaningless — only one
- * generation could ever run regardless of what either cap allowed. This
- * constant is what a worker falls back to if a caller starts one without
+ * system runs for itself. Each generation queue's worker no longer does: it
+ * is started with its own `GENERATION_FAST_WORKER_CONCURRENCY` /
+ * `GENERATION_SLOW_WORKER_CONCURRENCY` / `GENERATION_AUDIT_WORKER_CONCURRENCY`
+ * instead (CAL-065, split per queue by CAL-066), because the real policy on
+ * how many generations may run at once is the per-user and per-project cap
+ * enforced at the claim (`@calepin/shared/repository`), and a process-wide
+ * ceiling of one would make that cap meaningless — only one generation could
+ * ever run regardless of what either cap allowed. This constant is what a
+ * worker falls back to if a caller starts one without
  * naming a concurrency at all.
  */
 export const DEFAULT_WORKER_CONCURRENCY = 1;

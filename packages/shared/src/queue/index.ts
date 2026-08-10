@@ -43,8 +43,11 @@ export type {
 } from "./generation";
 export {
   enqueueGeneration,
-  GENERATION_JOB,
+  GENERATION_AUDIT_JOB,
+  GENERATION_FAST_JOB,
   GENERATION_JOB_OUTCOMES,
+  GENERATION_JOBS,
+  GENERATION_SLOW_JOB,
   generationJobPayloadSchema,
   generationJobResultSchema,
   NO_GENERATION_EXECUTORS,
@@ -53,15 +56,17 @@ export {
 } from "./generation";
 export type { JobContract, JobPayload, JobResult, PingPayload, PingResult } from "./jobs";
 export { handlePing, PING_JOB, pingPayloadSchema, pingResultSchema } from "./jobs";
+export { MISSION_PRIORITY, MISSION_QUEUE } from "./mission-routing";
 export type { EnqueuedJob } from "./producer";
 export { closeProducers, enqueueJob, getQueue } from "./producer";
-export type { QueueName } from "./queues";
+export type { GenerationQueueName, QueueName } from "./queues";
 export {
   DEFAULT_JOB_OPTIONS,
   DEFAULT_WORKER_CONCURRENCY,
   GENERATION_JOB_OPTIONS,
   GENERATION_LEASE_MS,
   GENERATION_LEASE_RENEWAL_MS,
+  GENERATION_QUEUE_NAMES,
   GENERATION_STALE_AFTER_MS,
   isQueueName,
   QUEUE_NAMES,

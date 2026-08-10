@@ -38,7 +38,7 @@ import {
   createQueueConnection,
   defineJob,
   enqueueGeneration,
-  GENERATION_JOB,
+  GENERATION_SLOW_JOB,
   type GenerationExecutors,
   type GenerationProduct,
   getQueue,
@@ -323,11 +323,11 @@ function testExecutor(fixture: Fixture, behaviour: ExecutorBehaviour = {}): Test
 
 function startGenerationWorker(executors: GenerationExecutors): Worker {
   const worker = startQueueWorker({
-    queue: GENERATION_JOB.queue,
+    queue: GENERATION_SLOW_JOB.queue,
     connection: consumer,
     logger: silent,
     jobs: [
-      defineJob(GENERATION_JOB, (payload) =>
+      defineJob(GENERATION_SLOW_JOB, (payload) =>
         runGenerationJob({
           generationId: payload.generationId,
           executors,
@@ -345,10 +345,10 @@ function startGenerationWorker(executors: GenerationExecutors): Worker {
 
 /** Runs the generation to completion through a real worker and a real job. */
 async function deliverAndWait(generationId: string): Promise<void> {
-  const enqueued = await enqueueGeneration(generationId);
+  const enqueued = await enqueueGeneration(generationId, "WRITE_SCENE");
   expect(enqueued.ok).toBe(true);
 
-  const job = await getQueue(GENERATION_JOB.queue).getJob(generationId);
+  const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(generationId);
   await job?.waitUntilFinished(events, 15_000);
 }
 
@@ -359,7 +359,10 @@ beforeAll(async () => {
   consumer = createQueueConnection({ url: REDIS_URL, role: "consumer" });
   configureQueueConnection(producer);
 
-  events = new QueueEvents(GENERATION_JOB.queue, { connection: consumer, prefix: QUEUE_PREFIX });
+  events = new QueueEvents(GENERATION_SLOW_JOB.queue, {
+    connection: consumer,
+    prefix: QUEUE_PREFIX,
+  });
   await events.waitUntilReady();
 });
 
@@ -370,7 +373,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await Promise.all(started.splice(0).map((worker) => worker.close(true)));
-  await getQueue(GENERATION_JOB.queue).obliterate({ force: true });
+  await getQueue(GENERATION_SLOW_JOB.queue).obliterate({ force: true });
   await getQueue(RECONCILE_GENERATIONS_JOB.queue).obliterate({ force: true });
 });
 
@@ -397,7 +400,7 @@ describe("cancelling a chapter write that is already running", () => {
     });
     startGenerationWorker(executor.executors);
 
-    const enqueued = await enqueueGeneration(fixture.generationId);
+    const enqueued = await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     expect(enqueued.ok).toBe(true);
 
     // Wait for the write to really be under way — cancelling a row that has not
@@ -414,7 +417,7 @@ describe("cancelling a chapter write that is already running", () => {
 
     // Nothing here releases the executor: the only thing that can end this run
     // is the watch noticing the row and aborting the signal.
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     expect(await snapshotChapter(fixture.chapterId)).toEqual(before);
@@ -430,7 +433,7 @@ describe("cancelling a chapter write that is already running", () => {
     });
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () => (await readGeneration(fixture.generationId)).status === "RUNNING",
       "the generation to be claimed",
@@ -445,7 +448,7 @@ describe("cancelling a chapter write that is already running", () => {
     // `ModelRequest.signal`, with no message and nothing in memory between them.
     await until(async () => executor.aborted(), "the abort to reach the executor");
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
     expect(executor.calls()).toBe(1);
   });
@@ -465,7 +468,7 @@ describe("cancelling a chapter write that is already running", () => {
     const executor = testExecutor(fixture, { gate: gate.promise });
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () => (await readGeneration(fixture.generationId)).status === "RUNNING",
       "the generation to be claimed",
@@ -476,7 +479,7 @@ describe("cancelling a chapter write that is already running", () => {
     );
     gate.release();
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     expect(await snapshotChapter(fixture.chapterId)).toEqual(before);
@@ -493,7 +496,7 @@ describe("cancelling a chapter write that is already running", () => {
     });
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () => (await readGeneration(fixture.generationId)).status === "RUNNING",
       "the generation to be claimed",
@@ -503,7 +506,7 @@ describe("cancelling a chapter write that is already running", () => {
       cancelGeneration(fixture.scope, fixture.generationId),
     );
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     const row = await readGeneration(fixture.generationId);
@@ -544,7 +547,7 @@ describe("cancelling a chapter write that is already running", () => {
     });
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () => (await readGeneration(fixture.generationId)).status === "RUNNING",
       "the generation to be claimed",
@@ -554,7 +557,7 @@ describe("cancelling a chapter write that is already running", () => {
       cancelGeneration(fixture.scope, fixture.generationId),
     );
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     const attempt = await seam.generationAttempt.findFirstOrThrow({
@@ -576,7 +579,7 @@ describe("cancelling a chapter write that is already running", () => {
     });
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () => (await readGeneration(fixture.generationId)).status === "RUNNING",
       "the generation to be claimed",
@@ -586,7 +589,7 @@ describe("cancelling a chapter write that is already running", () => {
       cancelGeneration(fixture.scope, fixture.generationId),
     );
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     const attempt = await seam.generationAttempt.findFirstOrThrow({
@@ -629,7 +632,7 @@ describe("cancelling a generation that has not started", () => {
     const fixture = await createFixture();
     const executor = testExecutor(fixture);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await runWithActor(fixture.ownerId, async () =>
       cancelGeneration(fixture.scope, fixture.generationId),
     );
@@ -638,7 +641,7 @@ describe("cancelling a generation that has not started", () => {
     // after the cancellation rather than racing it.
     startGenerationWorker(executor.executors);
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     const result: unknown = await job?.waitUntilFinished(events, 15_000);
 
     expect(result).toMatchObject({ generationId: fixture.generationId, outcome: "skipped" });

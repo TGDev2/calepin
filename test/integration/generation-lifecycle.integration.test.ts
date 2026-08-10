@@ -34,8 +34,8 @@ import {
   createQueueConnection,
   defineJob,
   enqueueGeneration,
-  GENERATION_JOB,
   GENERATION_RECONCILIATION_SCHEDULER,
+  GENERATION_SLOW_JOB,
   type GenerationExecutors,
   type GenerationProduct,
   getQueue,
@@ -206,11 +206,11 @@ function testExecutor(
 
 function startGenerationWorker(executors: GenerationExecutors, leaseRenewalMs = 0): Worker {
   const worker = startQueueWorker({
-    queue: GENERATION_JOB.queue,
+    queue: GENERATION_SLOW_JOB.queue,
     connection: consumer,
     logger: silent,
     jobs: [
-      defineJob(GENERATION_JOB, (payload) =>
+      defineJob(GENERATION_SLOW_JOB, (payload) =>
         runGenerationJob({
           generationId: payload.generationId,
           executors,
@@ -233,7 +233,10 @@ beforeAll(async () => {
   consumer = createQueueConnection({ url: REDIS_URL, role: "consumer" });
   configureQueueConnection(producer);
 
-  events = new QueueEvents(GENERATION_JOB.queue, { connection: consumer, prefix: QUEUE_PREFIX });
+  events = new QueueEvents(GENERATION_SLOW_JOB.queue, {
+    connection: consumer,
+    prefix: QUEUE_PREFIX,
+  });
   await events.waitUntilReady();
 });
 
@@ -253,7 +256,7 @@ afterEach(async () => {
   // Both queues: the sweep's schedule lives on `maintenance`, and a repeating
   // job left behind would be delivered to the next suite's ping worker, which
   // has no handler for it.
-  await getQueue(GENERATION_JOB.queue).obliterate({ force: true });
+  await getQueue(GENERATION_SLOW_JOB.queue).obliterate({ force: true });
   await getQueue(RECONCILE_GENERATIONS_JOB.queue).obliterate({ force: true });
 });
 
@@ -272,7 +275,7 @@ describe("a generation driven by the queue", () => {
     const executor = testExecutor(fixture.projectId);
     startGenerationWorker(executor.executors);
 
-    const enqueued = await enqueueGeneration(fixture.generationId);
+    const enqueued = await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     expect(enqueued.ok).toBe(true);
     if (!enqueued.ok) return;
 
@@ -280,7 +283,7 @@ describe("a generation driven by the queue", () => {
     // deduplication the answer to a second enqueue.
     expect(enqueued.value.id).toBe(fixture.generationId);
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     await job?.waitUntilFinished(events, 15_000);
 
     const generation = await prisma.generation.findUniqueOrThrow({
@@ -312,13 +315,17 @@ describe("a generation driven by the queue", () => {
   it("drops a second job for the same ask instead of running it twice", async () => {
     const fixture = await createFixture();
 
-    const first = await enqueueGeneration(fixture.generationId);
-    const second = await enqueueGeneration(fixture.generationId);
+    const first = await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
+    const second = await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
 
     expect(first.ok && second.ok).toBe(true);
     // The producer of an ask and the reconciliation sweep both enqueue without
-    // asking what the other did; the id is what makes that safe.
-    expect(await getQueue(GENERATION_JOB.queue).getWaitingCount()).toBe(1);
+    // asking what the other did; the id is what makes that safe. Counted as
+    // "prioritized" rather than "waiting" (BullMQ 6): every generation job now
+    // carries a priority (CAL-066), which moves it out of the plain wait list.
+    expect(
+      await getQueue(GENERATION_SLOW_JOB.queue).getJobCountByTypes("waiting", "prioritized"),
+    ).toBe(1);
   });
 
   it("asks no provider when the generation has already succeeded", async () => {
@@ -326,7 +333,7 @@ describe("a generation driven by the queue", () => {
     const executor = testExecutor(fixture.projectId);
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     await until(
       async () =>
         (await prisma.generation.findUniqueOrThrow({ where: { id: fixture.generationId } }))
@@ -336,11 +343,11 @@ describe("a generation driven by the queue", () => {
 
     // The job was removed on completion, so the id is free — which is what lets
     // a replay be enqueued at all, and what lets a redelivery happen here.
-    const again = await enqueueGeneration(fixture.generationId);
+    const again = await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     expect(again.ok).toBe(true);
     if (!again.ok) return;
 
-    const job = await getQueue(GENERATION_JOB.queue).getJob(fixture.generationId);
+    const job = await getQueue(GENERATION_SLOW_JOB.queue).getJob(fixture.generationId);
     const result = await job?.waitUntilFinished(events, 15_000);
 
     expect(result).toMatchObject({ outcome: "skipped" });
@@ -357,7 +364,7 @@ describe("a generation driven by the queue", () => {
     );
     startGenerationWorker(executor.executors);
 
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
     // Waited on the *attempt*, not on the generation: a retryable failure puts
     // the row back to `QUEUED`, which is where it started.
     await until(
@@ -501,7 +508,9 @@ describe("the reconciliation sweep", () => {
     const executor = testExecutor(fixture.projectId);
     startGenerationWorker(executor.executors);
 
-    expect(await getQueue(GENERATION_JOB.queue).getJobCountByTypes("waiting", "active")).toBe(0);
+    expect(await getQueue(GENERATION_SLOW_JOB.queue).getJobCountByTypes("waiting", "active")).toBe(
+      0,
+    );
 
     const swept = await reconcileGenerations({ staleAfterMs: 0, logger: silent });
     expect(swept.deliveredGenerations).toBe(1);
@@ -658,7 +667,7 @@ describe("what a worker refuses to decide", () => {
 describe("cancelling an account's queued work", () => {
   it("removes the jobs of the generations it is given, and counts them", async () => {
     const fixture = await createFixture();
-    await enqueueGeneration(fixture.generationId);
+    await enqueueGeneration(fixture.generationId, "WRITE_SCENE");
 
     const cancellation = createQueueCancellation({ logger: silent });
 
@@ -668,7 +677,7 @@ describe("cancelling an account's queued work", () => {
     // real adapter.
     expect(await cancellation.cancelGenerations([])).toBe(0);
     expect(await cancellation.cancelGenerations([fixture.generationId])).toBe(1);
-    expect(await getQueue(GENERATION_JOB.queue).getWaitingCount()).toBe(0);
+    expect(await getQueue(GENERATION_SLOW_JOB.queue).getWaitingCount()).toBe(0);
 
     // Idempotent, and the count is *true*: BullMQ's own script reports success
     // for a job it never found, so a second pass would otherwise claim to have

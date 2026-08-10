@@ -17,13 +17,18 @@
  * survives finds no generation and ends `vanished`. What removing it buys is
  * that the survivor never runs at all, which keeps a deleted account out of
  * every worker log for the next few minutes.
+ *
+ * **The port gets ids, not missions** (CAL-066), so it cannot look up
+ * `MISSION_QUEUE` to know which of the three generation queues a job landed
+ * on — it tries all three. Job ids are the generation's own id, globally
+ * unique, so at most one of the three ever holds a match.
  */
 
 import type { QueueCancellation } from "../account";
 import { errorLogFields } from "../errors";
 import { type Logger, logger as processLogger } from "../logging";
-import { GENERATION_JOB } from "./generation";
 import { getQueue } from "./producer";
+import { GENERATION_QUEUE_NAMES } from "./queues";
 
 export interface CreateQueueCancellationOptions {
   readonly logger?: Logger;
@@ -38,7 +43,7 @@ export function createQueueCancellation(
     async cancelGenerations(generationIds): Promise<number> {
       if (generationIds.length === 0) return 0;
 
-      const queue = getQueue(GENERATION_JOB.queue);
+      const queues = GENERATION_QUEUE_NAMES.map((name) => getQueue(name));
       let removed = 0;
 
       for (const generationId of generationIds) {
@@ -47,16 +52,23 @@ export function createQueueCancellation(
           // never there: its script answers 1 for anything it did not find
           // *locked*. The port's contract is a count of what was removed, and a
           // deletion that reports removing jobs it invented is a number nobody
-          // can act on. One extra read per id, on a path that runs once per
-          // account.
-          const job = await queue.getJob(generationId);
+          // can act on. Tried against each generation queue in turn, stopping at
+          // the first match — a job id names exactly one queue.
+          let ownerQueue: (typeof queues)[number] | undefined;
 
-          if (job === undefined) continue;
+          for (const queue of queues) {
+            if ((await queue.getJob(generationId)) !== undefined) {
+              ownerQueue = queue;
+              break;
+            }
+          }
+
+          if (ownerQueue === undefined) continue;
 
           // 0 here means the job is locked by a worker running it right now.
           // Honestly not removed — and harmless: that run will find no row and
           // end as `vanished`.
-          removed += await queue.remove(generationId);
+          removed += await ownerQueue.remove(generationId);
         } catch (error: unknown) {
           // Never propagated. §CAL-031: a side effect may not keep a deleted
           // account alive, so a failure here is counted and logged.

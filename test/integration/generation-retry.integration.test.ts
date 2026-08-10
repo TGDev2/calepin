@@ -313,7 +313,7 @@ describe("generation failure recovery (CAL-063)", () => {
         limit: 100,
       });
 
-      expect(tooEarly).not.toContain(generationId);
+      expect(tooEarly.map((row) => row.id)).not.toContain(generationId);
     });
 
     it("is redelivered as soon as its wait has elapsed", async () => {
@@ -331,7 +331,7 @@ describe("generation failure recovery (CAL-063)", () => {
         limit: 100,
       });
 
-      expect(due).toContain(generationId);
+      expect(due.map((row) => row.id)).toContain(generationId);
     });
 
     // A generation waiting out a backoff is still in flight, so the indicator is
@@ -436,7 +436,7 @@ describe("generation failure recovery (CAL-063)", () => {
         limit: 100,
       });
 
-      expect(deliverable).not.toContain(generationId);
+      expect(deliverable.map((row) => row.id)).not.toContain(generationId);
     });
 
     it("reaches the failed list with its code, its category and its class", async () => {
@@ -553,11 +553,13 @@ describe("generation failure recovery (CAL-063)", () => {
 
       expect((await readRow(generationId)).status).toBe("QUEUED");
       expect(
-        await listDeliverableGenerations({
-          staleBefore: new Date(Date.now() + 60_000),
-          now: new Date(),
-          limit: 100,
-        }),
+        (
+          await listDeliverableGenerations({
+            staleBefore: new Date(Date.now() + 60_000),
+            now: new Date(),
+            limit: 100,
+          })
+        ).map((row) => row.id),
       ).toContain(generationId);
     });
 

@@ -16,18 +16,30 @@ import { fail, InternalError, succeed } from "../errors";
 import { createLogger } from "../logging";
 import { createLogCapture } from "../testing";
 import {
-  GENERATION_JOB,
+  GENERATION_AUDIT_JOB,
+  GENERATION_FAST_JOB,
+  GENERATION_JOBS,
+  GENERATION_SLOW_JOB,
   generationJobPayloadSchema,
   generationJobResultSchema,
   NO_GENERATION_EXECUTORS,
   startAttemptLeaseRenewal,
 } from "./generation";
-import { isQueueName } from "./queues";
+import { GENERATION_QUEUE_NAMES, isQueueName } from "./queues";
 
-describe("the generation job contract", () => {
-  it("names a queue that is actually declared", () => {
-    expect(isQueueName(GENERATION_JOB.queue)).toBe(true);
-    expect(GENERATION_JOB.queue).toBe("generation");
+describe("the generation job contracts", () => {
+  it("each name a declared queue, and route the same job name to it", () => {
+    expect(GENERATION_FAST_JOB.queue).toBe("generation-fast");
+    expect(GENERATION_SLOW_JOB.queue).toBe("generation-slow");
+    expect(GENERATION_AUDIT_JOB.queue).toBe("generation-audit");
+
+    for (const queue of GENERATION_QUEUE_NAMES) {
+      const contract = GENERATION_JOBS[queue];
+
+      expect(isQueueName(contract.queue)).toBe(true);
+      expect(contract.queue).toBe(queue);
+      expect(contract.name).toBe("run-generation");
+    }
   });
 
   it("carries one identifier and nothing else", () => {

@@ -35,7 +35,9 @@ async function main(): Promise<void> {
     createGracefulShutdown,
     createQueueConnection,
     defineJob,
-    GENERATION_JOB,
+    GENERATION_AUDIT_JOB,
+    GENERATION_FAST_JOB,
+    GENERATION_SLOW_JOB,
     handlePing,
     installSignalHandlers,
     NO_GENERATION_EXECUTORS,
@@ -57,17 +59,46 @@ async function main(): Promise<void> {
     createQueueConnection({ url: env.REDIS_URL, role: "producer" }),
   );
 
+  // The per-user and per-project caps (CAL-065) are enforced at the claim,
+  // not here — these are only the process-level ceilings on how many
+  // generation jobs run at once, which have to sit above those caps or they
+  // would never bind at all. One worker per generation queue (CAL-066): a
+  // BullMQ `Worker` takes a queue, not a job name, and each queue's own
+  // concurrency is what keeps a long `generation-slow` call from starving a
+  // short `generation-fast` one — they run on entirely separate workers.
   const workers = [
     startQueueWorker({
-      queue: GENERATION_JOB.queue,
+      queue: GENERATION_FAST_JOB.queue,
       connection: consumer,
-      // The per-user and per-project caps (CAL-065) are enforced at the claim,
-      // not here — this is only the process-level ceiling on how many
-      // generation jobs run at once, which has to sit above those caps or they
-      // would never bind at all.
-      concurrency: env.GENERATION_WORKER_CONCURRENCY,
+      concurrency: env.GENERATION_FAST_WORKER_CONCURRENCY,
       jobs: [
-        defineJob(GENERATION_JOB, (payload) =>
+        defineJob(GENERATION_FAST_JOB, (payload) =>
+          runGenerationJob({
+            generationId: payload.generationId,
+            executors: NO_GENERATION_EXECUTORS,
+          }),
+        ),
+      ],
+    }),
+    startQueueWorker({
+      queue: GENERATION_SLOW_JOB.queue,
+      connection: consumer,
+      concurrency: env.GENERATION_SLOW_WORKER_CONCURRENCY,
+      jobs: [
+        defineJob(GENERATION_SLOW_JOB, (payload) =>
+          runGenerationJob({
+            generationId: payload.generationId,
+            executors: NO_GENERATION_EXECUTORS,
+          }),
+        ),
+      ],
+    }),
+    startQueueWorker({
+      queue: GENERATION_AUDIT_JOB.queue,
+      connection: consumer,
+      concurrency: env.GENERATION_AUDIT_WORKER_CONCURRENCY,
+      jobs: [
+        defineJob(GENERATION_AUDIT_JOB, (payload) =>
           runGenerationJob({
             generationId: payload.generationId,
             executors: NO_GENERATION_EXECUTORS,

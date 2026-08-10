@@ -32,6 +32,7 @@
  * Server-side only.
  */
 
+import type { $Enums } from "@prisma/client";
 import { z } from "zod";
 
 import { type Result } from "../errors";
@@ -93,9 +94,14 @@ export interface ReconcileGenerationsOptions {
   readonly logger?: Logger;
   /**
    * Injected so the decisions can be tested without Redis, and so a caller with
-   * its own producer can supply it. Defaults to the real one.
+   * its own producer can supply it. Defaults to the real one, which needs the
+   * mission to pick which of the three generation queues (CAL-066) to deliver
+   * to.
    */
-  readonly enqueue?: (generationId: string) => Promise<Result<unknown>>;
+  readonly enqueue?: (
+    generationId: string,
+    mission: $Enums.GenerationMission,
+  ) => Promise<Result<unknown>>;
 }
 
 export async function reconcileGenerations(
@@ -125,8 +131,8 @@ export async function reconcileGenerations(
   let deliveredGenerations = 0;
   let undeliveredGenerations = 0;
 
-  for (const generationId of deliverable) {
-    const enqueued = await enqueue(generationId);
+  for (const { id: generationId, mission } of deliverable) {
+    const enqueued = await enqueue(generationId, mission);
 
     if (enqueued.ok) {
       deliveredGenerations += 1;
