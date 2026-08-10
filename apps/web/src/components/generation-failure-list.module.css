@@ -1,0 +1,74 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ *
+ * The warning surface rather than the danger one, deliberately: a failed
+ * generation is a setback with a button beside it, not a destructive act. Red is
+ * reserved for deleting a project, which is the one thing on this page that
+ * cannot be undone.
+ */
+
+.panel {
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  background: var(--color-warning-surface);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-1);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--color-warning);
+}
+
+.note {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.text {
+  flex: 1 1 18rem;
+}
+
+.mission {
+  margin: 0;
+  font-weight: 600;
+}
+
+.meta {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.reason {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.form {
+  flex: 0 0 auto;
+}

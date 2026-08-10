@@ -90,6 +90,10 @@ export const RECONCILIATION_INTERVAL_MS = 60_000;
  * an author waits through after a Redis outage for no benefit. Re-enqueueing one
  * that is already queued costs nothing — the job id is the generation id, so
  * Redis drops the duplicate.
+ *
+ * It governs a row with **no** retry deadline. Since CAL-063 a row that failed
+ * transiently carries its own `nextAttemptAt`, and that deadline is what decides
+ * when it comes back — see `listDeliverableGenerations`.
  */
 export const GENERATION_STALE_AFTER_MS = 2 * RECONCILIATION_INTERVAL_MS;
 
@@ -99,20 +103,6 @@ export const GENERATION_STALE_AFTER_MS = 2 * RECONCILIATION_INTERVAL_MS;
  * sweep says so in its log rather than reporting a clean pass.
  */
 export const RECONCILIATION_BATCH_SIZE = 100;
-
-/**
- * How many attempts a generation gets before the sweep gives up on it
- * (`GENERATION_ATTEMPTS_EXHAUSTED`).
- *
- * A loop breaker, not a retry policy. `completeGenerationAttempt` returns a
- * retryable failure to `QUEUED`, and the sweep is the only thing that redelivers
- * one — so without a ceiling a provider that stays broken is redelivered every
- * minute for as long as it stays broken, and every delivery is a paid call.
- * Five is high enough that a host restarting twice does not consume it and low
- * enough that a genuinely broken generation stops costing within minutes.
- * CAL-063 owns the waiting and the classification; this only owns the end.
- */
-export const MAX_GENERATION_ATTEMPTS = 5;
 
 /**
  * How long a worker's claim on an attempt is believed while the runner renews

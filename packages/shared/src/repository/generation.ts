@@ -18,7 +18,10 @@ import type { $Enums } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
 import { NotFoundError } from "../errors/app-error";
+import type { ErrorCategory } from "../errors/categories";
+import { ERROR_CODES, type ErrorCode } from "../errors/codes";
 import { fail, type Result, succeed } from "../errors/result";
+import type { GenerationFailureClass } from "../generation/retry";
 import { buildGenerationContext, type GenerationContext } from "../generation-context";
 import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
@@ -48,6 +51,12 @@ export interface RunningGeneration {
   /** The named step and indicative percentage last reported (CAL-062). */
   readonly progressStep: string | null;
   readonly progressPercent: number | null;
+  /**
+   * Non-null when this generation is queued *again* after a failure worth
+   * retrying (CAL-063) — so the indicator can say that a new attempt is coming
+   * rather than leaving an author watching a spinner that looks stuck.
+   */
+  readonly failureClass: GenerationFailureClass | null;
 }
 
 /**
@@ -67,10 +76,122 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
       createdAt: true,
       progressStep: true,
       progressPercent: true,
+      failureClass: true,
     },
   });
 
-  return rows.map((row) => ({ ...row, status: row.status as RunningGenerationStatus }));
+  return rows.map((row) => ({
+    ...row,
+    status: row.status as RunningGenerationStatus,
+    failureClass: toFailureClass(row.failureClass),
+  }));
+}
+
+/**
+ * One generation that has failed for good, as the screen offering a replay needs
+ * it (CAL-063).
+ *
+ * Classification only. The code, its category and its class are the three fields
+ * §9 lets a failure carry, and every one of them is a closed enumeration — no
+ * message, no provider payload, no fragment of what was being written. The
+ * French sentence the author reads is built in `apps/web` from the code, which
+ * is the same division `project-action-error.ts` already uses for a refused
+ * action.
+ */
+export interface FailedGeneration {
+  readonly id: string;
+  readonly mission: GenerationMission;
+  readonly targetId: string | null;
+  readonly errorCode: ErrorCode | null;
+  readonly errorCategory: ErrorCategory | null;
+  readonly failureClass: GenerationFailureClass | null;
+  /** How many tries it took before Calepin stopped. `MAX(attempt)`, never stored. */
+  readonly attemptCount: number;
+  readonly completedAt: Date | null;
+}
+
+/**
+ * A project's failed generations, newest first — the order an author reads a
+ * problem list in, and the one `@@index([projectId, createdAt])` serves.
+ *
+ * `FAILED` only. A cancelled generation is not a failure (nothing went wrong and
+ * there is nothing to explain), and a generation waiting out a backoff is still
+ * in flight — it appears in `listRunningGenerations` above, where it belongs,
+ * because offering a *Relancer* button for work that is about to run by itself
+ * would invite an author to pay for the same call twice.
+ */
+export async function listFailedGenerations(scope: ProjectScope): Promise<FailedGeneration[]> {
+  assertProjectScope(scope);
+
+  const rows = await getDatabaseClient().generation.findMany({
+    where: scopedWhere("Generation", scope, { status: "FAILED" }),
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      mission: true,
+      targetId: true,
+      errorCode: true,
+      errorCategory: true,
+      failureClass: true,
+      completedAt: true,
+      // The attempt count is an aggregate, never a column (§4.3). Taking the
+      // highest attempt number rather than counting rows answers the same
+      // question and matches what `claimGenerationAttempt` allocates.
+      attempts: { orderBy: { attempt: "desc" }, take: 1, select: { attempt: true } },
+    },
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    mission: row.mission,
+    targetId: row.targetId,
+    // The column is free text — the code set is closed in TypeScript and adding
+    // a member is a one-line diff, so pinning the column to it in PostgreSQL
+    // would make every new code a migration. Narrowed on the way out rather than
+    // cast: a row written by a later release than this reader answers `null` and
+    // the screen falls back to the class, instead of naming a code it has no
+    // message for (§6).
+    errorCode: toErrorCode(row.errorCode),
+    errorCategory: toErrorCategory(row.errorCategory),
+    failureClass: toFailureClass(row.failureClass),
+    attemptCount: row.attempts[0]?.attempt ?? 0,
+    completedAt: row.completedAt,
+  }));
+}
+
+/** The three enum spellings, read back into the lowercase union (CAL-063). */
+const FAILURE_CLASS_BY_COLUMN = {
+  TRANSIENT: "transient",
+  RATE_LIMITED: "rate_limited",
+  PERMANENT: "permanent",
+} as const satisfies Record<$Enums.GenerationFailureClass, GenerationFailureClass>;
+
+function toFailureClass(
+  value: $Enums.GenerationFailureClass | null,
+): GenerationFailureClass | null {
+  return value === null ? null : FAILURE_CLASS_BY_COLUMN[value];
+}
+
+const ERROR_CATEGORY_BY_COLUMN = {
+  VALIDATION: "validation",
+  NOT_FOUND: "not_found",
+  FORBIDDEN: "forbidden",
+  CONFLICT: "conflict",
+  RATE_LIMIT: "rate_limit",
+  PROVIDER: "provider",
+  TIMEOUT: "timeout",
+  INTERNAL: "internal",
+} as const satisfies Record<$Enums.ErrorCategory, ErrorCategory>;
+
+function toErrorCategory(value: $Enums.ErrorCategory | null): ErrorCategory | null {
+  return value === null ? null : ERROR_CATEGORY_BY_COLUMN[value];
+}
+
+function toErrorCode(value: string | null): ErrorCode | null {
+  // `find` rather than a cast behind an `includes`, the shape `readStatus` in
+  // `./generation-run.ts` already uses: the narrowing is the search's own result,
+  // so §6's "never cast" holds without a comment promising it does.
+  return value === null ? null : (ERROR_CODES.find((code) => code === value) ?? null);
 }
 
 /**

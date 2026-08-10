@@ -1,6 +1,7 @@
 import {
   getProjectForOwner,
   getSourceText,
+  listFailedGenerations,
   listRunningGenerations,
   openProjectScope,
   type ProjectScope,
@@ -12,6 +13,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { ArchiveProjectSection } from "@/components/archive-project-section";
+import { GenerationFailureList } from "@/components/generation-failure-list";
 import { GenerationIndicator } from "@/components/generation-indicator";
 import { ObsolescenceNotice } from "@/components/obsolescence-notice";
 import { ProjectOverview } from "@/components/project-overview";
@@ -27,6 +29,7 @@ import {
   archiveProjectAction,
   duplicateProjectAction,
   renameProjectAction,
+  replayGenerationAction,
   restoreProjectAction,
 } from "./actions";
 import loadingStyles from "./loading.module.css";
@@ -110,12 +113,14 @@ interface ProjectDetailsProps {
  * that component's doc comment for why.
  */
 async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
-  const [progress, runningGenerations, sourceText, obsolescence] = await Promise.all([
-    readProjectProgress(scope),
-    listRunningGenerations(scope),
-    getSourceText(scope),
-    readSourceTextObsolescence(scope),
-  ]);
+  const [progress, runningGenerations, failedGenerations, sourceText, obsolescence] =
+    await Promise.all([
+      readProjectProgress(scope),
+      listRunningGenerations(scope),
+      listFailedGenerations(scope),
+      getSourceText(scope),
+      readSourceTextObsolescence(scope),
+    ]);
   if (!progress.ok) notFound();
 
   const isArchived = project.archivedAt !== null;
@@ -143,7 +148,19 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
           mission: row.mission,
           progressStep: row.progressStep,
           progressPercent: row.progressPercent,
+          failureClass: row.failureClass,
         }))}
+      />
+
+      {/*
+       * Above the rest of the actions, and on purpose (CAL-063): a generation the
+       * author paid for and did not get is the most urgent thing on this page,
+       * and the button that fixes it should not be below "Dupliquer".
+       */}
+      <GenerationFailureList
+        projectId={project.id}
+        failures={failedGenerations}
+        replayAction={replayGenerationAction}
       />
 
       {/*

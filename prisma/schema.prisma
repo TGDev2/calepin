@@ -2154,6 +2154,27 @@ enum GenerationAttemptStatus {
 /// line into a migration. The category list is closed, which is what makes the
 /// operations dashboard's "taux d'erreur et causes principales" (CAL-067) a
 /// typed group-by rather than a count of free-text strings.
+/// Which of the three classes a generation's failure fell into (CAL-063), and
+/// therefore what happens next: a transient one is retried after a short
+/// backoff, a rate-limited one after a longer one, a permanent one never.
+///
+/// Exactly the three members of `GENERATION_FAILURE_CLASSES` in
+/// @calepin/shared/generation, which is where the classification is decided;
+/// schema.test.ts pins the two lists together by reading that file, so a fourth
+/// class cannot be added on one side alone.
+///
+/// It is deliberately not derivable from `errorCategory`. A `PROVIDER` failure
+/// is usually transient and `MODEL_OUTPUT_INVALID` is a `PROVIDER` failure that
+/// is permanent — the flag that separates them lives on the error object, not on
+/// the category, so the class has to be recorded rather than recomputed.
+enum GenerationFailureClass {
+  TRANSIENT // transitoire
+  RATE_LIMITED // limite de débit
+  PERMANENT // définitive
+
+  @@map("generation_failure_class")
+}
+
 enum ErrorCategory {
   VALIDATION
   NOT_FOUND
@@ -2276,6 +2297,41 @@ model Generation {
   errorCode     String?
   errorCategory ErrorCategory?
 
+  /// Which of the three classes the last failure fell into, and therefore
+  /// whether another attempt is owed (CAL-063). Present on a row waiting for an
+  /// automatic retry and on a row that has failed for good; null on a fresh,
+  /// running, succeeded or cancelled one — generations_retry_check.
+  ///
+  /// Recorded rather than recomputed: `retryable` is a property of the error
+  /// object and may contradict its own category, so a reader cannot get the
+  /// class back from `errorCategory`.
+  ///
+  /// It outlives `errorCode` on the retryable path, and that asymmetry is
+  /// deliberate. The code is cleared when the row returns to `QUEUED` because the
+  /// generation is open again and `generations_failure_check` reserves a code for
+  /// a row that has actually failed; the class stays, because it is the only
+  /// thing that says *why* the row is waiting rather than running.
+  failureClass  GenerationFailureClass?
+  /// When the next automatic attempt becomes due — the exponential backoff of
+  /// CAL-063, expressed as a deadline on the row instead of a timer in a
+  /// process. That is the whole point: a worker killed mid-backoff loses
+  /// nothing, because the wait is in PostgreSQL like everything else that is
+  /// true about this generation.
+  ///
+  /// Read by `listDeliverableGenerations` and by nothing else. Only the
+  /// **automatic** redelivery honours it: an author replaying by hand, or asking
+  /// the same thing again, is a decision and is never throttled by it.
+  nextAttemptAt DateTime?
+  /// This row's own attempt ceiling, when it is not the default
+  /// `MAX_GENERATION_ATTEMPTS` (CAL-063).
+  ///
+  /// Null for every generation nobody has replayed, which is almost all of them.
+  /// `replayGeneration` sets it to the attempts already spent plus a fresh
+  /// allowance, and without that a manual replay would be closed again as
+  /// `GENERATION_ATTEMPTS_EXHAUSTED` by the very next sweep — the attempts are
+  /// append-only, so the count never goes back down.
+  attemptCeiling Int?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   updatedById String   @default("unattributed")
@@ -2310,6 +2366,12 @@ model Generation {
   // The reconciliation task (CAL-060): everything still QUEUED or RUNNING past
   // its deadline, across every project.
   @@index([status, createdAt])
+  // The other half of the same sweep since CAL-063: a QUEUED row is deliverable
+  // either because it has been sitting there (the index above) or because its
+  // backoff has elapsed. Two predicates on one column pair, so two indexes —
+  // a sweep that runs every minute forever should not be a sequential scan of
+  // every generation ever created.
+  @@index([status, nextAttemptAt])
   @@map("generations")
 }
 

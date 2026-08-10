@@ -32,8 +32,24 @@ export {
 export type {
   AttemptContext,
   AttemptUsage,
+  FailedAttemptOptions,
   GenerationAttemptOutcome,
   GenerationStatus,
 } from "./outcome";
 export { GENERATION_STATUSES, toFailedAttempt, toSucceededAttempt } from "./outcome";
 export type { GenerationProgress } from "./progress";
+export type {
+  GenerationFailureClass,
+  GenerationRetryDelayInput,
+  GenerationRetryPolicy,
+  NextGenerationAttemptInput,
+} from "./retry";
+export {
+  classifyGenerationFailure,
+  DEFAULT_GENERATION_RETRY_POLICY,
+  GENERATION_FAILURE_CLASSES,
+  generationRetryDelayMs,
+  isRetriableFailureClass,
+  MAX_GENERATION_ATTEMPTS,
+  nextGenerationAttemptAt,
+} from "./retry";

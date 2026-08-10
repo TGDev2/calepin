@@ -34,6 +34,7 @@ import {
   getProjectForOwner,
   getProjectTargetLength,
   getSourceText,
+  listFailedGenerations,
   listProjectDashboardRows,
   listProjectsForOwner,
   listRunningGenerations,
@@ -89,6 +90,7 @@ const ENTRY_POINTS = [
   "getSourceText",
   "listProjectDashboardRows",
   "listProjectsForOwner",
+  "listFailedGenerations",
   "listRunningGenerations",
   "listSourceTextVersions",
   "openProjectScope",
@@ -623,6 +625,28 @@ describe("owner access policy", () => {
       expect(alicesRunning.map((row) => row.id)).toContain(alice.rows.Generation);
       expect(alicesRunning.map((row) => row.id)).not.toContain(bob.rows.Generation);
       expect(bobsRunning.map((row) => row.id)).not.toContain(alice.rows.Generation);
+    });
+
+    /**
+     * CAL-063's replay screen. The fixture graph's generation is `QUEUED`, so
+     * this reader answers nothing for either owner until one is failed — and
+     * failing Alice's is what makes "not Bob's" mean something rather than
+     * being satisfied by an empty database on both sides.
+     */
+    it("listFailedGenerations never returns another owner's generation", async () => {
+      await seam.$executeRaw`
+        UPDATE "generations"
+        SET "status" = 'FAILED', "completedAt" = now(),
+            "errorCode" = 'PROVIDER_UNAVAILABLE', "errorCategory" = 'PROVIDER',
+            "failureClass" = 'PERMANENT'
+        WHERE "id" = ${alice.rows.Generation}
+      `;
+
+      const alicesFailed = await listFailedGenerations(aliceScope);
+      const bobsFailed = await listFailedGenerations(bobScope);
+
+      expect(alicesFailed.map((row) => row.id)).toContain(alice.rows.Generation);
+      expect(bobsFailed.map((row) => row.id)).not.toContain(alice.rows.Generation);
     });
 
     it("updateProject refuses a scope forged for another owner's project", async () => {

@@ -1,8 +1,9 @@
 "use server";
 
 /**
- * The five actions on a project (CAL-035) — rename, duplicate, archive,
- * restore, delete. Opening one is the sixth, and it is a link.
+ * The actions on a project — rename, duplicate, archive, restore, delete
+ * (CAL-035), and replaying a failed generation (CAL-063). Opening the project is
+ * the one that is a link rather than a form.
  *
  * Each of them composes and nothing more, which is what the interface layer is
  * for (§3.3): the session says who is asking, `openProjectScope` turns the
@@ -23,8 +24,9 @@
  */
 
 import { runWithActor } from "@calepin/shared/audit";
-import { errorLogFields, type Result } from "@calepin/shared/errors";
+import { errorLogFields, type Result, succeed } from "@calepin/shared/errors";
 import { logger } from "@calepin/shared/logging";
+import { enqueueGeneration } from "@calepin/shared/queue";
 import {
   archiveProject,
   deleteProject,
@@ -32,6 +34,7 @@ import {
   getProjectForOwner,
   openProjectScope,
   type ProjectScope,
+  replayGeneration,
   restoreProject,
   updateProject,
 } from "@calepin/shared/repository";
@@ -102,6 +105,64 @@ export async function restoreProjectAction(formData: FormData): Promise<void> {
   const outcome = await withRequestLogContext(async () =>
     performWrite(userId, projectId, restoreProject),
   );
+
+  finish(outcome, projectPath(projectId), projectPath(projectId));
+}
+
+/**
+ * Replays a generation that failed (CAL-063).
+ *
+ * Two steps, and their order is the whole design. `replayGeneration` reopens the
+ * **row** — clearing the failure, clearing any backoff and raising the row's own
+ * attempt ceiling so the reconciliation sweep does not close it again a minute
+ * later — and only then is the job enqueued. The row is the truth; the job is a
+ * hint (CAL-061), so a Redis outage here costs latency and not the replay: the
+ * generation is already `QUEUED`, and the sweep offers it to a worker within the
+ * minute. That is why a refused enqueue is **not** reported as a failure.
+ *
+ * The generation id arrives in the form and is never trusted: `replayGeneration`
+ * takes a `ProjectScope`, so a row belonging to somebody else is `NOT_FOUND` —
+ * the same answer as a row that does not exist (§3.5).
+ */
+export async function replayGenerationAction(formData: FormData): Promise<void> {
+  const projectId = readProjectId(formData);
+  const userId = await requireOwnerId(projectId);
+  const generationId = formData.get("generationId");
+
+  const outcome = await withRequestLogContext(async () => {
+    if (typeof generationId !== "string" || generationId === "") {
+      return refused("missing", userId, projectId);
+    }
+
+    return performWrite(userId, projectId, async (scope) => {
+      const replayed = await replayGeneration(scope, generationId);
+
+      if (!replayed.ok) {
+        // A generation that succeeded or was cancelled between the render and
+        // the click. `CONFLICT` rather than a missing row, and its own reason
+        // code, because the remedy is a reload rather than a retry.
+        return replayed.error.code === "CONFLICT"
+          ? { ok: false as const, reason: "generation" as const }
+          : replayed;
+      }
+
+      const enqueued = await enqueueGeneration(replayed.value.id);
+
+      if (!enqueued.ok) {
+        // Said out loud, because a partial pass that stayed silent looks exactly
+        // like a clean one — and then reported as a success, because it is one:
+        // the row is queued and the sweep is what delivers a queued row.
+        logger.warn("generation.replay-not-delivered", {
+          projectId,
+          generationId: replayed.value.id,
+          errorCode: enqueued.error.code,
+          errorCategory: enqueued.error.category,
+        });
+      }
+
+      return succeed(replayed.value);
+    });
+  });
 
   finish(outcome, projectPath(projectId), projectPath(projectId));
 }

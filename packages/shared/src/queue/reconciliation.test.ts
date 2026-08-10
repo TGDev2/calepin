@@ -11,12 +11,12 @@
 
 import { describe, expect, it } from "vitest";
 
+import { MAX_GENERATION_ATTEMPTS } from "../generation";
 import {
   GENERATION_LEASE_MS,
   GENERATION_LEASE_RENEWAL_MS,
   GENERATION_STALE_AFTER_MS,
   isQueueName,
-  MAX_GENERATION_ATTEMPTS,
   RECONCILIATION_BATCH_SIZE,
   RECONCILIATION_INTERVAL_MS,
 } from "./queues";

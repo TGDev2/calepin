@@ -42,8 +42,10 @@ import {
   type AttemptCompletion,
   type GenerationAttemptOutcome,
   type GenerationClaim,
+  type GenerationFailureClass,
   generationIdempotencyKey,
   type GenerationPersistence,
+  MAX_GENERATION_ATTEMPTS,
 } from "../generation";
 import { logger } from "../logging";
 import type { GenerationMission } from "./generation";
@@ -141,6 +143,13 @@ const REFUSAL_BY_STATUS: Partial<
   FAILED: "already-failed",
   CANCELLED: "cancelled",
 };
+
+/** The three failure classes, in the spelling the column uses (CAL-063). */
+const FAILURE_CLASS_COLUMN = {
+  transient: "TRANSIENT",
+  rate_limited: "RATE_LIMITED",
+  permanent: "PERMANENT",
+} as const satisfies Record<GenerationFailureClass, $Enums.GenerationFailureClass>;
 
 /** The eight categories, in the spelling the column uses. Looked up, never cast. */
 const ERROR_CATEGORY_COLUMN = {
@@ -337,10 +346,14 @@ export async function claimGenerationAttempt(
     });
 
     // Progress is cleared with the same statement that opens the attempt: a
-    // reload during attempt 2 must never show attempt 1's last step.
+    // reload during attempt 2 must never show attempt 1's last step. The retry
+    // pair goes with it (CAL-063): the wait is over — this *is* the attempt it
+    // was waiting for — and nothing has failed yet, so a screen watching the row
+    // must not still be told a retry is pending.
     await tx.$executeRaw`
       UPDATE "generations"
-      SET "status" = 'RUNNING', "progressStep" = NULL, "progressPercent" = NULL
+      SET "status" = 'RUNNING', "progressStep" = NULL, "progressPercent" = NULL,
+          "failureClass" = NULL, "nextAttemptAt" = NULL
       WHERE "id" = ${input.generationId}
         AND "status" IN ('QUEUED', 'RUNNING')
         AND "projectId" IN (
@@ -389,6 +402,12 @@ export async function completeGenerationAttempt(
   const usage = outcome.usage;
   const category =
     outcome.errorCategory === undefined ? null : ERROR_CATEGORY_COLUMN[outcome.errorCategory];
+  const failureClass =
+    outcome.failureClass === undefined ? null : FAILURE_CLASS_COLUMN[outcome.failureClass];
+  // A deadline only ever accompanies a row going back to `QUEUED`. Writing one
+  // on the permanent path would be refused by `generations_retry_check`, and
+  // rightly: a failed generation is not waiting for anything.
+  const nextAttemptAt = outcome.retryable ? (outcome.nextAttemptAt ?? null) : null;
 
   return runLockedOnGeneration(scope, outcome.generationId, async (tx) => {
     const applied = await tx.generationAttempt.updateMany({
@@ -427,7 +446,8 @@ export async function completeGenerationAttempt(
       await tx.$executeRaw`
         UPDATE "generations"
         SET "status" = 'SUCCEEDED', "completedAt" = now(),
-            "errorCode" = NULL, "errorCategory" = NULL
+            "errorCode" = NULL, "errorCategory" = NULL,
+            "failureClass" = NULL, "nextAttemptAt" = NULL
         WHERE "id" = ${outcome.generationId}
           AND "projectId" IN (
             SELECT "id" FROM "projects"
@@ -435,10 +455,17 @@ export async function completeGenerationAttempt(
           )
       `;
     } else if (outcome.retryable) {
+      // Back in the queue, with the wait CAL-063's policy computed. The code and
+      // the category are cleared because the row has no failure a client may be
+      // shown any more — it is open again — while the class stays, since it is
+      // the only thing that distinguishes a generation waiting out a rate limit
+      // from one that has simply not started yet.
       await tx.$executeRaw`
         UPDATE "generations"
         SET "status" = 'QUEUED', "completedAt" = NULL,
-            "errorCode" = NULL, "errorCategory" = NULL
+            "errorCode" = NULL, "errorCategory" = NULL,
+            "failureClass" = ${failureClass}::"generation_failure_class",
+            "nextAttemptAt" = ${nextAttemptAt}
         WHERE "id" = ${outcome.generationId}
           AND "projectId" IN (
             SELECT "id" FROM "projects"
@@ -450,7 +477,9 @@ export async function completeGenerationAttempt(
         UPDATE "generations"
         SET "status" = 'FAILED', "completedAt" = now(),
             "errorCode" = ${outcome.errorCode ?? null},
-            "errorCategory" = ${category}::"error_category"
+            "errorCategory" = ${category}::"error_category",
+            "failureClass" = ${failureClass}::"generation_failure_class",
+            "nextAttemptAt" = NULL
         WHERE "id" = ${outcome.generationId}
           AND "projectId" IN (
             SELECT "id" FROM "projects"
@@ -569,6 +598,19 @@ export async function updateGenerationProgress(
  * Idempotent for a generation already open, refused for one that succeeded or
  * was cancelled — replaying those is not a retry, it is a new ask, and a new
  * ask goes through `reserveGeneration` with the inputs that make it one.
+ *
+ * **It raises the row's own attempt ceiling, and it has to** (CAL-063). The
+ * attempts are append-only, so a generation the sweep closed as
+ * `GENERATION_ATTEMPTS_EXHAUSTED` still has `MAX_GENERATION_ATTEMPTS` of them
+ * after a replay — and the sweep closes an over-ceiling row *before* it delivers
+ * anything, so without a new ceiling the replay would be undone within a minute,
+ * every time, and the button would look broken. The new ceiling is what has
+ * already been spent plus a fresh allowance: the cost already counted stays
+ * counted exactly once, and the loop breaker still breaks the loop.
+ *
+ * **It clears the backoff too.** An author who clicks *Relancer* has decided; the
+ * exponential wait exists to protect a provider from an automatic loop, not to
+ * make a person wait for a decision they have already taken.
  */
 export async function replayGeneration(
   scope: ProjectScope,
@@ -583,13 +625,27 @@ export async function replayGeneration(
       );
     }
 
-    if (status === "FAILED") {
+    // A `RUNNING` generation is left exactly alone: somebody holds a lease on it,
+    // and reopening it under them is how two workers come to believe they own one
+    // ask. A `QUEUED` one is rewritten as well as a `FAILED` one, because a row
+    // waiting out a backoff is precisely what this act overrides — the wait is
+    // there to protect a provider from an automatic loop, not to make a person
+    // wait for a decision they have already taken.
+    //
+    // The ceiling is recomputed from the attempts inside the same locked
+    // transaction that reads them, so two clicks cannot each add an allowance on
+    // top of a count taken before the other's write.
+    if (status !== "RUNNING") {
       await tx.$executeRaw`
-        UPDATE "generations"
+        UPDATE "generations" g
         SET "status" = 'QUEUED', "completedAt" = NULL,
-            "errorCode" = NULL, "errorCategory" = NULL
-        WHERE "id" = ${generationId}
-          AND "projectId" IN (
+            "errorCode" = NULL, "errorCategory" = NULL,
+            "failureClass" = NULL, "nextAttemptAt" = NULL,
+            "attemptCeiling" = (
+              SELECT count(*) FROM "generation_attempts" a WHERE a."generationId" = g."id"
+            ) + ${MAX_GENERATION_ATTEMPTS}
+        WHERE g."id" = ${generationId}
+          AND g."projectId" IN (
             SELECT "id" FROM "projects"
             WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
           )

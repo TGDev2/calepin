@@ -16,6 +16,7 @@
  * connection.
  */
 
+import type { GenerationFailureClass } from "@calepin/shared/generation";
 import type { GenerationMission } from "@calepin/shared/repository";
 
 /** One running generation, as the SSE route's `data:` frame carries it. */
@@ -24,6 +25,12 @@ export interface RunningGenerationView {
   readonly mission: GenerationMission;
   readonly progressStep: string | null;
   readonly progressPercent: number | null;
+  /**
+   * Non-null when this generation is queued *again* after a failure worth
+   * retrying (CAL-063). A class, never a message: the frame crosses to a browser,
+   * and what a reader sees is built from the class on the other side.
+   */
+  readonly failureClass: GenerationFailureClass | null;
 }
 
 /** The two members of `EventSource` this module actually uses. */

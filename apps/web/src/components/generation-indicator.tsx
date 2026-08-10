@@ -47,6 +47,16 @@ export function GenerationIndicator({ projectId, initial }: GenerationIndicatorP
           <span className={styles.spinner} aria-hidden="true" />
           <span>
             Génération en cours&nbsp;: {generationMissionLabel(generation.mission)}
+            {/*
+             * A generation waiting out CAL-063's backoff is still in flight, and
+             * an author watching a spinner deserves to know why nothing is
+             * moving — otherwise an automatic retry is indistinguishable from a
+             * stuck job, which is precisely the anxiety the retry exists to
+             * remove.
+             */}
+            {generation.failureClass === null ? null : (
+              <> — nouvelle tentative programmée après un incident</>
+            )}
             {generation.progressStep === null ? null : <> — {generation.progressStep}</>}
             {generation.progressPercent === null ? null : (
               <>

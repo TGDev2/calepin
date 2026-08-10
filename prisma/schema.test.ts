@@ -1485,6 +1485,44 @@ describe("prisma schema", () => {
         );
       });
 
+      // CAL-063. The classification that decides whether another attempt is
+      // owed, and how long to wait for it. Pinned against the module that takes
+      // the decision, so a fourth class cannot be added on one side alone.
+      it("mirrors the three failure classes @calepin/shared classifies into", () => {
+        expect(enumMembers("GenerationFailureClass")).toEqual(
+          sharedStringUnion("generation/retry.ts", "GENERATION_FAILURE_CLASSES"),
+        );
+      });
+
+      // The three columns of CAL-063's retry state. `nextAttemptAt` is the whole
+      // idea in one word: the backoff is a deadline in PostgreSQL rather than a
+      // timer in a process, so a worker killed mid-wait loses nothing.
+      it("records the failure class, the retry deadline and its own ceiling", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/^\s*failureClass\s+GenerationFailureClass\?/m);
+        expect(generation).toMatch(/^\s*nextAttemptAt\s+DateTime\?/m);
+        expect(generation).toMatch(/^\s*attemptCeiling\s+Int\?/m);
+      });
+
+      // All three are nullable, and that is not laxity. A generation nobody has
+      // replayed carries no ceiling of its own — the default lives in code as
+      // MAX_GENERATION_ATTEMPTS, and a column default here would be the same
+      // number written twice, free to disagree with itself.
+      it("leaves the retry state absent by default rather than defaulted", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).not.toMatch(/^\s*attemptCeiling\s+Int\s/m);
+        expect(generation).not.toMatch(/^\s*failureClass\s+GenerationFailureClass\s/m);
+        expect(generation).not.toMatch(/^\s*nextAttemptAt\s+DateTime\s/m);
+      });
+
+      // Two predicates on one column pair — sitting in the queue, or a backoff
+      // that has elapsed — so two indexes. The sweep runs every minute forever.
+      it("indexes the retry deadline the sweep selects on", () => {
+        expect(modelBlock("Generation")).toMatch(/@@index\(\[status, nextAttemptAt\]\)/);
+      });
+
       it("carries the mission, its target and the replay payload", () => {
         const generation = modelBlock("Generation");
 

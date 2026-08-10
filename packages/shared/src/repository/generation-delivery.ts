@@ -135,7 +135,8 @@ export async function requeueOrphanedGenerations(): Promise<number> {
 }
 
 /**
- * Closes every `QUEUED` generation that has already had `maxAttempts` tries.
+ * Closes every `QUEUED` generation that has already had all the tries it is
+ * allowed.
  *
  * The loop breaker. A retryable failure returns a generation to `QUEUED` and the
  * sweep is the only thing that redelivers one, so without this a provider that
@@ -143,6 +144,17 @@ export async function requeueOrphanedGenerations(): Promise<number> {
  * generation with **no** attempt at all is never closed here: that is the
  * rolling-deployment case, where the mission is simply unknown to the workers
  * running right now, and nothing has been spent on it.
+ *
+ * `maxAttempts` is the default ceiling; a row that carries its own
+ * `attemptCeiling` is judged by that instead (CAL-063). Only `replayGeneration`
+ * writes one, which is what keeps a human's decision to try again from being
+ * undone by the sweep a minute later, without letting an automatic retry loop
+ * past its own bound.
+ *
+ * The row is closed `PERMANENT`: whatever the last cause was, *Calepin* has
+ * stopped, and nothing further happens without someone asking. `nextAttemptAt` is
+ * cleared with it — the deadline the last failure wrote is now a wait nobody is
+ * waiting for, and `generations_retry_check` refuses one on a failed row anyway.
  */
 export async function exhaustSpentGenerations(maxAttempts: number): Promise<number> {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
@@ -154,17 +166,21 @@ export async function exhaustSpentGenerations(maxAttempts: number): Promise<numb
     SET "status" = 'FAILED',
         "completedAt" = now(),
         "errorCode" = 'GENERATION_ATTEMPTS_EXHAUSTED',
-        "errorCategory" = 'INTERNAL'
+        "errorCategory" = 'INTERNAL',
+        "failureClass" = 'PERMANENT',
+        "nextAttemptAt" = NULL
     WHERE g."status" = 'QUEUED'
       AND (
         SELECT count(*) FROM "generation_attempts" a WHERE a."generationId" = g."id"
-      ) >= ${maxAttempts}
+      ) >= COALESCE(g."attemptCeiling", ${maxAttempts})
   `;
 }
 
 export interface DeliverableGenerationQuery {
   /** Only rows created or last moved before this instant. */
   readonly staleBefore: Date;
+  /** The clock the retry deadlines below are judged against (§8). */
+  readonly now?: Date;
   readonly limit: number;
 }
 
@@ -175,12 +191,28 @@ export interface DeliverableGenerationQuery {
  * Identifiers only. What the sweep does with them is enqueue a job named by the
  * id, which Redis deduplicates against one already there, so asking whether a
  * job exists would be a round trip that changes no decision.
+ *
+ * **Two ways to be deliverable, and the second one is CAL-063's.** A row with no
+ * retry deadline is deliverable once it has sat in `QUEUED` past the staleness
+ * threshold — the original rule, which covers a fresh ask whose enqueue Redis
+ * refused and a generation the sweep itself returned to the queue. A row *with*
+ * one is deliverable exactly when that deadline has passed, and not a moment
+ * before: it failed transiently, and the wait is the backoff. Judging the second
+ * kind by `createdAt` too would defeat the whole thing — a generation created an
+ * hour ago is stale by definition, so its first transient failure would be
+ * retried on the very next tick at full speed.
  */
 export async function listDeliverableGenerations(
   query: DeliverableGenerationQuery,
 ): Promise<string[]> {
   const rows = await getDatabaseClient().generation.findMany({
-    where: { status: "QUEUED", createdAt: { lte: query.staleBefore } },
+    where: {
+      status: "QUEUED",
+      OR: [
+        { nextAttemptAt: null, createdAt: { lte: query.staleBefore } },
+        { nextAttemptAt: { lte: query.now ?? new Date() } },
+      ],
+    },
     orderBy: { createdAt: "asc" },
     take: query.limit,
     select: { id: true },

@@ -381,6 +381,84 @@ export async function setGenerationProgress(
 }
 
 /**
+ * A generation that has failed for good, with an attempt behind it (CAL-063).
+ *
+ * Written directly, for the reason `seedRunningGeneration` above gives: there is
+ * no mission registry and no executor yet, so there is nothing in the product
+ * that can *produce* a failure. What the spec drives is the screen and the
+ * replay, and both need a row in exactly this shape.
+ *
+ * The attempt row matters as much as the generation: without one there is no
+ * attempt count to render, and — more to the point — the replay's raised ceiling
+ * is computed from the attempts, so a fixture with none would not exercise it.
+ */
+export async function seedFailedGeneration(
+  projectId: string,
+  userId: string,
+  mission: $Enums.GenerationMission,
+  failure: { errorCode: string; errorCategory: $Enums.ErrorCategory },
+): Promise<string> {
+  const prisma = new PrismaClient();
+
+  try {
+    const generation = await prisma.generation.create({
+      data: {
+        projectId,
+        mission,
+        input: {},
+        idempotencyKey: createHash("sha256")
+          .update(`${projectId}:${mission}:${Date.now()}:${Math.random()}`, "utf8")
+          .digest("hex"),
+        status: "FAILED",
+        completedAt: new Date(),
+        errorCode: failure.errorCode,
+        errorCategory: failure.errorCategory,
+        failureClass: "PERMANENT",
+        updatedById: userId,
+      },
+    });
+
+    await prisma.generationAttempt.create({
+      data: {
+        generationId: generation.id,
+        attempt: 1,
+        model: "claude-opus-5",
+        status: "FAILED",
+        completedAt: new Date(),
+        errorCode: failure.errorCode,
+        errorCategory: failure.errorCategory,
+      },
+    });
+
+    return generation.id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * What a generation's row says now — the oracle CAL-063's replay spec needs.
+ *
+ * On the screen the replay looks like a banner disappearing, and a banner can
+ * disappear for the wrong reasons. What the button has to have done is move the
+ * row, so that is what is read.
+ */
+export async function readGenerationState(
+  generationId: string,
+): Promise<{ status: $Enums.GenerationStatus; attemptCeiling: number | null }> {
+  const prisma = new PrismaClient();
+
+  try {
+    return await prisma.generation.findUniqueOrThrow({
+      where: { id: generationId },
+      select: { status: true, attemptCeiling: true },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * The titles of one account's projects, most recently modified first — what
  * CAL-035's specs check a rename and a duplication against.
  *

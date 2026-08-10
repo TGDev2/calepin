@@ -15,6 +15,7 @@ import {
   toFailedAttempt,
   toSucceededAttempt,
 } from "./outcome";
+import { DEFAULT_GENERATION_RETRY_POLICY } from "./retry";
 
 /**
  * Two guarantees, in one file.
@@ -318,6 +319,9 @@ describe("runGenerationAttempt, when the generation fails", () => {
       produce: () => fail(error),
       persist,
       now: createClock(),
+      // No jitter, so the deadline is arithmetic rather than a range: half of
+      // the transient base delay, from the clock's third reading.
+      random: () => 0,
     });
 
     expect(result).toEqual({ ok: false, error });
@@ -333,6 +337,10 @@ describe("runGenerationAttempt, when the generation fails", () => {
         retryable: true,
         errorCode: "PROVIDER_UNAVAILABLE",
         errorCategory: "provider",
+        // CAL-063: the failure is classified and its retry scheduled by the same
+        // call that records it, so a row can never carry one without the other.
+        failureClass: "transient",
+        nextAttemptAt: new Date(1_500 + DEFAULT_GENERATION_RETRY_POLICY.transientBaseDelayMs / 2),
       },
     ]);
   });
@@ -482,7 +490,12 @@ describe("the outcome a Generation row records", () => {
       "durationMs",
       "errorCategory",
       "errorCode",
+      // Both added by CAL-063, and both classification: which of the three
+      // classes the failure fell into, and when the next try is due. Neither
+      // describes what failed, which is the property this assertion exists for.
+      "failureClass",
       "generationId",
+      "nextAttemptAt",
       "retryable",
       "status",
     ]);

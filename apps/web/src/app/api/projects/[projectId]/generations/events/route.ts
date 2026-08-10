@@ -63,6 +63,7 @@ export async function GET(
             mission: row.mission,
             progressStep: row.progressStep,
             progressPercent: row.progressPercent,
+            failureClass: row.failureClass,
           }));
 
           if (!closed) controller.enqueue(encoder.encode(`data: ${JSON.stringify(rows)}\n\n`));

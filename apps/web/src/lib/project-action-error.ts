@@ -13,7 +13,13 @@
  * apart (CLAUDE.md §3.5), and a screen that did would reopen the leak.
  */
 
-export const PROJECT_ACTION_ERRORS = ["title", "confirmation", "missing", "unavailable"] as const;
+export const PROJECT_ACTION_ERRORS = [
+  "title",
+  "confirmation",
+  "missing",
+  "generation",
+  "unavailable",
+] as const;
 export type ProjectActionError = (typeof PROJECT_ACTION_ERRORS)[number];
 
 const MESSAGES: Record<ProjectActionError, string> = {
@@ -21,6 +27,11 @@ const MESSAGES: Record<ProjectActionError, string> = {
   confirmation:
     "Le titre saisi ne correspond pas à celui du projet. Aucune donnée n'a été supprimée.",
   missing: "Ce projet n'existe plus, ou il ne vous appartient pas.",
+  // A replay that arrived too late (CAL-063): the generation has finished, or it
+  // is running again, since the page was rendered. Not a failure of anything —
+  // a reload shows the truth, so the message points at the reload.
+  generation:
+    "Cette génération n'est plus en échec : elle a abouti, ou une nouvelle tentative est déjà en cours. Rechargez la page.",
   unavailable: "L'action n'a pas pu aboutir. Votre projet est intact. Réessayez dans un instant.",
 };
 

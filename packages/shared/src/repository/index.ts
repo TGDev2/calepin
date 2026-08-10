@@ -32,9 +32,11 @@ export {
   type UnduplicatedModelName,
 } from "./duplication-plan";
 export {
+  type FailedGeneration,
   type GenerationContext,
   type GenerationMission,
   getGenerationContextForProject,
+  listFailedGenerations,
   listRunningGenerations,
   type RunningGeneration,
   type RunningGenerationStatus,

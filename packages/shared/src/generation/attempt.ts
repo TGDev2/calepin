@@ -68,6 +68,7 @@ import {
   toSucceededAttempt,
 } from "./outcome";
 import type { GenerationProgress } from "./progress";
+import type { GenerationRetryPolicy } from "./retry";
 
 /**
  * Why a claim did not open an attempt. Every one of them is an ordinary state
@@ -168,8 +169,15 @@ export interface RunGenerationAttemptOptions<T> {
     progress: GenerationProgress,
     context: { generationId: string; attempt: number },
   ) => void;
+  /**
+   * The backoff a retryable failure earns (CAL-063). Injectable so a test can
+   * assert a deadline rather than a range; the default is the shipped policy.
+   */
+  retryPolicy?: GenerationRetryPolicy;
   /** Injected clock (§8). */
   now?: () => number;
+  /** Injected jitter (§8), for the backoff above. */
+  random?: () => number;
 }
 
 export async function runGenerationAttempt<T>(
@@ -181,7 +189,9 @@ export async function runGenerationAttempt<T>(
     produce,
     persist,
     onProgress,
+    retryPolicy,
     now = () => Date.now(),
+    random,
   } = options;
 
   let claim: GenerationClaim;
@@ -221,6 +231,14 @@ export async function runGenerationAttempt<T>(
     usage,
   });
 
+  /**
+   * The failure, classified and with its retry scheduled (CAL-063). The clock is
+   * this function's own injected one, so a test that fixes time sees a deadline
+   * it can predict rather than one read off the wall.
+   */
+  const failedAttempt = (failure: unknown): GenerationAttemptOutcome =>
+    toFailedAttempt(failure, context(), { now: now(), policy: retryPolicy, random });
+
   let produced: Result<T>;
 
   try {
@@ -230,7 +248,7 @@ export async function runGenerationAttempt<T>(
   }
 
   if (!produced.ok) {
-    await recordFailure(persist, toFailedAttempt(produced.error, context()));
+    await recordFailure(persist, failedAttempt(produced.error));
 
     return produced;
   }
@@ -241,7 +259,7 @@ export async function runGenerationAttempt<T>(
     completion = await persist.succeed(produced.value, toSucceededAttempt(context()));
   } catch (error: unknown) {
     const appError = toAppError(error);
-    await recordFailure(persist, toFailedAttempt(appError, context()));
+    await recordFailure(persist, failedAttempt(appError));
 
     return fail(appError);
   }

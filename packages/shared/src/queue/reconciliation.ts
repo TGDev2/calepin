@@ -35,6 +35,7 @@
 import { z } from "zod";
 
 import { type Result } from "../errors";
+import { MAX_GENERATION_ATTEMPTS } from "../generation";
 import { type Logger, logger as processLogger } from "../logging";
 import {
   exhaustSpentGenerations,
@@ -47,7 +48,6 @@ import type { JobContract } from "./jobs";
 import { getQueue } from "./producer";
 import {
   GENERATION_STALE_AFTER_MS,
-  MAX_GENERATION_ATTEMPTS,
   RECONCILIATION_BATCH_SIZE,
   RECONCILIATION_INTERVAL_MS,
 } from "./queues";
@@ -118,6 +118,7 @@ export async function reconcileGenerations(
 
   const deliverable = await listDeliverableGenerations({
     staleBefore: new Date(at.getTime() - staleAfterMs),
+    now: at,
     limit: batchSize,
   });
 
