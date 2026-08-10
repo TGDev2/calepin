@@ -268,6 +268,111 @@ export async function seedProjectWithSourceTextAndPlan(
 }
 
 /**
+ * A project with an analysis behind it (CAL-072) — three sections, enough to
+ * prove the diagnostic screen renders a `FACTUAL` element with its
+ * quotation, a labelled `INTERPRETATION` element, and a section left
+ * legitimately empty, without seeding all seventeen.
+ *
+ * No matching teardown, for the reason `seedProjectWithChapters` gives:
+ * `Project.user` cascades, so `closeSignedInSession` already removes it.
+ */
+export async function seedProjectWithAnalysis(
+  userId: string,
+  title: string,
+): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+
+    const content =
+      "Le vieux pont craquait sous chaque pas. Louise s'arrêta au milieu, regardant l'eau grise couler en contrebas.";
+    const sourceText = await prisma.sourceText.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    const sourceTextVersion = await prisma.sourceTextVersion.create({
+      data: {
+        sourceTextId: sourceText.id,
+        versionNumber: 1,
+        content,
+        wordCount: content.split(/\s+/u).filter(Boolean).length,
+        editedById: userId,
+      },
+    });
+
+    const analysis = await prisma.analysis.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+
+    const summary = await prisma.analysisSectionRevision.create({
+      data: {
+        analysisId: analysis.id,
+        section: "FACTUAL_SUMMARY",
+        revisionNumber: 1,
+        origin: "GENERATED",
+        sourceTextVersionId: sourceTextVersion.id,
+        createdById: userId,
+      },
+    });
+    await prisma.analysisElement.create({
+      data: {
+        sectionRevisionId: summary.id,
+        position: 1,
+        kind: "FACTUAL",
+        statement: "Louise s'arrête au milieu d'un pont et observe la rivière.",
+      },
+    });
+
+    const themes = await prisma.analysisSectionRevision.create({
+      data: {
+        analysisId: analysis.id,
+        section: "THEMES",
+        revisionNumber: 1,
+        origin: "GENERATED",
+        sourceTextVersionId: sourceTextVersion.id,
+        createdById: userId,
+      },
+    });
+    await prisma.analysisElement.create({
+      data: {
+        sectionRevisionId: themes.id,
+        position: 1,
+        kind: "FACTUAL",
+        label: "Le pont",
+        statement: "Le texte insiste sur l'état vétuste du pont.",
+        evidence: "Le vieux pont craquait sous chaque pas.",
+      },
+    });
+    await prisma.analysisElement.create({
+      data: {
+        sectionRevisionId: themes.id,
+        position: 2,
+        kind: "INTERPRETATION",
+        label: "La contemplation",
+        statement: "Le passage suggère un moment de pause réflexive plutôt qu'une action.",
+      },
+    });
+
+    // No elements: `RELATIONSHIPS` allows zero, and the screen must show that
+    // as a legitimate empty state rather than as a missing section.
+    await prisma.analysisSectionRevision.create({
+      data: {
+        analysisId: analysis.id,
+        section: "RELATIONSHIPS",
+        revisionNumber: 1,
+        origin: "GENERATED",
+        sourceTextVersionId: sourceTextVersion.id,
+        createdById: userId,
+      },
+    });
+
+    return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * Every version of a project's source text, newest first — what a spec asserts
  * an edit against, since the browser only ever shows the current one.
  */

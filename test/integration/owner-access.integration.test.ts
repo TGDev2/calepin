@@ -31,6 +31,7 @@ import {
   delegateName,
   deleteProject,
   duplicateProject,
+  getAnalysis,
   getGenerationContextForProject,
   getProjectForOwner,
   getProjectTargetLength,
@@ -87,6 +88,7 @@ const ENTRY_POINTS = [
   "createProjectWithSourceText",
   "deleteProject",
   "duplicateProject",
+  "getAnalysis",
   "getGenerationContextForProject",
   "getProjectForOwner",
   "getProjectTargetLength",
@@ -944,6 +946,29 @@ describe("owner access policy", () => {
       // version was appended on the way to refusing it.
       const after = await getSourceText(aliceScope);
       expect(after.ok && before.ok && after.value).toEqual(before.ok ? before.value : null);
+    });
+
+    // CAL-072's diagnostic screen. The fixture graph seeds one
+    // `AnalysisSectionRevision` (`FACTUAL_SUMMARY`) with one `AnalysisElement`
+    // (`kind: "FACTUAL", statement: "fixture"`) per owner — enough to prove the
+    // read reaches the row without a bespoke seed. A bare nullable rather than a
+    // `Result`, so "refused" reads the same as "not analysed yet": both are
+    // `null`.
+    it("getAnalysis refuses another owner's project", async () => {
+      const mine = await getAnalysis(aliceScope);
+      expect(mine).toEqual({
+        validatedAt: null,
+        sections: [
+          {
+            section: "FACTUAL_SUMMARY",
+            revisionNumber: 1,
+            elements: [{ kind: "FACTUAL", label: null, statement: "fixture", evidence: null }],
+          },
+        ],
+      });
+
+      const theirs = await getAnalysis(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs).toBeNull();
     });
 
     it("requireOwnedRow refuses a row from another owner's project", async () => {

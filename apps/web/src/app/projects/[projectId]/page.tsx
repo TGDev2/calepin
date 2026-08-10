@@ -198,6 +198,19 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
         </Link>
       </section>
 
+      <section className={styles.action} aria-labelledby="analysis-heading">
+        <h3 className={styles.actionTitle} id="analysis-heading">
+          Analyse
+        </h3>
+        <p className={styles.actionNote}>
+          Le diagnostic narratif du texte source, en dix-sept sections&nbsp;: faits et
+          interprétations, point de vue, personnages, thèmes, fragilités et potentiel.
+        </p>
+        <Link className={styles.actionLink} href={`/projects/${project.id}/analysis`}>
+          Voir le diagnostic narratif…
+        </Link>
+      </section>
+
       <section className={styles.action} aria-labelledby="duplicate-heading">
         <h3 className={styles.actionTitle} id="duplicate-heading">
           Dupliquer

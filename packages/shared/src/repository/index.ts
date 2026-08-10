@@ -16,6 +16,12 @@ export {
   withProjectAggregates,
 } from "./aggregates";
 export {
+  type AnalysisElementSnapshot,
+  type AnalysisSectionSnapshot,
+  type AnalysisSnapshot,
+  getAnalysis,
+} from "./analysis";
+export {
   type DuplicatedProject,
   duplicateProject,
   type DuplicateProjectInput,
