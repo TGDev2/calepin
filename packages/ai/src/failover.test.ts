@@ -27,6 +27,7 @@ import { ProviderError, type Result } from "@calepin/shared/errors";
 import {
   type GenerationAttemptOutcome,
   type GenerationPersistence,
+  type GenerationRun,
   runGenerationAttempt,
 } from "@calepin/shared/generation";
 import { createLogger } from "@calepin/shared/logging";
@@ -45,6 +46,7 @@ import {
 import { createModelProviderPort } from "./create-model-port";
 import { createProviderHealth } from "./health";
 import type { ModelProviderPort, ProseGenerationResult } from "./port";
+import { estimateCostUsd } from "./pricing";
 import { fixedPrompt } from "./prompts/testing";
 import type { Scheduler } from "./timing";
 
@@ -82,20 +84,36 @@ function recordingPersistence(): {
     outcomes,
     values,
     persist: {
-      start() {
-        events.push("start");
+      claim() {
+        events.push("claim");
+
+        return { kind: "claimed", attempt: 1 };
       },
       succeed(value, outcome) {
         events.push("succeed");
         values.push(value);
         outcomes.push(outcome);
+
+        return "applied";
       },
       fail(outcome) {
         events.push("fail");
         outcomes.push(outcome);
+
+        return "applied";
       },
     },
   };
+}
+
+/** The answer, once the run is known to have produced one. */
+function produced(result: Result<GenerationRun<ProseGenerationResult>>): ProseGenerationResult {
+  if (!result.ok) throw new Error("the generation failed");
+  if (result.value.kind !== "produced") {
+    throw new Error(`the generation was skipped: ${result.value.reason}`);
+  }
+
+  return result.value.value;
 }
 
 const REQUEST = { prompt: fixedPrompt("write-scene") } as const;
@@ -138,12 +156,28 @@ function outageOnThePrimary(options: { log?: ReturnType<typeof createLogger> } =
 function generate(
   port: ModelProviderPort,
   persist: GenerationPersistence<ProseGenerationResult>,
-): Promise<Result<ProseGenerationResult>> {
+): Promise<Result<GenerationRun<ProseGenerationResult>>> {
   return runGenerationAttempt({
     generationId: "gen_test",
     persist,
     now: () => 0,
-    produce: async (): Promise<Result<ProseGenerationResult>> => port.generateProse(REQUEST),
+    produce: async (report): Promise<Result<ProseGenerationResult>> => {
+      const result = await port.generateProse(REQUEST);
+
+      // What the caller records is what the port reports — one total, priced
+      // once. The port has already summed every answer it was served across
+      // the switch, so reporting per endpoint here is what would double it.
+      if (result.ok) {
+        report({
+          model: result.value.model,
+          inputTokens: result.value.usage.inputTokens,
+          outputTokens: result.value.usage.outputTokens,
+          estimatedCostUsd: estimateCostUsd(result.value.model, result.value.usage),
+        });
+      }
+
+      return result;
+    },
   });
 }
 
@@ -157,7 +191,7 @@ describe("a primary-provider outage in the middle of a generation", () => {
     // It finished. That is the acceptance criterion, and everything else in
     // this test is about the state it finished in.
     expect(result.ok).toBe(true);
-    expect(result.ok && result.value.text).toBe("BACKUP ANSWER");
+    expect(produced(result).text).toBe("BACKUP ANSWER");
 
     // The primary was genuinely asked, and genuinely failed, before the switch.
     expect(primaryCalls).toHaveLength(3);
@@ -172,7 +206,7 @@ describe("a primary-provider outage in the middle of a generation", () => {
     // The generation's own state never learned about the switch: started once,
     // completed once, never recorded as failed, and still attempt 1 — the
     // model-level retries did not eat the generation's replay budget.
-    expect(events).toEqual(["start", "succeed"]);
+    expect(events).toEqual(["claim", "succeed"]);
     expect(outcomes).toHaveLength(1);
     expect(outcomes[0]).toMatchObject({
       generationId: "gen_test",
@@ -189,6 +223,42 @@ describe("a primary-provider outage in the middle of a generation", () => {
       attemptCount: 4,
       usage: { inputTokens: 31, outputTokens: 12 },
     });
+  });
+
+  // CAL-058, on the axis CAL-050 did not have to ask about: four calls to two
+  // providers, and the generation is charged for one of them.
+  it("is charged once, for the endpoint that actually answered", async () => {
+    const { port } = outageOnThePrimary();
+    const { persist, outcomes } = recordingPersistence();
+
+    await generate(port, persist);
+
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]?.usage).toEqual({
+      // The backup's own model, not the mission's declared one: the attempt row
+      // records what served, so a cost is attributed to the tariff that applies.
+      model: "anthropic.claude-opus-5",
+      inputTokens: 31,
+      outputTokens: 12,
+      estimatedCostUsd: "0.001365",
+    });
+  });
+
+  it("counts nothing for the three tries that never came back", async () => {
+    // The primary was dropped mid-answer three times. Nobody can say what those
+    // calls consumed, so nothing is written where a number would be invented —
+    // which is what keeps a system failure from being billed on a guess.
+    const { port, primaryCalls, backupCalls } = outageOnThePrimary();
+    const { persist, outcomes, values } = recordingPersistence();
+
+    await generate(port, persist);
+
+    // Four calls were made and one answered. What is recorded is that one, at
+    // its face value — not four times it, and not an estimate of the other
+    // three.
+    expect(primaryCalls.length + backupCalls.length).toBe(4);
+    expect(values[0]?.attemptCount).toBe(4);
+    expect(outcomes[0]?.usage).toMatchObject({ inputTokens: 31, outputTokens: 12 });
   });
 
   it("sends the second provider exactly what it sent the first", async () => {
@@ -254,8 +324,8 @@ describe("the generations behind the first one", () => {
     // Three wasted attempts, once. The second generation went straight there.
     expect(primaryCalls).toHaveLength(3);
     expect(backupCalls).toHaveLength(2);
-    expect(second.ok && second.value.attemptCount).toBe(1);
-    expect(second.ok && second.value.usedFallback).toBe(true);
+    expect(produced(second).attemptCount).toBe(1);
+    expect(produced(second).usedFallback).toBe(true);
   });
 });
 
@@ -283,7 +353,7 @@ describe("when both providers are out", () => {
 
     // No result was written — §7's guarantee — and the failure is recorded
     // with its category, retryable, so a replay is the obvious next move.
-    expect(events).toEqual(["start", "fail"]);
+    expect(events).toEqual(["claim", "fail"]);
     expect(outcomes[0]).toMatchObject({
       status: "failed",
       retryable: true,
@@ -321,6 +391,6 @@ describe("when both providers are out", () => {
     const result = await generate(port, recordingPersistence().persist);
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.value.provider).toBe("bedrock");
+    expect(produced(result).provider).toBe("bedrock");
   });
 });

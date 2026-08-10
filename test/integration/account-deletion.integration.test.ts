@@ -43,6 +43,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuditedClient } from "./audited-client";
+import { fixtureGenerationKey } from "./generation-fixture";
 import { createProjectGraph, type ProjectGraph } from "./project-graph";
 
 /** Everything `createProjectGraph` does not create, because no project owns it. */
@@ -181,6 +182,7 @@ describe("account deletion", () => {
         projectId: graph.projectId,
         mission: "SUMMARIZE_CHAPTER",
         input: {},
+        idempotencyKey: fixtureGenerationKey(`${graph.projectId}-summarize-chapter`),
         status: "SUCCEEDED",
         completedAt: new Date(),
       },

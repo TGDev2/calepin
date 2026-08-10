@@ -91,13 +91,14 @@ calepin/
 │   │   ├── src/config/        schéma d'environnement Zod (`@calepin/shared/config`)
 │   │   ├── src/database/      point d'injection du client Prisma (`@calepin/shared/database`)
 │   │   ├── src/errors/        hiérarchie `AppError`, `Result`, codes HTTP (`@calepin/shared/errors`)
-│   │   ├── src/generation/    cycle de vie d'une tentative de génération (`@calepin/shared/generation`)
+│   │   ├── src/generation/    cycle de vie d'une tentative de génération, clé d'idempotence (`@calepin/shared/generation`)
 │   │   ├── src/logging/       journal Pino, corrélation, liste blanche de champs (`@calepin/shared/logging`)
 │   │   ├── src/obsolescence/  étapes rendues potentiellement obsolètes par une modification du texte source (`@calepin/shared/obsolescence`)
 │   │   ├── src/repository/    politique d'accès par propriétaire (`@calepin/shared/repository`)
 │   │   └── src/testing/       helpers de fabrique de données pour les tests
 │   ├── ai/                    @calepin/ai — couche IA : port fournisseur, capacités des
 │   │                          modèles, routage des missions, réessais et repli (CAL-048)
+│   │   └── src/testing/       clients simulés et prompt figé, pour les suites hors du paquet (`@calepin/ai/testing`)
 │   ├── analysis/              @calepin/analysis — diagnostic du texte source
 │   ├── direction/             @calepin/direction — directions romanesques divergentes
 │   ├── bible/                 @calepin/bible — référence narrative

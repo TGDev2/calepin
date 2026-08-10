@@ -2,45 +2,92 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { fail, ProviderError, type Result, succeed, ValidationError } from "../errors";
 import { logger } from "../logging";
-import { type GenerationPersistence, runGenerationAttempt } from "./attempt";
-import { type GenerationAttemptOutcome, toFailedAttempt, toSucceededAttempt } from "./outcome";
+import {
+  type AttemptCompletion,
+  type GenerationClaim,
+  type GenerationPersistence,
+  type GenerationRun,
+  runGenerationAttempt,
+} from "./attempt";
+import {
+  type AttemptUsage,
+  type GenerationAttemptOutcome,
+  toFailedAttempt,
+  toSucceededAttempt,
+} from "./outcome";
 
 /**
- * The guarantee CLAUDE.md §7 states: *a failed generation leaves the project
- * valid and replayable.* Here that reduces to one observable property — the
- * result is written only by the single atomic operation that completes the
- * generation, and that operation is unreachable unless the model call and its
- * validation both succeeded.
+ * Two guarantees, in one file.
+ *
+ * CLAUDE.md §7's: *a failed generation leaves the project valid and
+ * replayable.* Here that reduces to one observable property — the result is
+ * written only by the single atomic operation that completes the generation,
+ * and that operation is unreachable unless the model call and its validation
+ * both succeeded.
+ *
+ * CAL-058's: *the same work is never paid for twice.* Here that reduces to two
+ * more — nothing is asked of a provider unless the claim opened an attempt, and
+ * an answer whose completion is refused is discarded rather than written beside
+ * the one that beat it.
  *
  * The recorded value stands in for a `Revision` (CAL-011+ builds the real one).
  * It is a token, not prose: §9 binds a test file as much as it binds a log.
  */
 const RESULT_TOKEN = "revision-token-1";
 
+/** A usage report, in the shape a provider's meta arrives in. */
+const USAGE: AttemptUsage = {
+  model: "fixture-model",
+  inputTokens: 1200,
+  outputTokens: 300,
+  estimatedCostUsd: "0.004500",
+};
+
 interface Recorder extends GenerationPersistence<string> {
-  readonly started: { generationId: string; attempt: number }[];
+  readonly claims: { generationId: string; promptVersion?: number }[];
   readonly written: string[];
   readonly outcomes: GenerationAttemptOutcome[];
 }
 
 function createRecorder(overrides: Partial<GenerationPersistence<string>> = {}): Recorder {
-  const started: { generationId: string; attempt: number }[] = [];
+  const claims: { generationId: string; promptVersion?: number }[] = [];
   const written: string[] = [];
   const outcomes: GenerationAttemptOutcome[] = [];
+  let allocated = 0;
 
   return {
-    started,
+    claims,
     written,
     outcomes,
-    start: overrides.start ?? ((context) => void started.push(context)),
+    claim:
+      overrides.claim ??
+      ((context): GenerationClaim => {
+        claims.push(context);
+        allocated += 1;
+
+        return { kind: "claimed", attempt: allocated };
+      }),
     succeed:
       overrides.succeed ??
-      ((value, outcome) => {
+      ((value, outcome): AttemptCompletion => {
         written.push(value);
         outcomes.push(outcome);
+
+        return "applied";
       }),
-    fail: overrides.fail ?? ((outcome) => void outcomes.push(outcome)),
+    fail:
+      overrides.fail ??
+      ((outcome): AttemptCompletion => {
+        outcomes.push(outcome);
+
+        return "applied";
+      }),
   };
+}
+
+/** A persistence that refuses every claim for one stated reason. */
+function refusing(claim: GenerationClaim): Recorder {
+  return createRecorder({ claim: () => claim });
 }
 
 /** A clock that advances 250 ms per reading, so durations are deterministic. */
@@ -60,7 +107,7 @@ afterAll(() => {
 });
 
 describe("runGenerationAttempt, when the generation succeeds", () => {
-  it("records the attempt, then writes the result exactly once", async () => {
+  it("claims the attempt, then writes the result exactly once", async () => {
     const persist = createRecorder();
 
     const result = await runGenerationAttempt({
@@ -70,42 +117,134 @@ describe("runGenerationAttempt, when the generation succeeds", () => {
       now: createClock(),
     });
 
-    expect(result).toEqual({ ok: true, value: RESULT_TOKEN });
-    expect(persist.started).toEqual([{ generationId: "gen-1", attempt: 1 }]);
+    expect(result).toEqual({
+      ok: true,
+      value: { kind: "produced", attempt: 1, value: RESULT_TOKEN },
+    });
+    expect(persist.claims).toEqual([{ generationId: "gen-1", promptVersion: undefined }]);
     expect(persist.written).toEqual([RESULT_TOKEN]);
     expect(persist.outcomes).toEqual([
-      { generationId: "gen-1", attempt: 1, durationMs: 250, status: "succeeded", retryable: false },
+      {
+        generationId: "gen-1",
+        attempt: 1,
+        promptVersion: undefined,
+        durationMs: 250,
+        usage: undefined,
+        status: "succeeded",
+        retryable: false,
+      },
     ]);
   });
 
-  it("marks the attempt as running before the model is ever called", async () => {
+  it("claims the attempt before the model is ever called", async () => {
     const order: string[] = [];
-    const persist = createRecorder({ start: () => void order.push("start") });
+    const persist = createRecorder({
+      claim: (): GenerationClaim => {
+        order.push("claim");
+
+        return { kind: "claimed", attempt: 1 };
+      },
+    });
 
     await runGenerationAttempt({
       generationId: "gen-1",
       produce: () => {
         order.push("produce");
+
         return succeed(RESULT_TOKEN);
       },
       persist,
     });
 
-    expect(order).toEqual(["start", "produce"]);
+    expect(order).toEqual(["claim", "produce"]);
   });
 
-  it("counts the attempt it was given", async () => {
-    const persist = createRecorder();
+  it("takes the attempt number from the claim, never from the caller", async () => {
+    // The parameter this replaces is the whole of CAL-058's second failure
+    // mode: a redelivered job that picked `attempt: 1` again would write a
+    // second cost line for a call the first delivery already paid for.
+    const persist = createRecorder({ claim: () => ({ kind: "claimed", attempt: 4 }) });
 
-    await runGenerationAttempt({
+    const result = await runGenerationAttempt({
       generationId: "gen-1",
-      attempt: 3,
       produce: () => succeed(RESULT_TOKEN),
       persist,
     });
 
-    expect(persist.started[0]?.attempt).toBe(3);
-    expect(persist.outcomes[0]?.attempt).toBe(3);
+    expect(result.ok && result.value).toMatchObject({ kind: "produced", attempt: 4 });
+    expect(persist.outcomes[0]?.attempt).toBe(4);
+  });
+
+  it("records the usage a provider reported, stated rather than added", async () => {
+    const persist = createRecorder();
+
+    await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (report) => {
+        // Two reports: the second is the total after a repair pass, not an
+        // increment on the first. Adding them is the double count.
+        report({ ...USAGE, inputTokens: 900, outputTokens: 100 });
+        report(USAGE);
+
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+    });
+
+    expect(persist.outcomes[0]?.usage).toEqual(USAGE);
+  });
+});
+
+describe("runGenerationAttempt, when the claim refuses", () => {
+  it.each([["already-succeeded"], ["already-failed"], ["cancelled"], ["in-flight"]] as const)(
+    "asks no provider and writes nothing: %s",
+    async (reason) => {
+      let produced = false;
+      const persist = refusing({ kind: "refused", reason, attempt: 2 });
+
+      const result = await runGenerationAttempt({
+        generationId: "gen-1",
+        produce: () => {
+          produced = true;
+
+          return succeed(RESULT_TOKEN);
+        },
+        persist,
+      });
+
+      // A redelivery is not a failure of this function — it is the resume path,
+      // and its whole value is the call that did not happen.
+      expect(result).toEqual({ ok: true, value: { kind: "skipped", reason, attempt: 2 } });
+      expect(produced).toBe(false);
+      expect(persist.written).toEqual([]);
+      expect(persist.outcomes).toEqual([]);
+    },
+  );
+});
+
+describe("runGenerationAttempt, when the completion is refused", () => {
+  it("discards the answer rather than writing it beside the one that beat it", async () => {
+    logger.setLevel("silent");
+
+    const persist = createRecorder({ succeed: () => "already-completed" });
+
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (report) => {
+        report(USAGE);
+
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+    });
+
+    // Our lease expired while the call was in flight and someone else finished
+    // the generation. Two revisions and two cost lines for one ask is exactly
+    // what the mechanism forbids, so this answer is dropped.
+    expect(result).toEqual({
+      ok: true,
+      value: { kind: "skipped", reason: "superseded", attempt: 1 },
+    });
   });
 });
 
@@ -127,13 +266,33 @@ describe("runGenerationAttempt, when the generation fails", () => {
       {
         generationId: "gen-1",
         attempt: 1,
+        promptVersion: undefined,
         durationMs: 250,
+        usage: undefined,
         status: "failed",
         retryable: true,
         errorCode: "PROVIDER_UNAVAILABLE",
         errorCategory: "provider",
       },
     ]);
+  });
+
+  it("records what a call was billed for before it failed", async () => {
+    // A provider that answered and was then rejected still charged for the
+    // answer. `./generation-cost` counts it, and must.
+    const persist = createRecorder();
+
+    await runGenerationAttempt<string>({
+      generationId: "gen-1",
+      produce: (report) => {
+        report(USAGE);
+
+        return fail(new ProviderError());
+      },
+      persist,
+    });
+
+    expect(persist.outcomes[0]).toMatchObject({ status: "failed", usage: USAGE });
   });
 
   it("writes no result and records the failure, for a thrown value", async () => {
@@ -186,10 +345,10 @@ describe("runGenerationAttempt, when the generation fails", () => {
     });
   });
 
-  it("does not run the model at all when the attempt cannot be recorded as running", async () => {
+  it("does not run the model at all when the attempt cannot be claimed", async () => {
     let produced = false;
     const persist = createRecorder({
-      start: () => {
+      claim: () => {
         throw new Error("database unreachable");
       },
     });
@@ -198,6 +357,7 @@ describe("runGenerationAttempt, when the generation fails", () => {
       generationId: "gen-1",
       produce: () => {
         produced = true;
+
         return succeed(RESULT_TOKEN);
       },
       persist,
@@ -243,8 +403,8 @@ describe("runGenerationAttempt, when the generation fails", () => {
       persist,
     });
 
-    // The generation stays `running`, which is exactly the state a replay looks
-    // for — and the caller learns the useful cause rather than the second one.
+    // The generation stays `running`, which is exactly the state the next claim
+    // reclaims — and the caller learns the useful cause rather than the second.
     expect(result).toEqual({ ok: false, error });
   });
 });
@@ -273,6 +433,7 @@ describe("the outcome a Generation row records", () => {
       generationId: "gen-1",
       attempt: 1,
       durationMs: 10,
+      usage: USAGE,
     });
 
     expect(JSON.stringify(outcome)).not.toContain("MODEL_REFUSED");
@@ -292,12 +453,12 @@ describe("the outcome a Generation row records", () => {
 describe("the result of an attempt", () => {
   it("is a value the caller must handle, never a throw", async () => {
     const persist = createRecorder({
-      start: () => {
+      claim: () => {
         throw new Error("database unreachable");
       },
     });
 
-    const attempt: Promise<Result<string>> = runGenerationAttempt<string>({
+    const attempt: Promise<Result<GenerationRun<string>>> = runGenerationAttempt<string>({
       generationId: "gen-1",
       produce: () => succeed(RESULT_TOKEN),
       persist,

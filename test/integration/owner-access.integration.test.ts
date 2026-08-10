@@ -22,6 +22,8 @@ import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import { fail, NotFoundError, succeed } from "@calepin/shared/errors";
 import {
+  claimGenerationAttempt,
+  completeGenerationAttempt,
   computeProjectAggregates,
   createProject,
   createProjectWithSourceText,
@@ -44,7 +46,9 @@ import {
   readProjectCostSummary,
   readSourceTextObsolescence,
   reconcileProjectAggregates,
+  replayGeneration,
   requireOwnedRow,
+  reserveGeneration,
   scopedWhere,
   updateProject,
   type UpdateProjectInput,
@@ -69,6 +73,8 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  */
 const ENTRY_POINTS = [
   "archiveProject",
+  "claimGenerationAttempt",
+  "completeGenerationAttempt",
   "computeProjectAggregates",
   "createProject",
   "createProjectWithSourceText",
@@ -90,7 +96,9 @@ const ENTRY_POINTS = [
   "reconcileProjectAggregates",
   "reconcileProjectStatus",
   "refreshProjectStatus",
+  "replayGeneration",
   "requireOwnedRow",
+  "reserveGeneration",
   "restoreProject",
   "updateProject",
   "updateSourceText",
@@ -99,9 +107,16 @@ const ENTRY_POINTS = [
   "withProjectTransaction",
 ];
 
-/** Its pure helpers: they build or check a value and reach nothing. */
+/**
+ * Its pure helpers: they build or check a value and reach nothing.
+ *
+ * `createGenerationPersistence` is one of them despite what its result does:
+ * the factory itself issues no statement, and each of the three methods it
+ * returns is an entry point listed above, isolated on its own.
+ */
 const HELPERS = [
   "assertProjectScope",
+  "createGenerationPersistence",
   "delegateName",
   "isProjectOwnedModel",
   "isProjectScope",
@@ -357,6 +372,71 @@ describe("owner access policy", () => {
     // fall back on the mission registry, and a different answer from the
     // refusal below (`generation-measurements.integration.test.ts` covers the
     // medians).
+    // CAL-058. The four write paths of a generation's life, and the reason
+    // isolating them matters more than isolating a read: a forged scope that
+    // reached one would not merely see another author's work, it would open,
+    // claim, complete or reopen a *paid* call against their project.
+    it("reserveGeneration refuses another owner's project", async () => {
+      const ask = { mission: "WRITE_SCENE", targetId: "chapter-x", input: {} } as const;
+
+      const mine = await runWithActor(alice.ownerId, async () =>
+        reserveGeneration(aliceScope, ask),
+      );
+      expect(mine.ok).toBe(true);
+
+      const theirs = await runWithActor(bob.ownerId, async () =>
+        reserveGeneration(forgedScope(bob.ownerId, alice.projectId), ask),
+      );
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
+    it("claimGenerationAttempt refuses another owner's generation", async () => {
+      const theirs = await claimGenerationAttempt(forgedScope(bob.ownerId, alice.projectId), {
+        generationId: alice.rows.Generation,
+        model: "fixture-model",
+      });
+
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+      // And the attempt the graph seeded is untouched: a refused claim must not
+      // reclaim, complete or otherwise move a row it could not read.
+      expect(
+        await prisma.generationAttempt.count({
+          where: { id: alice.rows.GenerationAttempt, status: "RUNNING" },
+        }),
+      ).toBe(1);
+    });
+
+    it("completeGenerationAttempt refuses another owner's generation", async () => {
+      const theirs = await completeGenerationAttempt(forgedScope(bob.ownerId, alice.projectId), {
+        generationId: alice.rows.Generation,
+        attempt: 1,
+        durationMs: 1,
+        status: "succeeded",
+        retryable: false,
+        usage: { model: "fixture-model", inputTokens: 10, outputTokens: 10 },
+      });
+
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+      expect(
+        await prisma.generationAttempt.count({
+          where: { id: alice.rows.GenerationAttempt, status: "RUNNING" },
+        }),
+      ).toBe(1);
+    });
+
+    it("replayGeneration refuses another owner's generation", async () => {
+      const theirs = await replayGeneration(
+        forgedScope(bob.ownerId, alice.projectId),
+        alice.rows.Generation,
+      );
+
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
     it("readMissionMeasurements refuses another owner's project", async () => {
       const mine = await readMissionMeasurements(aliceScope);
       expect(mine.ok).toBe(true);

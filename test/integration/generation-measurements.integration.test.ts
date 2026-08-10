@@ -20,6 +20,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuditedClient } from "./audited-client";
+import { fixtureGenerationKey, fixtureLease } from "./generation-fixture";
 
 /** A scope naming a project the owner does not own — CAL-023's own fixture shape. */
 function forgedScope(ownerId: string, projectId: string): ProjectScope {
@@ -55,14 +56,23 @@ describe("readMissionMeasurements (CAL-057)", () => {
     });
 
     const at = new Date("2026-02-01T08:00:00.000Z");
+    let sequence = 0;
 
     /** One succeeded generation, and the attempts it took to get there. */
     async function seedGeneration(
       mission: "WRITE_SCENE" | "SUMMARIZE_CHAPTER",
       attempts: readonly { inputTokens: number; outputTokens: number; durationMs: number }[],
     ): Promise<void> {
+      sequence += 1;
       const generation = await prisma.generation.create({
-        data: { projectId: project.id, mission, status: "SUCCEEDED", completedAt: at, input: {} },
+        data: {
+          projectId: project.id,
+          mission,
+          status: "SUCCEEDED",
+          completedAt: at,
+          input: {},
+          idempotencyKey: fixtureGenerationKey(`measurements-${sequence}`),
+        },
       });
 
       for (const [index, attempt] of attempts.entries()) {
@@ -145,6 +155,7 @@ describe("readMissionMeasurements (CAL-057)", () => {
         status: "SUCCEEDED",
         completedAt: at,
         input: {},
+        idempotencyKey: fixtureGenerationKey("measurements-kept"),
       },
     });
     await prisma.generationAttempt.create({
@@ -171,6 +182,7 @@ describe("readMissionMeasurements (CAL-057)", () => {
         errorCode: "TIMEOUT",
         errorCategory: "TIMEOUT",
         input: {},
+        idempotencyKey: fixtureGenerationKey("measurements-failed"),
       },
     });
     await prisma.generationAttempt.create({
@@ -190,7 +202,13 @@ describe("readMissionMeasurements (CAL-057)", () => {
     // Still running: a partial measurement, and one whose numbers would drag
     // the median down for as long as it runs.
     const running = await prisma.generation.create({
-      data: { projectId: project.id, mission: "EXTRACT_FACTS", status: "RUNNING", input: {} },
+      data: {
+        projectId: project.id,
+        mission: "EXTRACT_FACTS",
+        status: "RUNNING",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("measurements-running"),
+      },
     });
     await prisma.generationAttempt.create({
       data: {
@@ -199,6 +217,7 @@ describe("readMissionMeasurements (CAL-057)", () => {
         model: "fixture-model",
         status: "RUNNING",
         startedAt: at,
+        leaseExpiresAt: fixtureLease(),
       },
     });
 
@@ -212,6 +231,7 @@ describe("readMissionMeasurements (CAL-057)", () => {
         status: "SUCCEEDED",
         completedAt: at,
         input: {},
+        idempotencyKey: fixtureGenerationKey("measurements-partial"),
       },
     });
     await prisma.generationAttempt.create({

@@ -18,6 +18,7 @@
 import type { ProjectOwnedModelName } from "@calepin/shared/repository";
 
 import type { AuditedClient } from "./audited-client";
+import { fixtureGenerationKey, fixtureLease } from "./generation-fixture";
 
 export interface ProjectGraph {
   readonly ownerId: string;
@@ -240,10 +241,20 @@ export async function createProjectGraph(
   });
 
   const generation = await prisma.generation.create({
-    data: { projectId: project.id, mission: "WRITE_SCENE", input: {} },
+    data: {
+      projectId: project.id,
+      mission: "WRITE_SCENE",
+      input: {},
+      idempotencyKey: fixtureGenerationKey(`${project.id}-write-scene`),
+    },
   });
   const attempt = await prisma.generationAttempt.create({
-    data: { generationId: generation.id, attempt: 1, model: "fixture-model" },
+    data: {
+      generationId: generation.id,
+      attempt: 1,
+      model: "fixture-model",
+      leaseExpiresAt: fixtureLease(),
+    },
   });
 
   const issue = await prisma.qualityIssue.create({

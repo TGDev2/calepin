@@ -25,7 +25,7 @@
  * process that starts everything here; Prisma reads it from the environment.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { type $Enums, PrismaClient } from "@prisma/client";
 
@@ -319,7 +319,19 @@ export async function seedRunningGeneration(
 
   try {
     const generation = await prisma.generation.create({
-      data: { projectId, mission, input: {}, status: "RUNNING", updatedById: userId },
+      data: {
+        projectId,
+        mission,
+        input: {},
+        // A key of the shape `generations_idempotency_key_check` demands
+        // (CAL-058). The spec drives the indicator, not the deduplication, so
+        // what matters here is only that two fixture generations stay distinct.
+        idempotencyKey: createHash("sha256")
+          .update(`${projectId}:${mission}:${Date.now()}:${Math.random()}`, "utf8")
+          .digest("hex"),
+        status: "RUNNING",
+        updatedById: userId,
+      },
     });
 
     return generation.id;

@@ -47,6 +47,18 @@ export {
 } from "./generation-cost";
 export { type MissionMeasurement, readMissionMeasurements } from "./generation-measurements";
 export {
+  claimGenerationAttempt,
+  type ClaimGenerationAttemptInput,
+  completeGenerationAttempt,
+  createGenerationPersistence,
+  DEFAULT_ATTEMPT_LEASE_MS,
+  type GenerationPersistenceOptions,
+  replayGeneration,
+  type ReservedGeneration,
+  reserveGeneration,
+  type ReserveGenerationInput,
+} from "./generation-run";
+export {
   delegateName,
   isProjectOwnedModel,
   PROJECT_OWNED_MODEL_NAMES,

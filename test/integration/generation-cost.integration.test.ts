@@ -21,6 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuditedClient } from "./audited-client";
+import { fixtureGenerationKey, fixtureLease } from "./generation-fixture";
 
 /** A scope naming a project the owner does not own — CAL-023's own fixture shape. */
 function forgedScope(ownerId: string, projectId: string): ProjectScope {
@@ -59,7 +60,12 @@ describe("readProjectCostSummary (CAL-056)", () => {
     const day2 = new Date("2026-01-02T09:00:00.000Z");
 
     const writeScene = await prisma.generation.create({
-      data: { projectId: project.id, mission: "WRITE_SCENE", input: {} },
+      data: {
+        projectId: project.id,
+        mission: "WRITE_SCENE",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-cost-write-scene"),
+      },
     });
     await prisma.generationAttempt.create({
       data: {
@@ -89,7 +95,12 @@ describe("readProjectCostSummary (CAL-056)", () => {
     });
 
     const summarizeChapter = await prisma.generation.create({
-      data: { projectId: project.id, mission: "SUMMARIZE_CHAPTER", input: {} },
+      data: {
+        projectId: project.id,
+        mission: "SUMMARIZE_CHAPTER",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-cost-summarize"),
+      },
     });
     await prisma.generationAttempt.create({
       data: {
@@ -111,6 +122,7 @@ describe("readProjectCostSummary (CAL-056)", () => {
         model: "claude-sonnet-5",
         status: "RUNNING",
         startedAt: day2,
+        leaseExpiresAt: fixtureLease(),
       },
     });
 

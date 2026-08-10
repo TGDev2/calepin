@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type AuditedClient, createAuditedClient } from "./audited-client";
+import { fixtureGenerationKey, fixtureLease } from "./generation-fixture";
 
 /**
  * CAL-021, against the real server. Two acceptance criteria drive this suite:
@@ -16,6 +17,18 @@ describe("operations schema", () => {
   let prisma: AuditedClient;
   let setActor: (id: string) => void;
   let sequence = 0;
+  let generations = 0;
+
+  /**
+   * A distinct key per fixture row. Two rows meaning one ask would share one,
+   * and the unique index would refuse the second — which is CAL-058's own
+   * suite's business, not this one's.
+   */
+  function generationKey(): string {
+    generations += 1;
+
+    return fixtureGenerationKey(`operations-generation-${generations}`);
+  }
 
   async function createProjectFixture() {
     sequence += 1;
@@ -89,13 +102,19 @@ describe("operations schema", () => {
           mission: "WRITE_SCENE",
           targetId: fixture.chapterId,
           input: REPLAY_PAYLOAD,
+          idempotencyKey: generationKey(),
         },
       });
       expect(generation.status).toBe("QUEUED");
 
       // Attempt 1 — recorded as running before the model is called, then failed.
       await prisma.generationAttempt.create({
-        data: { generationId: generation.id, attempt: 1, model: "fixture-model" },
+        data: {
+          generationId: generation.id,
+          attempt: 1,
+          model: "fixture-model",
+          leaseExpiresAt: fixtureLease(),
+        },
       });
       await prisma.generationAttempt.update({
         where: { generationId_attempt: { generationId: generation.id, attempt: 1 } },
@@ -108,6 +127,7 @@ describe("operations schema", () => {
           estimatedCostUsd: "0.012600",
           durationMs: 8400,
           completedAt: new Date(),
+          leaseExpiresAt: null,
         },
       });
       await prisma.generation.update({
@@ -188,9 +208,19 @@ describe("operations schema", () => {
     it("refuses a second row for the same generation and attempt number", async () => {
       const fixture = await createProjectFixture();
       const generation = await prisma.generation.create({
-        data: { projectId: fixture.projectId, mission: "EXTRACT_FACTS", input: {} },
+        data: {
+          projectId: fixture.projectId,
+          mission: "EXTRACT_FACTS",
+          input: {},
+          idempotencyKey: generationKey(),
+        },
       });
-      const attempt = { generationId: generation.id, attempt: 1, model: "fixture-model" };
+      const attempt = {
+        generationId: generation.id,
+        attempt: 1,
+        model: "fixture-model",
+        leaseExpiresAt: fixtureLease(),
+      };
       await prisma.generationAttempt.create({ data: attempt });
 
       await expect(prisma.generationAttempt.create({ data: attempt })).rejects.toMatchObject({
@@ -209,6 +239,7 @@ describe("operations schema", () => {
             projectId: fixture.projectId,
             mission: "CHECK_COHERENCE",
             input: {},
+            idempotencyKey: generationKey(),
             status,
             completedAt: terminal ? new Date() : null,
             errorCode: status === "FAILED" ? "PROVIDER_UNAVAILABLE" : null,
@@ -224,7 +255,12 @@ describe("operations schema", () => {
   describe("the constraints the migration hand-writes", () => {
     it("refuses a terminal generation with no end, and a pending one with an end", async () => {
       const fixture = await createProjectFixture();
-      const base = { projectId: fixture.projectId, mission: "WRITE_SCENE" as const, input: {} };
+      const base = {
+        projectId: fixture.projectId,
+        mission: "WRITE_SCENE" as const,
+        input: {},
+        idempotencyKey: generationKey(),
+      };
 
       await expect(
         prisma.generation.create({ data: { ...base, status: "SUCCEEDED" } }),
@@ -236,7 +272,12 @@ describe("operations schema", () => {
 
     it("refuses a code without its category, and an error on anything but a failure", async () => {
       const fixture = await createProjectFixture();
-      const base = { projectId: fixture.projectId, mission: "WRITE_SCENE" as const, input: {} };
+      const base = {
+        projectId: fixture.projectId,
+        mission: "WRITE_SCENE" as const,
+        input: {},
+        idempotencyKey: generationKey(),
+      };
 
       await expect(
         prisma.generation.create({
@@ -261,9 +302,18 @@ describe("operations schema", () => {
     it("refuses a zeroth attempt, negative usage, and a finished attempt with no end", async () => {
       const fixture = await createProjectFixture();
       const generation = await prisma.generation.create({
-        data: { projectId: fixture.projectId, mission: "SUMMARIZE_CHAPTER", input: {} },
+        data: {
+          projectId: fixture.projectId,
+          mission: "SUMMARIZE_CHAPTER",
+          input: {},
+          idempotencyKey: generationKey(),
+        },
       });
-      const base = { generationId: generation.id, model: "fixture-model" };
+      const base = {
+        generationId: generation.id,
+        model: "fixture-model",
+        leaseExpiresAt: fixtureLease(),
+      };
 
       await expect(
         prisma.generationAttempt.create({ data: { ...base, attempt: 0 } }),
@@ -277,7 +327,9 @@ describe("operations schema", () => {
         }),
       ).rejects.toThrow(/generation_attempts_usage_check/);
       await expect(
-        prisma.generationAttempt.create({ data: { ...base, attempt: 1, status: "SUCCEEDED" } }),
+        prisma.generationAttempt.create({
+          data: { ...base, attempt: 1, status: "SUCCEEDED", leaseExpiresAt: null },
+        }),
       ).rejects.toThrow(/generation_attempts_completion_check/);
     });
 
@@ -491,6 +543,7 @@ describe("operations schema", () => {
           mission: "WRITE_SCENE",
           targetId: fixture.chapterId,
           input: REPLAY_PAYLOAD,
+          idempotencyKey: generationKey(),
           status: "SUCCEEDED",
           completedAt: new Date(),
         },
@@ -527,6 +580,7 @@ describe("operations schema", () => {
           mission: "WRITE_SCENE",
           targetId: fixture.chapterId,
           input: {},
+          idempotencyKey: generationKey(),
           status: "SUCCEEDED",
           completedAt: new Date(),
         },
@@ -545,10 +599,20 @@ describe("operations schema", () => {
     it("takes every operational row of a project with the project", async () => {
       const fixture = await createChapterFixture();
       const generation = await prisma.generation.create({
-        data: { projectId: fixture.projectId, mission: "CHECK_COHERENCE", input: {} },
+        data: {
+          projectId: fixture.projectId,
+          mission: "CHECK_COHERENCE",
+          input: {},
+          idempotencyKey: generationKey(),
+        },
       });
       await prisma.generationAttempt.create({
-        data: { generationId: generation.id, attempt: 1, model: "fixture-model" },
+        data: {
+          generationId: generation.id,
+          attempt: 1,
+          model: "fixture-model",
+          leaseExpiresAt: fixtureLease(),
+        },
       });
       const issue = await prisma.qualityIssue.create({
         data: {
@@ -604,6 +668,7 @@ describe("operations schema", () => {
           projectId: fixture.projectId,
           mission: "WRITE_SCENE",
           input: {},
+          idempotencyKey: generationKey(),
           status: "SUCCEEDED",
           completedAt: new Date(),
         },
@@ -650,6 +715,7 @@ describe("operations schema", () => {
           projectId: fixture.projectId,
           mission: "WRITE_SCENE",
           input: {},
+          idempotencyKey: generationKey(),
           status: "SUCCEEDED",
           completedAt,
         },
@@ -709,11 +775,28 @@ describe("operations schema", () => {
         projectId: fixture.projectId,
         mission: "WRITE_SCENE" as const,
         targetId: fixture.chapterId,
-        input: REPLAY_PAYLOAD,
         status: "SUCCEEDED" as const,
       };
-      await prisma.generation.create({ data: { ...base, completedAt: new Date() } });
-      await prisma.generation.create({ data: { ...base, completedAt: new Date() } });
+      // Two asks, not one delivered twice: a regeneration starts from the
+      // revision the previous one wrote, so its payload — and therefore its
+      // key — is a different one (CAL-058). Writing the same key twice here
+      // would be refused by the unique index, correctly.
+      await prisma.generation.create({
+        data: {
+          ...base,
+          input: { ...REPLAY_PAYLOAD, baseRevisionNumber: 1 },
+          idempotencyKey: generationKey(),
+          completedAt: new Date(),
+        },
+      });
+      await prisma.generation.create({
+        data: {
+          ...base,
+          input: { ...REPLAY_PAYLOAD, baseRevisionNumber: 2 },
+          idempotencyKey: generationKey(),
+          completedAt: new Date(),
+        },
+      });
 
       const perTarget = await prisma.generation.groupBy({
         by: ["mission", "targetId"],

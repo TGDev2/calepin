@@ -2213,6 +2213,29 @@ model Generation {
   /// keep exactly one of them set.
   targetId String?
 
+  /// The identity of the *ask* — `generationIdempotencyKey` in
+  /// @calepin/shared/generation, a SHA-256 over the mission, the project, the
+  /// target and the resolved input, and the unique index below is what makes it
+  /// binding (CAL-058).
+  ///
+  /// **Derived from this row's own columns, never supplied.**
+  /// `reserveGeneration` computes it from the four values it is about to write,
+  /// so no caller can hand over a key that disagrees with the row it names —
+  /// the discipline `ProjectScope` and `RenderedPrompt` already use one layer
+  /// up. A second delivery of the same ask collides here instead of opening a
+  /// second generation and paying for it twice.
+  ///
+  /// **A digest rather than a rendering**, because `input` below may carry the
+  /// author's own instruction: a key built by concatenating its parts would
+  /// carry that instruction into this index, into every unique-violation
+  /// payload and into any log line naming the key, which §9 forbids outright.
+  ///
+  /// The consequence for a caller is one sentence, and it is in the glossary:
+  /// the replay payload names the versions it is built on. That is what makes a
+  /// deliberate regeneration a different ask from the one before it, and a
+  /// redelivered job the same one.
+  idempotencyKey String
+
   /// The replay payload — *charge utile de reprise*. What business code passed
   /// to the mission: resolved identifiers, the options chosen, the author's own
   /// instruction. **Not** the composed prompt and **not** the model's answer.
@@ -2260,6 +2283,11 @@ model Generation {
   /// run (CAL-021).
   qualityIssues            QualityIssue[]
 
+  // One open ask, one row (CAL-058). Also the lookup `reserveGeneration` reads
+  // through when its insert conflicts, which is why the project leads: a key
+  // already hashes its project, so this composite buys locality rather than
+  // uniqueness the key does not already have.
+  @@unique([projectId, idempotencyKey])
   // Cost and regeneration counting, both grouped on the leading columns; the
   // recent generations of a project are served by this index's first column
   // alone only for equality, which is why the listing gets its own below.
@@ -2337,6 +2365,27 @@ model GenerationAttempt {
   /// Set exactly when the attempt is no longer running —
   /// generation_attempts_completion_check.
   completedAt DateTime?
+
+  /// When the worker holding this attempt stops being believed (CAL-058).
+  ///
+  /// A `RUNNING` row alone cannot tell a queue redelivering while the first run
+  /// is still going from a worker that restarted after dying mid-call — and the
+  /// two need opposite answers: leave it alone, or take it over. The lease is
+  /// the difference. A claim finding a live one answers *in flight* and calls
+  /// no provider; a claim finding an expired one closes the attempt as
+  /// `GENERATION_INTERRUPTED`, **leaving its token columns untouched**, and
+  /// opens the next attempt.
+  ///
+  /// Set exactly while the attempt is running —
+  /// generation_attempts_lease_check. That equivalence is what makes the
+  /// reclaim total: a `RUNNING` attempt with no lease would be a row no worker
+  /// holds and no claim can ever take over, which is the permanent *état
+  /// fantôme* the whole mechanism exists to make unrepresentable.
+  ///
+  /// Erring long is the safe direction. A late reclaim costs latency; an early
+  /// one reclaims a healthy call and pays a provider twice for one answer.
+  /// Renewing it while a long generation runs is CAL-060's, with the queue.
+  leaseExpiresAt DateTime?
 
   generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
 

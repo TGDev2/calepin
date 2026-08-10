@@ -1,70 +1,152 @@
 /**
- * The guarantee: a failed generation leaves the project valid and replayable.
+ * The guarantee: a failed generation leaves the project valid and replayable,
+ * and nothing the system does to it is ever paid for twice.
  *
- * CLAUDE.md §7 states it and ADR-001 explains why it holds — the write path for
- * narrative entities is append-only. A successful generation appends a
- * `Revision` linked to its `Generation`; a failed one writes its `Generation`
- * record and nothing else, so the previous revision remains the visible, valid
- * state. Retries are safe by construction: they can add a revision, they cannot
- * corrupt one.
+ * CLAUDE.md §7 states the first half and ADR-001 explains why it holds — the
+ * write path for narrative entities is append-only. A successful generation
+ * appends a `Revision` linked to its `Generation`; a failed one writes its
+ * `Generation` record and nothing else, so the previous revision remains the
+ * visible, valid state. Retries are safe by construction: they can add a
+ * revision, they cannot corrupt one.
  *
- * `runGenerationAttempt` is that sequence, and only that sequence:
+ * CAL-058 adds the second half, and it changes the shape of this function. The
+ * sequence is no longer "start, produce, commit" but:
  *
- *   start ──► produce ──► succeed        (one atomic write)
- *               └───────► fail           (no result written, ever)
+ *   claim ──► refused(already-succeeded | already-failed | cancelled | in-flight)
+ *         │        └─► nothing runs, nothing is asked of a provider, nothing is paid
+ *         └─► claimed(attempt) ──► produce ──► succeed  (one atomic write)
+ *                                        └──► fail     (no result written, ever)
  *
- * The three writes are an injected port. No `Generation` table exists yet
- * (CLAUDE.md §13) — CAL-011 and CAL-060 supply the implementation, and the
- * shape above is what they have to satisfy. Injecting it is also what lets
- * CAL-189 test the guarantee without a database, per §8.
+ * **The claim is the whole idea.** A queue that redelivers a job, a worker that
+ * restarts, an action replayed by a browser: all three arrive here as a second
+ * call for a generation that may already be finished, may still be running
+ * somewhere else, or may be genuinely owed another try. Only the persistence
+ * can tell those apart, because only the database sees every worker at once —
+ * so it decides, and it allocates the attempt number while it does. The caller
+ * no longer names one. That deleted parameter *is* the fix: a redelivered job
+ * that picked `attempt: 1` again would have written a second cost line for a
+ * call the first delivery already paid for.
+ *
+ * **Resuming means not re-running.** A generation already `SUCCEEDED` is
+ * refused with `already-succeeded`, which is a success of this function and not
+ * a failure of it: the work is done, the revision is in place, and the second
+ * delivery costs one `SELECT`. That is *reprise sans réexécution*, at the
+ * granularity a mission call has. Across a costly operation's several calls
+ * (CAL-057) it is the same mechanism one level up: each call is reserved under
+ * its own idempotency key, so resuming an interrupted operation re-reserves the
+ * phases it already completed and gets them back rather than running them.
+ *
+ * The three writes are an injected port; `@calepin/shared/repository`'s
+ * `createGenerationPersistence` is the implementation over PostgreSQL, and
+ * CAL-060 wires it to a queue. Injecting it is also what lets CAL-189 test the
+ * guarantee without a database, per §8.
  *
  * **The contract for an implementer of `GenerationPersistence`:**
  *
+ * - `claim` is atomic. Two workers claiming the same generation at the same
+ *   moment must not both come away with an attempt, and neither may invent an
+ *   attempt number the other also chose.
  * - `succeed` is a *single* atomic operation. It appends the revision and
  *   completes the generation together, in one transaction. Splitting it in two
  *   reintroduces the window this function exists to close — a revision with no
  *   generation marking it accepted.
- * - `succeed` and `fail` are idempotent for a given `(generationId, attempt)`.
- *   BullMQ may redeliver a job whose work already completed; ADR-001 allows
- *   that precisely because the write path tolerates it.
+ * - `succeed` and `fail` apply to an attempt that is still running, and answer
+ *   `already-completed` when it is not. Reporting rather than throwing is what
+ *   lets a duplicate delivery end quietly; writing anyway is what would double
+ *   the cost.
  *
  * Server-side only: it logs, and the logger reads `node:async_hooks`.
  */
 
-import { errorLogFields, fail, type Result, toAppError } from "../errors";
+import { errorLogFields, fail, type Result, succeed, toAppError } from "../errors";
 import { logger } from "../logging";
 import {
   type AttemptContext,
+  type AttemptUsage,
   type GenerationAttemptOutcome,
   toFailedAttempt,
   toSucceededAttempt,
 } from "./outcome";
 
+/**
+ * Why a claim did not open an attempt. Every one of them is an ordinary state
+ * of the world under a queue, never a fault: the first three say the task is
+ * over, the fourth says someone else is on it.
+ */
+export const GENERATION_CLAIM_REFUSALS = [
+  "already-succeeded",
+  "already-failed",
+  "cancelled",
+  "in-flight",
+] as const;
+
+export type GenerationClaimRefusal = (typeof GENERATION_CLAIM_REFUSALS)[number];
+
+/**
+ * A refusal, plus the one thing that can only be learnt after the work was
+ * done: `superseded` — the attempt was reclaimed as expired while it ran, and
+ * another one has completed the generation since. Its answer is discarded.
+ */
+export type GenerationSkipReason = GenerationClaimRefusal | "superseded";
+
+export type GenerationClaim =
+  | { readonly kind: "claimed"; readonly attempt: number }
+  | {
+      readonly kind: "refused";
+      readonly reason: GenerationClaimRefusal;
+      /** The attempt the refusal is about, when there is one. */
+      readonly attempt?: number;
+    };
+
+/** Whether a completion moved a row, or found the attempt already closed. */
+export type AttemptCompletion = "applied" | "already-completed";
+
+export interface GenerationClaimContext {
+  readonly generationId: string;
+  /**
+   * The version of the prompt the attempt is about to run (CAL-053). Recorded
+   * by the claim, **before** the model is called, so an attempt whose worker
+   * died is attributable to a prompt too.
+   */
+  readonly promptVersion?: number;
+}
+
+/** What one call of `runGenerationAttempt` ended up doing. */
+export type GenerationRun<T> =
+  | { readonly kind: "produced"; readonly attempt: number; readonly value: T }
+  | {
+      readonly kind: "skipped";
+      readonly reason: GenerationSkipReason;
+      readonly attempt?: number;
+    };
+
 export interface GenerationPersistence<T> {
   /**
-   * Records the attempt as running, **before** the model is called. A worker
-   * that dies mid-generation therefore leaves a visible row rather than
-   * silence, which is what makes the attempt replayable rather than lost.
+   * Decides whether an attempt is owed, and opens one if it is. Atomic, and the
+   * only place an attempt number is chosen.
    */
-  start(context: Omit<AttemptContext, "durationMs">): Promise<void> | void;
+  claim(context: GenerationClaimContext): Promise<GenerationClaim> | GenerationClaim;
   /** One atomic write: append the revision *and* complete the generation. */
-  succeed(value: T, outcome: GenerationAttemptOutcome): Promise<void> | void;
+  succeed(
+    value: T,
+    outcome: GenerationAttemptOutcome,
+  ): Promise<AttemptCompletion> | AttemptCompletion;
   /** Completes the generation as failed. Writes no result, by construction. */
-  fail(outcome: GenerationAttemptOutcome): Promise<void> | void;
+  fail(outcome: GenerationAttemptOutcome): Promise<AttemptCompletion> | AttemptCompletion;
 }
 
 export interface RunGenerationAttemptOptions<T> {
   generationId: string;
-  /** 1 for the first try. */
-  attempt?: number;
-  /**
-   * The version of the prompt `produce` is about to run (CAL-053). Passed to
-   * `start`, so an attempt that never returns is still attributable to the
-   * prompt that produced it.
-   */
   promptVersion?: number;
-  /** The model call and the validation of its output. Never persists. */
-  produce: () => Promise<Result<T>> | Result<T>;
+  /**
+   * The model call and the validation of its output. Never persists.
+   *
+   * It receives `report`, and calls it as soon as a provider has reported
+   * usage — on the way to a failure as much as on the way to an answer, since a
+   * call billed before its answer was rejected still cost what it cost. A
+   * second call *states* the total again; it does not add to it.
+   */
+  produce: (report: (usage: AttemptUsage) => void) => Promise<Result<T>> | Result<T>;
   persist: GenerationPersistence<T>;
   /** Injected clock (§8). */
   now?: () => number;
@@ -72,62 +154,88 @@ export interface RunGenerationAttemptOptions<T> {
 
 export async function runGenerationAttempt<T>(
   options: RunGenerationAttemptOptions<T>,
-): Promise<Result<T>> {
-  const {
-    generationId,
-    attempt = 1,
-    promptVersion,
-    produce,
-    persist,
-    now = () => Date.now(),
-  } = options;
+): Promise<Result<GenerationRun<T>>> {
+  const { generationId, promptVersion, produce, persist, now = () => Date.now() } = options;
 
+  let claim: GenerationClaim;
+
+  try {
+    claim = await persist.claim({ generationId, promptVersion });
+  } catch (error: unknown) {
+    // Nothing has run and nothing has been written. There is no attempt to mark
+    // as failed — reporting the failure to the caller is the whole answer.
+    return fail(toAppError(error));
+  }
+
+  if (claim.kind === "refused") {
+    // Deliberately not a log line of its own: a redelivery is the normal
+    // working of a queue, and one line per redelivery buys noise. The caller
+    // has the reason and decides whether it is worth saying anything.
+    return succeed({ kind: "skipped", reason: claim.reason, attempt: claim.attempt });
+  }
+
+  const attempt = claim.attempt;
   const startedAt = now();
+
+  let usage: AttemptUsage | undefined;
+  const report = (reported: AttemptUsage): void => {
+    usage = reported;
+  };
+
   const context = (): AttemptContext => ({
     generationId,
     attempt,
     promptVersion,
     durationMs: now() - startedAt,
+    usage,
   });
-
-  try {
-    await persist.start({ generationId, attempt, promptVersion });
-  } catch (error: unknown) {
-    // Nothing has run and nothing has been written. There is no generation to
-    // mark as failed — reporting the failure to the caller is the whole answer.
-    return fail(toAppError(error));
-  }
 
   let produced: Result<T>;
 
   try {
-    produced = await produce();
+    produced = await produce(report);
   } catch (error: unknown) {
     produced = fail(toAppError(error));
   }
 
   if (!produced.ok) {
     await recordFailure(persist, toFailedAttempt(produced.error, context()));
+
     return produced;
   }
 
+  let completion: AttemptCompletion;
+
   try {
-    await persist.succeed(produced.value, toSucceededAttempt(context()));
+    completion = await persist.succeed(produced.value, toSucceededAttempt(context()));
   } catch (error: unknown) {
     const appError = toAppError(error);
     await recordFailure(persist, toFailedAttempt(appError, context()));
+
     return fail(appError);
   }
 
-  return produced;
+  if (completion === "already-completed") {
+    // Our lease expired while the call was in flight, someone reclaimed the
+    // attempt, and the generation has been completed since. The answer is
+    // dropped rather than written beside theirs — two revisions and two cost
+    // lines for one ask is exactly what this task forbids. The tokens this call
+    // did spend are unrecordable, which under-counts; that is the safe
+    // direction, and the only one the specification names.
+    logger.warn("generation.attempt-superseded", { generationId, attempt });
+
+    return succeed({ kind: "skipped", reason: "superseded", attempt });
+  }
+
+  return succeed({ kind: "produced", attempt, value: produced.value });
 }
 
 /**
  * If recording the failure itself fails, the generation stays `running` and the
  * caller still learns why the attempt failed. That is the right trade: the
  * original cause is the useful one, and a row left `running` is exactly the
- * state a replay looks for. Swallowing it silently would not be — hence the
- * log line.
+ * state the next claim reclaims. Swallowing it silently would not be — hence
+ * the log line.
  */
 async function recordFailure<T>(
   persist: GenerationPersistence<T>,

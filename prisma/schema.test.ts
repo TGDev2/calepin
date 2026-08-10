@@ -1530,6 +1530,24 @@ describe("prisma schema", () => {
         expect(generation).not.toMatch(/^\s*errorMessage\s/m);
       });
 
+      // CAL-058. The key is the identity of an ask, and the unique index is
+      // what makes it binding: a second delivery of one ask collides here
+      // instead of opening a second generation and paying for it twice.
+      it("carries a mandatory idempotency key, unique within the project", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/^\s*idempotencyKey\s+String$/m);
+        expect(generation).not.toMatch(/^\s*idempotencyKey\s+String\?/m);
+        expect(generation).toMatch(/@@unique\(\[projectId, idempotencyKey\]\)/);
+      });
+
+      // Derived by `reserveGeneration` from the row's own columns. A default
+      // would be a key nothing derived, and a call site that forgot to pass one
+      // would silently lose its idempotency rather than fail.
+      it("gives the key no default a caller could fall back on", () => {
+        expect(modelBlock("Generation")).not.toMatch(/^\s*idempotencyKey\s+String\s+@default/m);
+      });
+
       it("indexes cost-per-mission, the project listing and the reconciliation sweep", () => {
         const generation = modelBlock("Generation");
 
@@ -1570,6 +1588,14 @@ describe("prisma schema", () => {
       // fallback runs attempt 2 on another model.
       it("records the prompt version beside the model", () => {
         expect(modelBlock("GenerationAttempt")).toMatch(/^\s*promptVersion\s+Int\?/m);
+      });
+
+      // CAL-058. A RUNNING attempt with no lease is a row no worker holds and
+      // no claim can take over — the permanent ghost the mechanism exists to
+      // make unrepresentable — so the column pairs with the status, and
+      // generation_attempts_lease_check enforces the pairing.
+      it("carries the lease that tells a live worker from a dead one", () => {
+        expect(modelBlock("GenerationAttempt")).toMatch(/^\s*leaseExpiresAt\s+DateTime\?/m);
       });
 
       // Derived from errorCode by @calepin/shared, never stored: a second

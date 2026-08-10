@@ -16,12 +16,55 @@ import { type ErrorCategory, type ErrorCode, toAppError } from "../errors";
 export const GENERATION_STATUSES = ["running", "succeeded", "failed"] as const;
 export type GenerationStatus = (typeof GENERATION_STATUSES)[number];
 
+/**
+ * What one attempt consumed, exactly as the provider reported it (CAL-056,
+ * CAL-058).
+ *
+ * **Reported, never inferred.** An attempt whose worker died, or whose call
+ * never reached an endpoint, has no usage — and the honest record of that is
+ * the absence of one, not a number reconstructed from what the call was
+ * expected to cost. That absence is what makes the specification's rule
+ * arithmetic rather than a promise: *aucune facturation interne ne doit être
+ * comptabilisée deux fois si l'échec provient du système*. A try nobody can
+ * measure sums to nothing, so the replay that follows it is charged once.
+ *
+ * **Stated, never accumulated.** `report` in `runGenerationAttempt` replaces
+ * this value; it does not add to it. Retries and a provider switch *inside* one
+ * call are already summed by `@calepin/ai`'s port before it returns, and adding
+ * the same total twice is precisely the double count this task exists to close.
+ *
+ * Present on a failure as much as on a success: a call the provider billed for
+ * before rejecting the answer cost what it cost.
+ */
+export interface AttemptUsage {
+  /**
+   * The model that actually served — the backup model's identifier when a
+   * failover put it there, which is why this belongs to the attempt and never
+   * to the generation above it.
+   */
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  /**
+   * The tokens above priced at today's tariff, as a six-decimal string. Priced
+   * by the caller: money is `@calepin/ai`'s `estimateCostUsd`, and a package
+   * that must not import it does not get to guess.
+   */
+  estimatedCostUsd?: string;
+}
+
 /** Identifies the attempt being recorded, independently of its result. */
 export interface AttemptContext {
   generationId: string;
-  /** 1 for the first try. Recorded so a replay is auditable. */
+  /**
+   * 1 for the first try. Recorded so a replay is auditable — and **allocated by
+   * the persistence**, never chosen by the caller (CAL-058): a redelivered job
+   * that picked its own number is how one physical call becomes two cost lines.
+   */
   attempt: number;
   durationMs: number;
+  /** What the provider reported, when it reported anything. */
+  usage?: AttemptUsage;
   /**
    * The version of the prompt this attempt ran (CAL-053) —
    * `GenerationAttempt.promptVersion`, and the second half of what ADR-001 asks

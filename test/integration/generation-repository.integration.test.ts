@@ -15,6 +15,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createAuditedClient } from "./audited-client";
+import { fixtureGenerationKey } from "./generation-fixture";
 
 describe("listRunningGenerations (CAL-039)", () => {
   const { prisma, setActor } = createAuditedClient();
@@ -45,6 +46,7 @@ describe("listRunningGenerations (CAL-039)", () => {
         projectId: project.id,
         mission: "ANALYZE_SOURCE_TEXT",
         input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-analyze"),
         status: "QUEUED",
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
       },
@@ -54,6 +56,7 @@ describe("listRunningGenerations (CAL-039)", () => {
         projectId: project.id,
         mission: "WRITE_SCENE",
         input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-write-scene"),
         status: "RUNNING",
         createdAt: new Date("2026-01-01T00:05:00.000Z"),
       },
@@ -63,6 +66,7 @@ describe("listRunningGenerations (CAL-039)", () => {
         projectId: project.id,
         mission: "CHECK_COHERENCE",
         input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-check"),
         status: "SUCCEEDED",
         completedAt: new Date(),
       },
@@ -72,6 +76,7 @@ describe("listRunningGenerations (CAL-039)", () => {
         projectId: project.id,
         mission: "FIX_ISSUE",
         input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-fix"),
         status: "FAILED",
         completedAt: new Date(),
       },

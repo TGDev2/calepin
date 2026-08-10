@@ -166,6 +166,21 @@ export const ERROR_CODES = [
    */
   "PROMPT_VARIABLE_INVALID",
   /**
+   * An attempt was still `RUNNING` past its lease when a later claim looked at
+   * it: the worker holding it died, was killed, or lost the database (CAL-058).
+   * The claim closes it as failed under this code and leaves its token columns
+   * untouched, because nobody can say what an unfinished call consumed — which
+   * is how the specification's rule becomes arithmetic rather than a promise:
+   * *aucune facturation interne ne doit être comptabilisée deux fois si l'échec
+   * provient du système.* A try nobody measured sums to nothing, so the replay
+   * after it is charged once.
+   *
+   * `internal` because the fault is Calepin's own, not a provider's and not the
+   * author's. It marks one *attempt*; the generation it belongs to is left
+   * replayable, which is what the next claim does with it.
+   */
+  "GENERATION_INTERRUPTED",
+  /**
    * A row being copied into a duplicated project references a row the copy does
    * not hold (CAL-035). Either the duplication plan is missing a model, or the
    * graph reaches outside the project it is supposed to be confined to — both
@@ -214,5 +229,6 @@ export const CATEGORY_BY_CODE = {
   PROMPT_NOT_REGISTERED: "internal",
   PROMPT_NOT_RENDERED: "internal",
   PROMPT_VARIABLE_INVALID: "internal",
+  GENERATION_INTERRUPTED: "internal",
   PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

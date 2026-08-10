@@ -20,9 +20,10 @@
 
 import type { Result } from "@calepin/shared/errors";
 import {
-  type AttemptContext,
   type GenerationAttemptOutcome,
+  type GenerationClaimContext,
   type GenerationPersistence,
+  type GenerationRun,
   runGenerationAttempt,
 } from "@calepin/shared/generation";
 import { createLogger } from "@calepin/shared/logging";
@@ -64,24 +65,30 @@ function virtualScheduler(): Scheduler {
 
 function recordingPersistence(): {
   persist: GenerationPersistence<StructuredGenerationResult<Output>>;
-  starts: Omit<AttemptContext, "durationMs">[];
+  starts: GenerationClaimContext[];
   outcomes: GenerationAttemptOutcome[];
 } {
-  const starts: Omit<AttemptContext, "durationMs">[] = [];
+  const starts: GenerationClaimContext[] = [];
   const outcomes: GenerationAttemptOutcome[] = [];
 
   return {
     starts,
     outcomes,
     persist: {
-      start(context) {
+      claim(context) {
         starts.push(context);
+
+        return { kind: "claimed", attempt: 1 };
       },
       succeed(_value, outcome) {
         outcomes.push(outcome);
+
+        return "applied";
       },
       fail(outcome) {
         outcomes.push(outcome);
+
+        return "applied";
       },
     },
   };
@@ -118,7 +125,7 @@ function portAnswering(
 function generate(
   port: ModelProviderPort,
   persist: GenerationPersistence<StructuredGenerationResult<Output>>,
-): Promise<Result<StructuredGenerationResult<Output>>> {
+): Promise<Result<GenerationRun<StructuredGenerationResult<Output>>>> {
   return runGenerationAttempt({
     generationId: "gen_test",
     // Known before the call, because the prompt had to be rendered to make one.
@@ -138,10 +145,9 @@ describe("the version a generation records", () => {
 
     expect(result.ok).toBe(true);
     // Recorded *before* the model was called, so the record exists even if
-    // nothing comes back.
-    expect(starts).toEqual([
-      { generationId: "gen_test", attempt: 1, promptVersion: PROMPT.version },
-    ]);
+    // nothing comes back. The attempt number is not here: it is the claim's to
+    // allocate, not the caller's to state (CAL-058).
+    expect(starts).toEqual([{ generationId: "gen_test", promptVersion: PROMPT.version }]);
     expect(outcomes[0]).toMatchObject({ status: "succeeded", promptVersion: PROMPT.version });
   });
 
@@ -172,9 +178,12 @@ describe("the version a generation records", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(result.ok && result.value.attemptCount).toBe(2);
-    expect(result.ok && result.value.promptId).toBe("extract-facts");
-    expect(result.ok && result.value.promptVersion).toBe(PROMPT.version);
+
+    const served = result.ok && result.value.kind === "produced" ? result.value.value : undefined;
+
+    expect(served?.attemptCount).toBe(2);
+    expect(served?.promptId).toBe("extract-facts");
+    expect(served?.promptVersion).toBe(PROMPT.version);
     expect(outcomes[0]?.promptVersion).toBe(PROMPT.version);
   });
 });

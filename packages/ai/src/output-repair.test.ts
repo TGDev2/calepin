@@ -22,6 +22,7 @@ import type { Result } from "@calepin/shared/errors";
 import {
   type GenerationAttemptOutcome,
   type GenerationPersistence,
+  type GenerationRun,
   runGenerationAttempt,
 } from "@calepin/shared/generation";
 import { createLogger } from "@calepin/shared/logging";
@@ -72,17 +73,23 @@ function recordingPersistence(): {
     outcomes,
     values,
     persist: {
-      start() {
-        events.push("start");
+      claim() {
+        events.push("claim");
+
+        return { kind: "claimed", attempt: 1 };
       },
       succeed(value, outcome) {
         events.push("succeed");
         values.push(value);
         outcomes.push(outcome);
+
+        return "applied";
       },
       fail(outcome) {
         events.push("fail");
         outcomes.push(outcome);
+
+        return "applied";
       },
     },
   };
@@ -125,7 +132,7 @@ function portAnswering(bodies: readonly string[]): {
 function generate(
   port: ModelProviderPort,
   persist: GenerationPersistence<StructuredGenerationResult<Output>>,
-): Promise<Result<StructuredGenerationResult<Output>>> {
+): Promise<Result<GenerationRun<StructuredGenerationResult<Output>>>> {
   return runGenerationAttempt({
     generationId: "gen_test",
     persist,
@@ -155,7 +162,7 @@ describe("an answer that does not satisfy the mission's schema", () => {
 
     // And nothing was written. `succeed` is the only call that appends a
     // revision, and it never happened — the criterion, in one assertion.
-    expect(events).toEqual(["start", "fail"]);
+    expect(events).toEqual(["claim", "fail"]);
     expect(values).toHaveLength(0);
     expect(outcomes[0]).toMatchObject({
       generationId: "gen_test",
@@ -180,7 +187,7 @@ describe("an answer that does not satisfy the mission's schema", () => {
     expect(primaryCalls).toHaveLength(2);
 
     // One generation, one write, and the rejected answer nowhere in it.
-    expect(events).toEqual(["start", "succeed"]);
+    expect(events).toEqual(["claim", "succeed"]);
     expect(values).toHaveLength(1);
     expect(values[0]?.output).toEqual({ itemCount: 3, code: "a" });
     // Both answers were paid for: 2 × 20 in, 2 × 5 out.
@@ -209,7 +216,7 @@ describe("an answer that does not address the mission at all", () => {
     expect(result.ok).toBe(false);
     expect(result.ok ? undefined : result.error.code).toBe("MODEL_OUTPUT_OFF_TOPIC");
 
-    expect(events).toEqual(["start", "fail"]);
+    expect(events).toEqual(["claim", "fail"]);
     expect(outcomes[0]).toMatchObject({
       status: "failed",
       retryable: false,
@@ -228,7 +235,7 @@ describe("an answer that satisfies the mission's schema", () => {
 
     expect(result.ok).toBe(true);
     expect(primaryCalls).toHaveLength(1);
-    expect(events).toEqual(["start", "succeed"]);
+    expect(events).toEqual(["claim", "succeed"]);
     expect(values[0]?.output).toEqual({ itemCount: 2, code: "b" });
     expect(values[0]?.attemptCount).toBe(1);
   });
