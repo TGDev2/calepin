@@ -1,6 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { fail, ProviderError, type Result, succeed, ValidationError } from "../errors";
+import {
+  ConflictError,
+  fail,
+  ProviderError,
+  type Result,
+  succeed,
+  ValidationError,
+} from "../errors";
 import { logger } from "../logging";
 import {
   type AttemptCompletion,
@@ -520,6 +527,104 @@ describe("the outcome a Generation row records", () => {
       status: "succeeded",
       retryable: false,
     });
+  });
+});
+
+/**
+ * CAL-064. The persistence is the arbiter — it holds the generation's row lock,
+ * so it is the only party that can see a cancellation land mid-flight. What it
+ * reports back is `cancelled`, and both ways a run can reach that point have to
+ * end the same way: nothing produced, nothing owed, and no failure put in front
+ * of the reader who caused it.
+ */
+describe("runGenerationAttempt, when the author cancelled while it ran", () => {
+  it("drops an answer that arrived after the cancellation, without writing it", async () => {
+    const persist = createRecorder({
+      succeed: () => "cancelled",
+    });
+
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: () => succeed(RESULT_TOKEN),
+      persist,
+      now: createClock(),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      value: { kind: "skipped", reason: "cancelled", attempt: 1 },
+    });
+    // `written` is the recorder's stand-in for the append. The guarantee this
+    // pins is the one the task is judged on: a cancelled chapter write leaves
+    // the chapter exactly as it was, because nothing of the answer is applied.
+    expect(persist.written).toEqual([]);
+  });
+
+  it("reports the abort as a cancellation rather than as a failure", async () => {
+    const persist = createRecorder({
+      fail: () => "cancelled",
+    });
+
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      // What `@calepin/ai` answers once the signal fires.
+      produce: () => fail(new ConflictError({ code: "GENERATION_CANCELLED" })),
+      persist,
+      now: createClock(),
+    });
+
+    // Not `{ ok: false }`: the job did exactly what it was asked to do, and a
+    // reader who pressed *Annuler* must not be shown an error for it.
+    expect(result).toEqual({
+      ok: true,
+      value: { kind: "skipped", reason: "cancelled", attempt: 1 },
+    });
+    expect(persist.written).toEqual([]);
+  });
+
+  it("still records what the interrupted attempt really spent", async () => {
+    const recorded: GenerationAttemptOutcome[] = [];
+    const persist = createRecorder({
+      fail: (outcome): AttemptCompletion => {
+        recorded.push(outcome);
+
+        return "cancelled";
+      },
+    });
+
+    await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (report) => {
+        report(USAGE);
+
+        return fail(new ConflictError({ code: "GENERATION_CANCELLED" }));
+      },
+      persist,
+      now: createClock(),
+    });
+
+    // *Comptabilisation uniquement des jetons réellement consommés*: the usage
+    // the provider did report travels to the row, and nothing is invented for
+    // the part of the call that never came back.
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({ usage: USAGE });
+  });
+
+  it("keeps reporting a real failure as a failure", async () => {
+    const persist = createRecorder();
+    const failure = new ProviderError({ message: "the provider gave up" });
+
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: () => fail(failure),
+      persist,
+      now: createClock(),
+    });
+
+    // The `cancelled` branch must be reachable only through the persistence's
+    // own answer — never inferred from the error, which would swallow every
+    // genuine failure that happened to look like one.
+    expect(result).toEqual({ ok: false, error: failure });
   });
 });
 

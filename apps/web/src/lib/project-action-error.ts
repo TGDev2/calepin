@@ -18,6 +18,7 @@ export const PROJECT_ACTION_ERRORS = [
   "confirmation",
   "missing",
   "generation",
+  "cancellation",
   "unavailable",
 ] as const;
 export type ProjectActionError = (typeof PROJECT_ACTION_ERRORS)[number];
@@ -32,6 +33,11 @@ const MESSAGES: Record<ProjectActionError, string> = {
   // a reload shows the truth, so the message points at the reload.
   generation:
     "Cette génération n'est plus en échec : elle a abouti, ou une nouvelle tentative est déjà en cours. Rechargez la page.",
+  // Its own code rather than `generation` (CAL-064): the same remedy, but not
+  // the same fact. A reader told a generation "n'est plus en échec" after
+  // pressing *Annuler* would be answered about something they never asked.
+  cancellation:
+    "Cette génération est déjà terminée : il n'y a plus rien à annuler. Rechargez la page.",
   unavailable: "L'action n'a pas pu aboutir. Votre projet est intact. Réessayez dans un instant.",
 };
 

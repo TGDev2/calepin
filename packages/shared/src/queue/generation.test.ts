@@ -216,4 +216,76 @@ describe("the attempt lease renewal", () => {
     // giving up the lease on it would reclaim a healthy call under itself.
     expect(renewals).toBe(2);
   });
+
+  /**
+   * CAL-064. The renewal is also the watch, and this is the whole of the
+   * propagation: the tick that cannot renew is the tick that stops the work.
+   */
+  it("surrenders the run when the generation has been cancelled", async () => {
+    const capture = createLogCapture();
+    const logger = createLogger({ level: "debug", destination: capture.stream });
+    const surrendered: string[] = [];
+    let renewals = 0;
+
+    startAttemptLeaseRenewal({
+      generationId: "gen-1",
+      attempt: 1,
+      intervalMs: 1_000,
+      logger,
+      onSurrendered: (reason) => surrendered.push(reason),
+      renew: () => {
+        renewals += 1;
+
+        return Promise.resolve(succeed(renewals === 1 ? "renewed" : "cancelled"));
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    expect(renewals).toBe(2);
+    expect(surrendered).toEqual(["cancelled"]);
+    // An author stopping their own work is the feature working, not an incident.
+    const observed = capture.lines().find((line) => line.msg === "generation.cancel-observed");
+    expect(observed).toMatchObject({ generationId: "gen-1", attempt: 1 });
+    expect(capture.lines().map((line) => line.msg)).not.toContain("generation.lease-lost");
+  });
+
+  it("surrenders the run on a lost lease too, and only once", async () => {
+    const surrendered: string[] = [];
+
+    startAttemptLeaseRenewal({
+      generationId: "gen-1",
+      attempt: 1,
+      intervalMs: 1_000,
+      logger: createLogger({ level: "silent" }),
+      onSurrendered: (reason) => surrendered.push(reason),
+      renew: () => Promise.resolve(succeed("lost" as const)),
+    });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    // An attempt somebody else already owns is one whose answer is destined for
+    // `superseded`; paying a provider to finish it is the waste CAL-064 closes.
+    expect(surrendered).toEqual(["lost"]);
+  });
+
+  it("never surrenders on a renewal that merely failed", async () => {
+    const surrendered: string[] = [];
+
+    startAttemptLeaseRenewal({
+      generationId: "gen-1",
+      attempt: 1,
+      intervalMs: 1_000,
+      logger: createLogger({ level: "silent" }),
+      onSurrendered: (reason) => surrendered.push(reason),
+      renew: () => Promise.reject(new InternalError({ message: "the database blinked" })),
+    });
+
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    // A blip must not abort a live provider call: noticing a cancellation one
+    // tick late costs seconds, aborting a healthy generation costs the whole of
+    // it. The lease outlasts many ticks precisely so this can be the safe way.
+    expect(surrendered).toEqual([]);
+  });
 });

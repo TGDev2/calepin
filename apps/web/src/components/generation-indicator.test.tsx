@@ -17,9 +17,14 @@ function running(view: Partial<RunningGenerationView> = {}): RunningGenerationVi
   };
 }
 
+/** Stands in for the server action; never called by a static render. */
+const cancel = async (): Promise<void> => {};
+
 describe("GenerationIndicator", () => {
   it("renders nothing when no generation is in flight", () => {
-    const html = renderToStaticMarkup(<GenerationIndicator projectId="project-1" initial={[]} />);
+    const html = renderToStaticMarkup(
+      <GenerationIndicator projectId="project-1" initial={[]} cancelAction={cancel} />,
+    );
 
     expect(html).toBe("");
   });
@@ -29,6 +34,7 @@ describe("GenerationIndicator", () => {
       <GenerationIndicator
         projectId="project-1"
         initial={[running(), running({ id: "gen-2", mission: "CHECK_COHERENCE" })]}
+        cancelAction={cancel}
       />,
     );
 
@@ -43,6 +49,7 @@ describe("GenerationIndicator", () => {
       <GenerationIndicator
         projectId="project-1"
         initial={[running({ progressStep: "Composition du contexte", progressPercent: 42 })]}
+        cancelAction={cancel}
       />,
     );
 
@@ -61,6 +68,7 @@ describe("GenerationIndicator", () => {
       <GenerationIndicator
         projectId="project-1"
         initial={[running({ failureClass: "transient" })]}
+        cancelAction={cancel}
       />,
     );
 
@@ -69,9 +77,57 @@ describe("GenerationIndicator", () => {
 
   it("says nothing of the sort for a generation that has not failed", () => {
     const html = renderToStaticMarkup(
-      <GenerationIndicator projectId="project-1" initial={[running()]} />,
+      <GenerationIndicator projectId="project-1" initial={[running()]} cancelAction={cancel} />,
     );
 
     expect(html).not.toContain("nouvelle tentative");
+  });
+
+  /**
+   * CAL-064. The progressive-enhancement half of the cancel button, pinned the
+   * way `generation-failure-list.test.tsx` pins the replay's: a real `<form>`
+   * carrying both identifiers, so the control works before any JavaScript has
+   * run and the server is the only thing that decides whether it is allowed.
+   */
+  it("offers a real form carrying both identifiers for each generation", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator
+        projectId="project-1"
+        initial={[running(), running({ id: "gen-2" })]}
+        cancelAction={cancel}
+      />,
+    );
+
+    expect(html).toContain("<form");
+    expect(html).toContain('name="projectId" value="project-1"');
+    expect(html).toContain('name="generationId" value="gen-1"');
+    expect(html).toContain('name="generationId" value="gen-2"');
+    expect(html).toContain("Annuler");
+  });
+
+  /**
+   * A generation waiting out a backoff is in flight and costs the author to
+   * leave running, so it is cancellable like any other. Hiding the control for
+   * it would leave the one case where waiting is longest with nothing to do.
+   */
+  it("offers cancellation for a generation waiting out a backoff too", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator
+        projectId="project-1"
+        initial={[running({ failureClass: "rate_limited" })]}
+        cancelAction={cancel}
+      />,
+    );
+
+    expect(html).toContain("Annuler");
+  });
+
+  /** A `<form>` is not phrasing content: a `<p>` around one is closed early. */
+  it("does not put the form inside a paragraph", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator projectId="project-1" initial={[running()]} cancelAction={cancel} />,
+    );
+
+    expect(html).not.toContain("<p");
   });
 });

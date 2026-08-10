@@ -1,6 +1,6 @@
 /**
  * The write half of a generation's life (CAL-058) — reserve, claim, complete,
- * replay.
+ * replay, cancel.
  *
  * `./generation` reads generations; this writes them, and it is where the
  * specification's one hard rule about money lives: *aucune facturation interne
@@ -385,6 +385,13 @@ export async function claimGenerationAttempt(
  * before retrying*), and it is what lets a queue redeliver a transient failure
  * without a human deciding to replay — while a permanent one lands `FAILED` and
  * waits for `replayGeneration`, which is a decision and looks like one.
+ *
+ * A **cancelled** generation absorbs whatever its attempt was about to say
+ * (CAL-064). The decision is already terminal and it is a person's, so the
+ * attempt is closed with the usage it really reported and nothing else happens:
+ * no append, no generation update. That is what makes cancelling free of a
+ * partial write — the append is the only thing in this transaction that touches
+ * narrative data, and it is skipped rather than rolled back.
  */
 export async function completeGenerationAttempt(
   scope: ProjectScope,
@@ -409,7 +416,18 @@ export async function completeGenerationAttempt(
   // rightly: a failed generation is not waiting for anything.
   const nextAttemptAt = outcome.retryable ? (outcome.nextAttemptAt ?? null) : null;
 
-  return runLockedOnGeneration(scope, outcome.generationId, async (tx) => {
+  return runLockedOnGeneration(scope, outcome.generationId, async (tx, status) => {
+    // The author cancelled while this attempt was in flight (CAL-064). The
+    // attempt is still settled — it ran, and it is the only party that can say
+    // what it consumed, so whatever `report()` stated is written here and
+    // nowhere else. What is *not* done is the point: the append never runs, so
+    // no revision, no aggregate and no chapter status moves, and the generation
+    // row keeps the terminal state a person chose. Recording it `FAILED` rather
+    // than honouring `outcome.status` is the honest record of an answer that was
+    // discarded — a `SUCCEEDED` attempt whose result was thrown away would make
+    // `readMissionMeasurements` count a generation nobody received.
+    const cancelled = status === "CANCELLED";
+
     const applied = await tx.generationAttempt.updateMany({
       where: scopedWhere("GenerationAttempt", scope, {
         generationId: outcome.generationId,
@@ -417,7 +435,7 @@ export async function completeGenerationAttempt(
         status: "RUNNING",
       }),
       data: {
-        status: succeeded ? "SUCCEEDED" : "FAILED",
+        status: succeeded && !cancelled ? "SUCCEEDED" : "FAILED",
         completedAt: new Date(),
         leaseExpiresAt: null,
         durationMs: outcome.durationMs,
@@ -429,12 +447,14 @@ export async function completeGenerationAttempt(
         inputTokens: usage?.inputTokens,
         outputTokens: usage?.outputTokens,
         estimatedCostUsd: usage?.estimatedCostUsd,
-        errorCode: outcome.errorCode ?? null,
-        errorCategory: category,
+        errorCode: cancelled ? "GENERATION_CANCELLED" : (outcome.errorCode ?? null),
+        errorCategory: cancelled ? "CONFLICT" : category,
       },
     });
 
     if (applied.count === 0) return succeed<AttemptCompletion>("already-completed");
+
+    if (cancelled) return succeed<AttemptCompletion>("cancelled");
 
     if (append !== undefined) {
       const appended = await append(tx);
@@ -492,8 +512,15 @@ export async function completeGenerationAttempt(
   });
 }
 
-/** Whether a renewal moved the lease, or found the attempt no longer ours. */
-export type AttemptLeaseRenewal = "renewed" | "lost";
+/**
+ * Whether a renewal moved the lease, or found the work no longer ours to do.
+ *
+ * `cancelled` and `lost` are both "stop", and they are told apart because the
+ * remedies differ: a cancelled generation is finished and its attempt should be
+ * settled, while a lost one belongs to somebody else and settling it would write
+ * over their claim.
+ */
+export type AttemptLeaseRenewal = "renewed" | "cancelled" | "lost";
 
 export interface RenewGenerationAttemptLeaseInput {
   readonly generationId: string;
@@ -517,6 +544,13 @@ export interface RenewGenerationAttemptLeaseInput {
  * completion will find the attempt closed and report `already-completed`, which
  * is the `superseded` path and the one that keeps a discarded answer from being
  * written beside the replacement's.
+ *
+ * **It is also the watch** (CAL-064). The statement renews only while the
+ * generation itself is still `RUNNING`, which is what turns a heartbeat the
+ * worker was already sending into the channel a cancellation travels down — no
+ * second poll, no pub/sub, and nothing for a killed worker to lose, because the
+ * decision is a column rather than a message. The disambiguating read costs a
+ * query only on the path where the run is over anyway.
  */
 export async function renewGenerationAttemptLease(
   scope: ProjectScope,
@@ -531,17 +565,26 @@ export async function renewGenerationAttemptLease(
   }
 
   const now = input.now ?? new Date();
+  const client = getDatabaseClient();
 
-  const renewed = await getDatabaseClient().generationAttempt.updateMany({
+  const renewed = await client.generationAttempt.updateMany({
     where: scopedWhere("GenerationAttempt", scope, {
       generationId: input.generationId,
       attempt: input.attempt,
       status: "RUNNING",
+      generation: { status: "RUNNING" },
     }),
     data: { leaseExpiresAt: new Date(now.getTime() + leaseMs) },
   });
 
-  return succeed(renewed.count > 0 ? "renewed" : "lost");
+  if (renewed.count > 0) return succeed("renewed");
+
+  const generation = await client.generation.findFirst({
+    where: scopedWhere("Generation", scope, { id: input.generationId }),
+    select: { status: true },
+  });
+
+  return succeed(generation?.status === "CANCELLED" ? "cancelled" : "lost");
 }
 
 export interface UpdateGenerationProgressInput {
@@ -660,6 +703,72 @@ export async function replayGeneration(
     if (row === null) throw new RollbackSignal(generationNotFound());
 
     return succeed({ ...row, created: false });
+  });
+}
+
+/** Whether this call cancelled the generation, or found it already cancelled. */
+export type GenerationCancellation = "cancelled" | "already-cancelled";
+
+/**
+ * Stops a generation the author no longer wants (CAL-064).
+ *
+ * **It writes the generation row and nothing else** — in particular it does not
+ * close the running attempt. That is the whole design, and it is what makes
+ * *comptabiliser uniquement les jetons réellement consommés* true rather than
+ * hoped for: the worker holding the call is the only party that can say what the
+ * provider was asked for, so it settles its own attempt with the usage it really
+ * reported (`completeGenerationAttempt`, the `CANCELLED` branch). Closing the
+ * attempt from here would either invent a number or throw away a real one.
+ *
+ * The worker finds out through the lease renewal it was already sending, which
+ * refuses to renew against a generation that is no longer `RUNNING`. If the
+ * worker is dead instead, nothing is owed: the lease expires and the sweep
+ * reclaims the attempt with its usage columns untouched, exactly as it does for
+ * any interrupted call.
+ *
+ * A `QUEUED` generation needs no more than this either. The sweep only ever
+ * delivers `QUEUED` rows, and a job already sitting in Redis that does get
+ * delivered is refused by `claimGenerationAttempt` and ends `skipped` — so the
+ * row answers for itself rather than needing the queue to be corrected.
+ *
+ * Already cancelled is a success, not a conflict: a second click is the same
+ * decision, not a new one. Succeeded and failed are conflicts, because the
+ * remedy is to look again rather than to try again.
+ */
+export async function cancelGeneration(
+  scope: ProjectScope,
+  generationId: string,
+): Promise<Result<GenerationCancellation>> {
+  assertProjectScope(scope);
+
+  return runLockedOnGeneration(scope, generationId, async (tx, status) => {
+    if (status === "CANCELLED") return succeed<GenerationCancellation>("already-cancelled");
+
+    if (status === "SUCCEEDED" || status === "FAILED") {
+      throw new RollbackSignal(
+        new ConflictError({ message: "only a generation still in flight can be cancelled" }),
+      );
+    }
+
+    // `completedAt` is required of a terminal row by `generations_completion_check`
+    // and `nextAttemptAt` must be null on one by `generations_retry_check`; the
+    // failure columns are cleared because a cancellation is not a failure and
+    // `listFailedGenerations` must not offer *Relancer* for it. The progress
+    // pair goes too — it describes work that is no longer happening.
+    await tx.$executeRaw`
+      UPDATE "generations"
+      SET "status" = 'CANCELLED', "completedAt" = now(),
+          "errorCode" = NULL, "errorCategory" = NULL,
+          "failureClass" = NULL, "nextAttemptAt" = NULL,
+          "progressStep" = NULL, "progressPercent" = NULL
+      WHERE "id" = ${generationId}
+        AND "projectId" IN (
+          SELECT "id" FROM "projects"
+          WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+        )
+    `;
+
+    return succeed<GenerationCancellation>("cancelled");
   });
 }
 

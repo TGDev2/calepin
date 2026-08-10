@@ -59,11 +59,13 @@ export {
 export { type MissionMeasurement, readMissionMeasurements } from "./generation-measurements";
 export {
   type AttemptLeaseRenewal,
+  cancelGeneration,
   claimGenerationAttempt,
   type ClaimGenerationAttemptInput,
   completeGenerationAttempt,
   createGenerationPersistence,
   DEFAULT_ATTEMPT_LEASE_MS,
+  type GenerationCancellation,
   type GenerationPersistenceOptions,
   renewGenerationAttemptLease,
   type RenewGenerationAttemptLeaseInput,

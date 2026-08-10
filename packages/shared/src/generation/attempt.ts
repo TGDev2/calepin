@@ -88,6 +88,11 @@ export type GenerationClaimRefusal = (typeof GENERATION_CLAIM_REFUSALS)[number];
  * A refusal, plus the one thing that can only be learnt after the work was
  * done: `superseded` — the attempt was reclaimed as expired while it ran, and
  * another one has completed the generation since. Its answer is discarded.
+ *
+ * `cancelled` reaches this union twice over, and deliberately: as a refusal,
+ * when the row was already cancelled before the claim, and as an outcome, when
+ * the author stopped the work while it ran (CAL-064). Both are the same fact for
+ * a caller — nothing was produced, and nothing is owed.
  */
 export type GenerationSkipReason = GenerationClaimRefusal | "superseded";
 
@@ -100,8 +105,15 @@ export type GenerationClaim =
       readonly attempt?: number;
     };
 
-/** Whether a completion moved a row, or found the attempt already closed. */
-export type AttemptCompletion = "applied" | "already-completed";
+/**
+ * Whether a completion moved a row, found the attempt already closed, or found
+ * the generation cancelled under it (CAL-064).
+ *
+ * `cancelled` is not a variety of `already-completed`. The attempt *was* settled
+ * — with the tokens it really spent — and what did not happen is the append, so
+ * the caller has produced nothing rather than produced-and-been-superseded.
+ */
+export type AttemptCompletion = "applied" | "already-completed" | "cancelled";
 
 export interface GenerationClaimContext {
   readonly generationId: string;
@@ -248,7 +260,18 @@ export async function runGenerationAttempt<T>(
   }
 
   if (!produced.ok) {
-    await recordFailure(persist, failedAttempt(produced.error));
+    const recorded = await recordFailure(persist, failedAttempt(produced.error));
+
+    // The author cancelled, and this failure is the model call answering the
+    // abort (CAL-064). Reporting it as a failure would be wrong twice over: it
+    // would put a `GENERATION_CANCELLED` error in front of a reader who caused
+    // it, and it would make the job look broken for having done exactly what it
+    // was asked. The attempt row keeps the record, including what it spent.
+    if (recorded === "cancelled") {
+      logger.info("generation.cancelled", { generationId, attempt });
+
+      return succeed({ kind: "skipped", reason: "cancelled", attempt });
+    }
 
     return produced;
   }
@@ -262,6 +285,15 @@ export async function runGenerationAttempt<T>(
     await recordFailure(persist, failedAttempt(appError));
 
     return fail(appError);
+  }
+
+  if (completion === "cancelled") {
+    // The call came back after the author had already stopped it. The answer is
+    // dropped whole — nothing of it was written, which is the guarantee that
+    // cancelling a chapter leaves the chapter exactly as it was.
+    logger.info("generation.cancelled", { generationId, attempt });
+
+    return succeed({ kind: "skipped", reason: "cancelled", attempt });
   }
 
   if (completion === "already-completed") {
@@ -285,18 +317,24 @@ export async function runGenerationAttempt<T>(
  * original cause is the useful one, and a row left `running` is exactly the
  * state the next claim reclaims. Swallowing it silently would not be — hence
  * the log line.
+ *
+ * It hands back what the persistence decided, because that is the only place
+ * the caller can learn the generation was cancelled under it (CAL-064).
+ * `undefined` means the record itself failed, which is not a cancellation.
  */
 async function recordFailure<T>(
   persist: GenerationPersistence<T>,
   outcome: GenerationAttemptOutcome,
-): Promise<void> {
+): Promise<AttemptCompletion | undefined> {
   try {
-    await persist.fail(outcome);
+    return await persist.fail(outcome);
   } catch (error: unknown) {
     logger.error("generation.outcome-not-recorded", {
       generationId: outcome.generationId,
       attempt: outcome.attempt,
       ...errorLogFields(error),
     });
+
+    return undefined;
   }
 }

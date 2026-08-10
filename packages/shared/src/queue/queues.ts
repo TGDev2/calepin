@@ -119,12 +119,20 @@ export const RECONCILIATION_BATCH_SIZE = 100;
 export const GENERATION_LEASE_MS = 120_000;
 
 /**
- * How often that lease is pushed back. Four renewals inside one lease, so three
- * have to be missed in a row before a healthy attempt is reclaimed — and
- * reclaiming a healthy attempt is the expensive mistake: its answer is
- * discarded as `superseded` after the provider has been paid for it.
+ * How often that lease is pushed back — and, since CAL-064, how long a
+ * cancellation waits to be noticed.
+ *
+ * The renewal is also the watch: it refuses to renew against a generation that
+ * is no longer `RUNNING`, so this interval is the delay between an author
+ * pressing *Annuler* and the provider call being aborted. That is what moved it
+ * from thirty seconds to five. Twenty-four renewals inside one lease is more
+ * redundancy than the lease needs — twenty-three would have to be missed in a
+ * row before a healthy attempt were reclaimed — but the cost is one indexed
+ * `UPDATE` every five seconds per generation actually in flight, against a
+ * default concurrency of one, while the saving is twenty-five seconds of a
+ * provider writing prose nobody will read.
  */
-export const GENERATION_LEASE_RENEWAL_MS = 30_000;
+export const GENERATION_LEASE_RENEWAL_MS = 5_000;
 
 /**
  * How many jobs one worker runs at once, by default.

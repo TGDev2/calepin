@@ -23,6 +23,12 @@
   gap: var(--space-1);
 }
 
+/* Pushed to the far end, so the control is in one place down a list of them. */
+.form {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .spinner {
   flex-shrink: 0;
   width: 0.8rem;

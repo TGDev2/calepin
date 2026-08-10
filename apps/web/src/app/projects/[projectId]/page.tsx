@@ -27,6 +27,7 @@ import { signInDestination } from "@/lib/sign-in-redirect";
 
 import {
   archiveProjectAction,
+  cancelGenerationAction,
   duplicateProjectAction,
   renameProjectAction,
   replayGenerationAction,
@@ -150,6 +151,7 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
           progressPercent: row.progressPercent,
           failureClass: row.failureClass,
         }))}
+        cancelAction={cancelGenerationAction}
       />
 
       {/*

@@ -22,6 +22,7 @@ import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import { fail, NotFoundError, succeed } from "@calepin/shared/errors";
 import {
+  cancelGeneration,
   claimGenerationAttempt,
   completeGenerationAttempt,
   computeProjectAggregates,
@@ -77,6 +78,7 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  */
 const ENTRY_POINTS = [
   "archiveProject",
+  "cancelGeneration",
   "claimGenerationAttempt",
   "completeGenerationAttempt",
   "computeProjectAggregates",
@@ -468,12 +470,58 @@ describe("owner access policy", () => {
       if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
     });
 
+    // CAL-064. Cancelling is the one write on this list a *reader* can trigger
+    // from a button, so a forged scope reaching it would be a way to stop
+    // another author's paid work from a URL. The positive half runs against a
+    // generation this test opens for itself, because cancelling is terminal and
+    // the graph's shared row is still needed, running, by the assertions below.
+    it("cancelGeneration refuses another owner's generation", async () => {
+      const theirs = await cancelGeneration(
+        forgedScope(bob.ownerId, alice.projectId),
+        alice.rows.Generation,
+      );
+
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+      expect(
+        (await prisma.generation.findUniqueOrThrow({ where: { id: alice.rows.Generation } }))
+          .status,
+      ).not.toBe("CANCELLED");
+
+      const opened = await runWithActor(alice.ownerId, async () =>
+        reserveGeneration(aliceScope, {
+          mission: "WRITE_SCENE",
+          targetId: "chapter-cancelled",
+          input: {},
+        }),
+      );
+      if (!opened.ok) throw new Error("the owner could not open their own generation");
+
+      const mine = await cancelGeneration(aliceScope, opened.value.id);
+      expect(mine.ok && mine.value).toBe("cancelled");
+      expect(
+        (await prisma.generation.findUniqueOrThrow({ where: { id: opened.value.id } })).status,
+      ).toBe("CANCELLED");
+    });
+
     // CAL-061. Renewal is a write, and the one a long generation makes over and
     // over: a forged scope reaching it would let one author hold another's
     // attempt open indefinitely, which is the opposite of what the lease exists
     // for. `lost` and not a refusal, because the statement is the same shape as
     // "somebody reclaimed this" — nothing moved, so nothing is claimed.
     it("renewGenerationAttemptLease moves no lease but the owner's", async () => {
+      // The graph seeds a `QUEUED` generation beside a `RUNNING` attempt, which
+      // no claim ever produces — a claim moves the generation to `RUNNING` in
+      // the same locked transaction that opens the attempt. Since CAL-064 the
+      // renewal is also the watch and renews only against a `RUNNING`
+      // generation, so the fixture has to be the pair the real code makes.
+      // Harmless for everything after it: `RUNNING` is in the running list the
+      // later assertions read, and the failure case overwrites the row anyway.
+      await prisma.generation.update({
+        where: { id: alice.rows.Generation },
+        data: { status: "RUNNING" },
+      });
+
       const before = await prisma.generationAttempt.findUniqueOrThrow({
         where: { id: alice.rows.GenerationAttempt },
       });

@@ -120,6 +120,15 @@ export interface GenerationExecutorRequest {
    * rather than trusting a shape a previous release may have written (§6).
    */
   readonly input: unknown;
+  /**
+   * Aborted when the author cancels the generation, or when this worker loses
+   * the attempt to somebody else (CAL-064). An executor forwards it to
+   * `ModelRequest.signal` and does nothing else with it: `@calepin/ai` stops the
+   * attempt, the backoff wait and the network call, and answers
+   * `GENERATION_CANCELLED`. Forwarding it is the difference between a
+   * cancellation the author sees and one they keep paying for.
+   */
+  readonly signal: AbortSignal;
 }
 
 /**
@@ -246,12 +255,19 @@ export async function runGenerationJob(
   }
 
   const scope = opened.value;
+
+  // One controller for the whole run (CAL-064). It is aborted by the watch —
+  // the lease renewal below, which refuses to renew against a generation that is
+  // no longer `RUNNING` — and never by this function's own bookkeeping.
+  const controller = new AbortController();
+
   const request: GenerationExecutorRequest = {
     scope,
     generationId,
     mission: target.mission,
     targetId: target.targetId,
     input: target.input,
+    signal: controller.signal,
   };
 
   const persistence = createGenerationPersistence<GenerationProduct>(scope, {
@@ -281,6 +297,13 @@ export async function runGenerationJob(
           logger,
           renew: () =>
             renewGenerationAttemptLease(scope, { generationId, attempt, leaseMs, now: now() }),
+          // Both reasons end the same way: this worker has no claim on the
+          // provider call any more, so it stops paying for it. Cancelled means
+          // the author decided; lost means somebody else already owns the
+          // attempt and this answer is destined for `superseded` regardless.
+          onSurrendered: (reason) => {
+            controller.abort(reason);
+          },
         });
       }
 
@@ -356,6 +379,12 @@ export interface StartAttemptLeaseRenewalOptions {
    * a database (§8).
    */
   readonly renew: () => Promise<Result<AttemptLeaseRenewal>>;
+  /**
+   * Called once, when the renewal finds the work is no longer this worker's to
+   * do (CAL-064) — the generation was cancelled, or the attempt was reclaimed.
+   * The loop stops either way; this is how the run above it stops too.
+   */
+  readonly onSurrendered?: (reason: Exclude<AttemptLeaseRenewal, "renewed">) => void;
   readonly logger?: Logger;
 }
 
@@ -368,11 +397,24 @@ export interface StartAttemptLeaseRenewalOptions {
  * (the `catch`). And it must not keep renewing an attempt somebody else has
  * taken over: a renewal that moves no row means the lease is gone, and going on
  * would be this worker insisting on a claim it no longer holds.
+ *
+ * Since CAL-064 it is also the **watch**: the same renewal answers `cancelled`
+ * when the author has stopped the generation, and the same stop condition then
+ * carries that up through `onSurrendered`. One ticker, one statement, one
+ * reason to stop — a second poll for cancellation would be a second mechanism
+ * for something this one already learns on every beat.
  */
 export function startAttemptLeaseRenewal(
   options: StartAttemptLeaseRenewalOptions,
 ): AttemptLeaseRenewalHandle {
-  const { generationId, attempt, intervalMs, renew, logger = processLogger } = options;
+  const {
+    generationId,
+    attempt,
+    intervalMs,
+    renew,
+    onSurrendered,
+    logger = processLogger,
+  } = options;
 
   let stopped = false;
   let renewing = false;
@@ -384,16 +426,26 @@ export function startAttemptLeaseRenewal(
 
     void renew()
       .then((renewed) => {
-        if (renewed.ok && renewed.value === "lost") {
+        if (!renewed.ok || renewed.value === "renewed") return;
+
+        if (renewed.value === "cancelled") {
+          // The author stopped it. Not a warning — this is the feature working.
+          logger.info("generation.cancel-observed", { generationId, attempt });
+        } else {
           // Reclaimed under us. The answer this attempt is still computing will
           // be dropped by `completeGenerationAttempt` as `already-completed`.
           logger.warn("generation.lease-lost", { generationId, attempt });
-          stop();
         }
+
+        stop();
+        onSurrendered?.(renewed.value);
       })
       .catch((error: unknown) => {
         // A blip on the way to the database is not a reason to give up the
-        // lease: the next tick is 30 s away and the lease outlasts several.
+        // lease: the lease outlasts many ticks. It does delay noticing a
+        // cancellation by one tick, which is the right way round — a cancel
+        // missed for five seconds costs five seconds, a lease dropped on a blip
+        // costs a whole generation.
         logger.warn("generation.lease-renewal-failed", {
           generationId,
           attempt,

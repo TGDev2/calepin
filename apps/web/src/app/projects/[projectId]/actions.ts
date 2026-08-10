@@ -2,8 +2,9 @@
 
 /**
  * The actions on a project — rename, duplicate, archive, restore, delete
- * (CAL-035), and replaying a failed generation (CAL-063). Opening the project is
- * the one that is a link rather than a form.
+ * (CAL-035), replaying a failed generation (CAL-063) and cancelling one still in
+ * flight (CAL-064). Opening the project is the one that is a link rather than a
+ * form.
  *
  * Each of them composes and nothing more, which is what the interface layer is
  * for (§3.3): the session says who is asking, `openProjectScope` turns the
@@ -29,6 +30,7 @@ import { logger } from "@calepin/shared/logging";
 import { enqueueGeneration } from "@calepin/shared/queue";
 import {
   archiveProject,
+  cancelGeneration,
   deleteProject,
   duplicateProject,
   getProjectForOwner,
@@ -161,6 +163,48 @@ export async function replayGenerationAction(formData: FormData): Promise<void> 
       }
 
       return succeed(replayed.value);
+    });
+  });
+
+  finish(outcome, projectPath(projectId), projectPath(projectId));
+}
+
+/**
+ * Stops a generation the author no longer wants (CAL-064).
+ *
+ * The mirror of the replay above, and deliberately just as thin. It writes the
+ * generation row and stops; the worker holding the call notices on its next
+ * heartbeat and settles its own attempt, which is what keeps the token count
+ * honest and this file free of a business rule (§3.3).
+ *
+ * **No queue call at all**, unlike the replay. A cancelled row is never
+ * delivered again by the sweep, and a job already in Redis is refused by the
+ * claim and ends `skipped` — so there is nothing to correct, and nothing whose
+ * failure would have to be swallowed here.
+ */
+export async function cancelGenerationAction(formData: FormData): Promise<void> {
+  const projectId = readProjectId(formData);
+  const userId = await requireOwnerId(projectId);
+  const generationId = formData.get("generationId");
+
+  const outcome = await withRequestLogContext(async () => {
+    if (typeof generationId !== "string" || generationId === "") {
+      return refused("missing", userId, projectId);
+    }
+
+    return performWrite(userId, projectId, async (scope) => {
+      const cancelled = await cancelGeneration(scope, generationId);
+
+      if (!cancelled.ok) {
+        // It finished between the render and the click. Its own reason code:
+        // the reader is not looking at a failure, they are looking at a stale
+        // screen, and the remedy is a reload.
+        return cancelled.error.code === "CONFLICT"
+          ? { ok: false as const, reason: "cancellation" as const }
+          : cancelled;
+      }
+
+      return succeed(cancelled.value);
     });
   });
 

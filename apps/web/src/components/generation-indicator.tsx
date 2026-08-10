@@ -17,6 +17,13 @@
  * back — opens a fresh one, whose first frame already carries the current
  * state. There is no separate "restore" code path, and the browser's own
  * `EventSource` retries a dropped connection on its own.
+ *
+ * **Cancelling lives here** (CAL-064) because this is the only place a running
+ * generation is on screen. The button is a plain `<form>` posting to a server
+ * action, exactly as `generation-failure-list.tsx`'s *Relancer* is: the client
+ * half of this component decides what is displayed and never what is allowed,
+ * and the row leaves the banner on the next frame of the stream rather than
+ * because a handler removed it.
  */
 
 import { useEffect, useState } from "react";
@@ -25,13 +32,19 @@ import { type RunningGenerationView, subscribeToGenerationEvents } from "@/lib/g
 import { generationMissionLabel } from "@/lib/generation-mission-label";
 
 import styles from "./generation-indicator.module.css";
+import { SubmitButton } from "./submit-button";
 
 export interface GenerationIndicatorProps {
   readonly projectId: string;
   readonly initial: RunningGenerationView[];
+  readonly cancelAction: (formData: FormData) => Promise<void>;
 }
 
-export function GenerationIndicator({ projectId, initial }: GenerationIndicatorProps) {
+export function GenerationIndicator({
+  projectId,
+  initial,
+  cancelAction,
+}: GenerationIndicatorProps) {
   const [running, setRunning] = useState(initial);
 
   useEffect(() => {
@@ -43,7 +56,9 @@ export function GenerationIndicator({ projectId, initial }: GenerationIndicatorP
   return (
     <div className={styles.banner} role="status">
       {running.map((generation) => (
-        <p key={generation.id} className={styles.line}>
+        // A `div` rather than the `p` this was before CAL-064: a form is not
+        // phrasing content, and a browser closes the paragraph in front of it.
+        <div key={generation.id} className={styles.line}>
           <span className={styles.spinner} aria-hidden="true" />
           <span>
             Génération en cours&nbsp;: {generationMissionLabel(generation.mission)}
@@ -70,7 +85,19 @@ export function GenerationIndicator({ projectId, initial }: GenerationIndicatorP
               </>
             )}
           </span>
-        </p>
+
+          {/*
+           * Offered for a generation waiting out CAL-063's backoff as much as
+           * for one calling a provider right now: both are in flight, both cost
+           * the author something to leave running, and the arbiter is the row's
+           * own lock rather than what this banner last saw.
+           */}
+          <form action={cancelAction} className={styles.form}>
+            <input type="hidden" name="projectId" value={projectId} />
+            <input type="hidden" name="generationId" value={generation.id} />
+            <SubmitButton pendingLabel="Annulation…">Annuler</SubmitButton>
+          </form>
+        </div>
       ))}
     </div>
   );
