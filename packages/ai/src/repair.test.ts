@@ -4,6 +4,9 @@
  * can fix; getting it wrong in the other abandons an answer one clause would
  * have corrected.
  *
+ * The wording of the re-ask this classification leads to is not here: since
+ * CAL-053 it is a versioned resource, and `prompts/repair.test.ts` tests it.
+ *
  * Every fixture here is structural — counts, codes, ranks, labels — so no case
  * in this file can hold anything a reader could read as part of a novel (§9).
  */
@@ -11,7 +14,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { buildRepairPrompt, classifyOutputFailure, type OutputFailureKind } from "./repair";
+import { classifyOutputFailure, type OutputFailureKind } from "./repair";
 
 const CONTRACT = z.object({
   itemCount: z.number(),
@@ -113,89 +116,5 @@ describe("classifyOutputFailure — an answer that attempted the contract", () =
 
     expect(classify(schema, [{ code: 1 }])).toBe("malformed");
     expect(classify(schema, { entries: [] })).toBe("off-topic");
-  });
-});
-
-describe("buildRepairPrompt", () => {
-  const value = { itemCount: "three" };
-  const prompt = (): string =>
-    buildRepairPrompt({ prompt: "MISSION REQUEST", value, issues: issuesOf(CONTRACT, value) });
-
-  it("asks the mission again, rather than in place of it", () => {
-    expect(prompt()).toContain("MISSION REQUEST");
-  });
-
-  it("carries the rejected answer back", () => {
-    // The provider call is stateless: without this, the model has nothing to
-    // correct and the pass is a blind re-ask wearing a repair's name.
-    expect(prompt()).toContain('{"itemCount":"three"}');
-  });
-
-  it("names each violation by path and by what the schema expected", () => {
-    const text = prompt();
-
-    expect(text).toContain("- itemCount : type attendu « number »");
-    expect(text).toContain("- label : type attendu « string »");
-  });
-
-  it("names the keys to drop when the schema recognised none of them", () => {
-    const schema = z.strictObject({ itemCount: z.number() });
-    const rejected = { itemCount: 1, extra: 2, surplus: 3 };
-
-    const text = buildRepairPrompt({
-      prompt: "MISSION REQUEST",
-      value: rejected,
-      issues: issuesOf(schema, rejected),
-    });
-
-    expect(text).toContain("clés non prévues par le schéma, à retirer : « extra », « surplus »");
-  });
-
-  it("states the bound a list missed", () => {
-    const rejected = { entries: [] };
-
-    expect(
-      buildRepairPrompt({
-        prompt: "MISSION REQUEST",
-        value: rejected,
-        issues: issuesOf(NESTED, rejected),
-      }),
-    ).toContain("- entries : minimum attendu : 1");
-  });
-
-  it("never copies a validator's message", () => {
-    // `@calepin/shared/errors` refuses that bridge for errors, and a
-    // refinement's message is the one clause a domain could write around the
-    // value that failed. The clause states the constraint, not the wording.
-    const schema = z.object({
-      code: z.string().refine((entry) => entry.length > 3, "REFINEMENT WORDING"),
-    });
-    const rejected = { code: "ab" };
-
-    const text = buildRepairPrompt({
-      prompt: "MISSION REQUEST",
-      value: rejected,
-      issues: issuesOf(schema, rejected),
-    });
-
-    expect(text).not.toContain("REFINEMENT WORDING");
-    expect(text).toContain("- code : contrainte du schéma non satisfaite");
-  });
-
-  it("caps the clauses, so a wholly wrong answer cannot inflate the next prompt", () => {
-    const wide = z.object(
-      Object.fromEntries([...Array(30).keys()].map((i) => [`f${i}`, z.number()])),
-    );
-    const rejected = Object.fromEntries([...Array(30).keys()].map((i) => [`f${i}`, "x"]));
-
-    const clauses = buildRepairPrompt({
-      prompt: "MISSION REQUEST",
-      value: rejected,
-      issues: issuesOf(wide, rejected),
-    })
-      .split("\n")
-      .filter((line) => line.startsWith("- "));
-
-    expect(clauses).toHaveLength(10);
   });
 });

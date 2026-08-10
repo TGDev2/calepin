@@ -73,12 +73,8 @@ import type {
   StructuredGenerationResult,
   TokenUsage,
 } from "./port";
-import {
-  buildRepairPrompt,
-  classifyOutputFailure,
-  DEFAULT_REPAIR_POLICY,
-  type RepairPolicy,
-} from "./repair";
+import { assertMissionPrompt, deriveRepairPrompt, type MissionPrompt } from "./prompts";
+import { classifyOutputFailure, DEFAULT_REPAIR_POLICY, type RepairPolicy } from "./repair";
 import { DEFAULT_RETRY_POLICY, isFallbackEligible, retryDelayMs, type RetryPolicy } from "./retry";
 import { REAL_SCHEDULER, type Scheduler, sleep } from "./timing";
 
@@ -153,7 +149,8 @@ type Interpretation<TValue> =
       readonly kind: "repairable";
       readonly error: AppError;
       readonly issueCount: number;
-      readonly repairPrompt: string;
+      /** The mission's own prompt, its identity kept, with the correction appended. */
+      readonly repairPrompt: MissionPrompt;
     };
 
 interface RunOutcome<TValue> {
@@ -264,8 +261,8 @@ export function createModelProviderPort(
     try {
       const response = await invoke(adapter, {
         model: capability,
-        system: request.system,
-        prompt: request.prompt,
+        system: request.prompt.system,
+        prompt: request.prompt.text,
         maxOutputTokens: mission.maxOutputTokens,
         effort: mission.effort,
         signal: controller.signal,
@@ -321,7 +318,7 @@ export function createModelProviderPort(
         // error to name when the primary was skipped as already down — the
         // line that reported *that* is `ai.provider-unavailable`.
         log.warn("ai.model-fallback", {
-          missionId: request.missionId,
+          missionId: request.prompt.missionId,
           provider: capability.provider,
           model: capability.id,
           errorCode: lastError?.code,
@@ -410,7 +407,16 @@ export function createModelProviderPort(
     interpret: (response: TResponse, spent: TokenUsage) => Interpretation<TValue>,
   ): Promise<Result<RunOutcome<TValue>>> {
     const startedAt = scheduler.now();
-    const mission = registry[request.missionId];
+
+    // The prompt is the request (CAL-053): it names the mission, so the
+    // registry entry that follows is the one belonging to the text about to be
+    // sent, and it carries the version this call will be recorded under. A
+    // value that is not a rendered prompt is refused before a provider is
+    // reached, the way a repository refuses an unproven scope.
+    assertMissionPrompt(request.prompt);
+
+    const missionId = request.prompt.missionId;
+    const mission = registry[missionId];
 
     // One mission, one treatment (§5.4). Asking a mission for the kind of
     // answer it does not produce is a call-site bug, not a runtime condition:
@@ -450,7 +456,12 @@ export function createModelProviderPort(
 
       if (interpreted.kind === "value") {
         const meta: ModelCallMeta = {
-          missionId: request.missionId,
+          missionId,
+          // The prompt that *ran*, repair included: a repair pass appends to
+          // the mission prompt and keeps its identity, so what is reported is
+          // the resource the answer is attributable to (CAL-053).
+          promptId: request.prompt.promptId,
+          promptVersion: request.prompt.version,
           provider: capability.provider,
           model: capability.id,
           usage: spent,
@@ -464,6 +475,8 @@ export function createModelProviderPort(
         // cost or incident view reads without joining two lines.
         log.info("ai.model-served", {
           missionId: meta.missionId,
+          promptId: meta.promptId,
+          promptVersion: meta.promptVersion,
           provider: meta.provider,
           model: meta.model,
           attempt: meta.attemptCount,
@@ -496,7 +509,12 @@ export function createModelProviderPort(
       // which endpoint, how many violations and where the first one was. Never
       // the answer, never the value at that path (§6, §9).
       const rejection = {
-        missionId: request.missionId,
+        missionId,
+        // Which prompt was rejected, and which version of it — the pair a
+        // quality investigation reads when a wording change starts producing
+        // unusable answers (§9 allows both: they are identifiers).
+        promptId: request.prompt.promptId,
+        promptVersion: request.prompt.version,
         provider: capability.provider,
         model: capability.id,
         attempt: attemptCount,
@@ -589,9 +607,10 @@ export function createModelProviderPort(
             issueCount: issues.length,
             // Built from the *original* prompt, so a second repair asks the
             // mission once and names the latest answer's violations — rather
-            // than stacking one correction on top of another.
-            repairPrompt: buildRepairPrompt({
-              prompt: request.prompt,
+            // than stacking one correction on top of another. The mission
+            // prompt's id and version travel through unchanged (CAL-053).
+            repairPrompt: deriveRepairPrompt({
+              original: request.prompt,
               value: response.value,
               issues,
             }),

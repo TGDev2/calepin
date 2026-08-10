@@ -81,6 +81,7 @@ describe("LOG_FIELD_KEYS", () => {
       "projectId",
       "generationId",
       "missionId",
+      "promptId",
       "promptVersion",
       "model",
       "inputTokens",

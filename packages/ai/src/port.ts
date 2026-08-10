@@ -17,6 +17,7 @@ import type { z } from "zod";
 
 import type { ModelId, ProviderId } from "./capabilities";
 import type { MissionId } from "./missions";
+import type { MissionPrompt, PromptId } from "./prompts";
 
 export interface TokenUsage {
   readonly inputTokens: number;
@@ -30,6 +31,14 @@ export interface TokenUsage {
  */
 export interface ModelCallMeta {
   readonly missionId: MissionId;
+  /**
+   * Which prompt resource produced the answer, and which version of it
+   * (CAL-053). Reported rather than assumed: the caller records this on the
+   * attempt, and ADR-001 asks that an output be attributable to exactly what
+   * produced it — the model *and* the prompt.
+   */
+  readonly promptId: PromptId;
+  readonly promptVersion: number;
   readonly provider: ProviderId;
   /** The model that served — the backup model's id when it did. */
   readonly model: ModelId;
@@ -42,11 +51,21 @@ export interface ModelCallMeta {
 }
 
 export interface ModelRequest {
-  readonly missionId: MissionId;
-  /** Permanent instructions, composed upstream (CAL-053/054). Opaque here. */
-  readonly system: string;
-  /** The mission's request itself, likewise composed upstream. */
-  readonly prompt: string;
+  /**
+   * The prompt, rendered from the registry (CAL-053) — never a string.
+   *
+   * It carries the permanent instructions, the mission's request with its
+   * variables filled in, and the identity of the resource both came from. Two
+   * consequences, and both are the point: no prompt text can reach a provider
+   * from outside the registry (§5.2), and no call can happen without a version
+   * to record on the attempt.
+   *
+   * The mission is read off it rather than passed beside it. A request that
+   * named a mission of its own could name a different one from the prompt's,
+   * and the pipeline would then route one mission's prompt through another
+   * mission's model, budget and deadline.
+   */
+  readonly prompt: MissionPrompt;
   /**
    * Cooperative cancellation (CAL-064): aborting it stops the attempt, the
    * backoff wait and the network call, and answers `GENERATION_CANCELLED`.

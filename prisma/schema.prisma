@@ -2177,9 +2177,15 @@ model GenerationAttempt {
   /// enum: the list belongs to the providers, changes without warning, and is
   /// declared per mission by CAL-051's registry.
   model         String
-  /// The version of the prompt that ran (CAL-053). Null until that registry
-  /// exists; ADR-001 wants it recorded so a quality regression can be traced to
-  /// a prompt change rather than guessed at.
+  /// The version of the prompt that ran (CAL-053) — `RenderedPrompt.version`,
+  /// handed to `runGenerationAttempt` and written by `start`, **before** the
+  /// model is called: ADR-001 wants a quality regression traceable to a prompt
+  /// change, and the attempts that reveal one are the attempts that failed.
+  ///
+  /// Which prompt it was is this generation's own `mission` — each mission has
+  /// exactly one prompt. Still nullable, because an attempt can be recorded
+  /// outside the mission pipeline: a fixture, an import, a row written before
+  /// the registry existed.
   promptVersion Int?
 
   /// Usage as the provider reported it, null while the attempt runs and when a

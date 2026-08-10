@@ -15,6 +15,7 @@ import { createModelProviderPort, type CreateModelProviderPortOptions } from "./
 import { ModelOutputInvalidError } from "./failures";
 import { MISSION_REGISTRY, type MissionDefinition, type MissionRegistry } from "./mission-registry";
 import type { MissionId } from "./missions";
+import { fixedPrompt } from "./prompts/testing";
 import type { Scheduler } from "./timing";
 
 /**
@@ -163,11 +164,9 @@ function buildPort(
   });
 }
 
-const REQUEST = { missionId: MISSION, system: "system words", prompt: "alpha" };
+const REQUEST = { prompt: fixedPrompt(MISSION, { system: "system words", text: "alpha" }) };
 const STRUCTURED_REQUEST = {
-  missionId: STRUCTURED_MISSION,
-  system: "system words",
-  prompt: "alpha",
+  prompt: fixedPrompt(STRUCTURED_MISSION, { system: "system words", text: "alpha" }),
   schema: z.object({ itemCount: z.number() }),
 };
 
@@ -478,7 +477,7 @@ describe("createModelProviderPort — one mission, one treatment (CAL-051)", () 
     const port = buildPort(adapter, new VirtualScheduler());
 
     await expect(
-      port.generateProse({ ...REQUEST, missionId: STRUCTURED_MISSION }),
+      port.generateProse({ prompt: fixedPrompt(STRUCTURED_MISSION) }),
     ).rejects.toMatchObject({ code: "MISSION_OUTPUT_MISMATCH" });
 
     expect(calls).toHaveLength(0);

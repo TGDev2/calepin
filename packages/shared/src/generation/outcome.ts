@@ -22,6 +22,23 @@ export interface AttemptContext {
   /** 1 for the first try. Recorded so a replay is auditable. */
   attempt: number;
   durationMs: number;
+  /**
+   * The version of the prompt this attempt ran (CAL-053) —
+   * `GenerationAttempt.promptVersion`, and the second half of what ADR-001 asks
+   * an output to be attributable to, beside the model.
+   *
+   * Known **before** the call, because the prompt has to be rendered to make
+   * one, and recorded from the start of the attempt rather than read off a
+   * result: a quality regression is traced through the attempts that *failed*
+   * as much as the ones that succeeded, and an attempt whose worker died has no
+   * result to read anything off.
+   *
+   * Optional, because an attempt can be recorded outside the mission pipeline —
+   * a fixture, an import, a replay of a row written before the registry
+   * existed. Which prompt it was is the generation's own `mission`: each
+   * mission has exactly one prompt, so the pair identifies the resource.
+   */
+  promptVersion?: number;
 }
 
 export interface GenerationAttemptOutcome extends AttemptContext {

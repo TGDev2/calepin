@@ -57,6 +57,12 @@ export interface RunGenerationAttemptOptions<T> {
   generationId: string;
   /** 1 for the first try. */
   attempt?: number;
+  /**
+   * The version of the prompt `produce` is about to run (CAL-053). Passed to
+   * `start`, so an attempt that never returns is still attributable to the
+   * prompt that produced it.
+   */
+  promptVersion?: number;
   /** The model call and the validation of its output. Never persists. */
   produce: () => Promise<Result<T>> | Result<T>;
   persist: GenerationPersistence<T>;
@@ -67,17 +73,25 @@ export interface RunGenerationAttemptOptions<T> {
 export async function runGenerationAttempt<T>(
   options: RunGenerationAttemptOptions<T>,
 ): Promise<Result<T>> {
-  const { generationId, attempt = 1, produce, persist, now = () => Date.now() } = options;
+  const {
+    generationId,
+    attempt = 1,
+    promptVersion,
+    produce,
+    persist,
+    now = () => Date.now(),
+  } = options;
 
   const startedAt = now();
   const context = (): AttemptContext => ({
     generationId,
     attempt,
+    promptVersion,
     durationMs: now() - startedAt,
   });
 
   try {
-    await persist.start({ generationId, attempt });
+    await persist.start({ generationId, attempt, promptVersion });
   } catch (error: unknown) {
     // Nothing has run and nothing has been written. There is no generation to
     // mark as failed — reporting the failure to the caller is the whole answer.

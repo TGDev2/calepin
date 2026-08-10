@@ -34,17 +34,13 @@ import { answer, type RecordedCall, simulatedClient, text } from "./adapters/sim
 import { createModelProviderPort } from "./create-model-port";
 import { createProviderHealth } from "./health";
 import type { ModelProviderPort, StructuredGenerationResult } from "./port";
+import { fixedPrompt } from "./prompts/testing";
 import type { Scheduler } from "./timing";
 
 const OUTPUT_SCHEMA = z.object({ itemCount: z.number(), code: z.string() });
 type Output = z.infer<typeof OUTPUT_SCHEMA>;
 
-const REQUEST = {
-  missionId: "extract-facts",
-  system: "SYSTEM",
-  prompt: "PROMPT",
-  schema: OUTPUT_SCHEMA,
-} as const;
+const REQUEST = { prompt: fixedPrompt("extract-facts"), schema: OUTPUT_SCHEMA } as const;
 
 /** Virtual time: a backoff fires at once, a mission deadline never does. */
 function virtualScheduler(): Scheduler {

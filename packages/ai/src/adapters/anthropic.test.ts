@@ -26,6 +26,7 @@ import type { ProviderCall, StructuredProviderCall } from "../adapter";
 import { MODEL_CAPABILITIES } from "../capabilities";
 import { createModelProviderPort } from "../create-model-port";
 import { MISSION_REGISTRY, type MissionRegistry } from "../mission-registry";
+import { fixedPrompt } from "../prompts/testing";
 import type { Scheduler } from "../timing";
 import { createAnthropicAdapter } from "./anthropic";
 import {
@@ -335,9 +336,7 @@ describe("the primary provider adapter", () => {
       });
 
       const result = await port.generateStructured({
-        missionId: "extract-facts",
-        system: "SYSTEM",
-        prompt: "PROMPT",
+        prompt: fixedPrompt("extract-facts"),
         schema: z.object({ count: z.number() }),
       });
 
@@ -464,11 +463,7 @@ describe("the primary provider adapter", () => {
         random: () => 1,
       });
 
-      const result = await port.generateProse({
-        missionId: "write-scene",
-        system: "SYSTEM",
-        prompt: "PROMPT",
-      });
+      const result = await port.generateProse({ prompt: fixedPrompt("write-scene") });
 
       expect(result.ok).toBe(true);
       expect(result.ok && result.value).toMatchObject({
@@ -499,7 +494,7 @@ describe("the primary provider adapter", () => {
         random: () => 1,
       });
 
-      await port.generateProse({ missionId: "write-scene", system: "SYSTEM", prompt: "PROMPT" });
+      await port.generateProse({ prompt: fixedPrompt("write-scene") });
 
       // Full jitter at its ceiling: 500 ms, then 1 000 ms.
       expect(scheduler.waits.filter((wait) => wait < 60_000)).toEqual([500, 1_000]);
@@ -522,11 +517,7 @@ describe("the primary provider adapter", () => {
         random: () => 0,
       });
 
-      const result = await port.generateProse({
-        missionId: "write-scene",
-        system: "SYSTEM",
-        prompt: "PROMPT",
-      });
+      const result = await port.generateProse({ prompt: fixedPrompt("write-scene") });
 
       expect(result.ok && result.value.model).toBe("claude-sonnet-5");
       expect(result.ok && result.value.usedFallback).toBe(true);
@@ -550,7 +541,7 @@ describe("the primary provider adapter", () => {
         scheduler: virtualScheduler(),
       });
 
-      await port.generateProse({ missionId: "write-scene", system: "SYSTEM", prompt: "PROMPT" });
+      await port.generateProse({ prompt: fixedPrompt("write-scene") });
 
       // One try on the primary — permanent, so no replay — then straight to
       // the backup model, which is the one treatment that can still work.

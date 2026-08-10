@@ -26,9 +26,13 @@
  * fields, wrong subject — is invisible here by construction, and must stay so.
  * That is the domain's own refinements' job; a failed refinement is
  * field-located, so it takes the repair path like any other field failure.
+ *
+ * **The decision is here; the wording is not.** The re-ask itself is a prompt,
+ * and since CAL-053 every prompt is a versioned resource in `prompts/` —
+ * `prompts/repair.ts` holds the text and `deriveRepairPrompt` builds the pass.
+ * This file classifies and bounds, and contains no instruction to a model.
  */
 
-import { toFieldPath } from "@calepin/shared/errors";
 import type { z } from "zod";
 
 export const OUTPUT_FAILURE_KINDS = ["malformed", "off-topic"] as const;
@@ -56,9 +60,6 @@ export const DEFAULT_REPAIR_POLICY: RepairPolicy = { maxRepairAttempts: 1 };
  */
 const KIND_MISMATCH_CODES: readonly string[] = ["invalid_type", "invalid_union"];
 
-/** Clauses quoted back to the model. A wholly wrong answer cannot inflate the prompt. */
-const MAX_REPAIR_CLAUSES = 10;
-
 export function classifyOutputFailure(
   issues: readonly z.core.$ZodIssue[],
   value: unknown,
@@ -83,101 +84,6 @@ export function classifyOutputFailure(
   }
 
   return "malformed";
-}
-
-/**
- * The targeted re-ask: the original request, the rejected answer, and one line
- * per violation.
- *
- * **The rejected answer travels back.** A provider call is stateless — system
- * and prompt, no conversation — so a model asked to "fix the fields below" has
- * nothing to fix unless it is shown what it produced. Without it this would be
- * a re-ask wearing a repair's name, which is the blind retry §6 rules out.
- *
- * **The clauses are built from issue codes, never from issue messages.** A
- * validator's message is the one place a received *value* can appear, and
- * `@calepin/shared/errors` already refuses that bridge for the same reason. An
- * expectation assembled from the issue's own structural fields — the expected
- * type, the bound, the schema's options, the keys to drop — cannot carry one by
- * accident.
- *
- * **It is French**, like the mission prompt it is appended to: the fields it
- * asks the model to correct hold French narrative content, and an English
- * instruction inside a French prompt moves the answer's language. CAL-053 lifts
- * it into the prompt registry as a versioned resource.
- */
-export function buildRepairPrompt(options: {
-  readonly prompt: string;
-  readonly value: unknown;
-  readonly issues: readonly z.core.$ZodIssue[];
-}): string {
-  const clauses = options.issues.slice(0, MAX_REPAIR_CLAUSES).map(repairClause).join("\n");
-
-  return [
-    options.prompt,
-    "",
-    "---",
-    "",
-    "La réponse précédente a été rejetée : elle ne respecte pas le schéma JSON demandé.",
-    "",
-    "Réponse rejetée :",
-    "```json",
-    JSON.stringify(options.value),
-    "```",
-    "",
-    "Points à corriger :",
-    clauses,
-    "",
-    "Renvoie l'objet JSON complet et corrigé, conforme au schéma. Conserve le contenu déjà correct ; ne corrige que ce qui est signalé ci-dessus. Ne renvoie rien d'autre que cet objet : ni explication, ni commentaire, ni texte avant ou après.",
-  ].join("\n");
-}
-
-function repairClause(issue: z.core.$ZodIssue): string {
-  const path = toFieldPath(issue.path);
-  const expectation = expectationOf(issue);
-
-  return path === undefined ? `- ${expectation}` : `- ${path} : ${expectation}`;
-}
-
-/**
- * What the schema wanted there, in the model's language.
- *
- * Every branch reads a field the *schema* put on the issue, so nothing the
- * model produced can travel through here — except `unrecognized_keys`, whose
- * `keys` are key names the model invented and which are precisely what it has
- * to be told to drop.
- */
-function expectationOf(issue: z.core.$ZodIssue): string {
-  switch (issue.code) {
-    case "invalid_type":
-      return `type attendu « ${issue.expected} » — champ absent, vide ou d'un autre type`;
-    case "invalid_value":
-      return `valeur attendue parmi ${quoteAll(issue.values)}`;
-    case "too_small":
-      return `minimum attendu : ${issue.minimum}`;
-    case "too_big":
-      return `maximum attendu : ${issue.maximum}`;
-    case "invalid_format":
-      return `format attendu « ${issue.format} »`;
-    case "not_multiple_of":
-      return `multiple de ${issue.divisor} attendu`;
-    case "unrecognized_keys":
-      return `clés non prévues par le schéma, à retirer : ${quoteAll(issue.keys)}`;
-    case "invalid_union":
-      return "aucune des formes prévues par le schéma n'est respectée";
-    case "invalid_key":
-    case "invalid_element":
-      return "clé ou élément non conforme au schéma";
-    default:
-      // `custom` and anything a later Zod adds. A refinement's own message is
-      // deliberately not quoted: it is the one clause a domain could write
-      // around the value that failed.
-      return "contrainte du schéma non satisfaite";
-  }
-}
-
-function quoteAll(values: readonly unknown[]): string {
-  return values.map((value) => `« ${String(value)} »`).join(", ");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

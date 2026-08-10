@@ -113,6 +113,28 @@ export const ERROR_CODES = [
    */
   "MISSION_OUTPUT_MISMATCH",
   /**
+   * A prompt id, or a version of one, that the registry does not hold
+   * (CAL-053). Prompts are code, so the set is closed at build time and a
+   * lookup that misses names a version nobody shipped — a defect, not a
+   * runtime condition, and one every call would hit.
+   */
+  "PROMPT_NOT_REGISTERED",
+  /**
+   * A model request carrying a prompt the registry never minted (CAL-053) — a
+   * plain object, a value that crossed a serialisation boundary, anything a
+   * cast let through. The AI-layer parallel of `PROJECT_SCOPE_REQUIRED`: the
+   * brand is the proof that the text came from a versioned resource, and
+   * without it nothing could say which version produced the answer.
+   */
+  "PROMPT_NOT_RENDERED",
+  /**
+   * A prompt was rendered with a variable missing, of the wrong type, or with
+   * no declaration behind it (CAL-053). The values come from the composer, not
+   * from a model, so a mismatch is a call-site bug — and the alternative is a
+   * prompt shipped to a provider with a hole in it.
+   */
+  "PROMPT_VARIABLE_INVALID",
+  /**
    * A row being copied into a duplicated project references a row the copy does
    * not hold (CAL-035). Either the duplication plan is missing a model, or the
    * graph reaches outside the project it is supposed to be confined to — both
@@ -154,5 +176,8 @@ export const CATEGORY_BY_CODE = {
   DATABASE_NOT_CONFIGURED: "internal",
   MODEL_NOT_CONFIGURED: "internal",
   MISSION_OUTPUT_MISMATCH: "internal",
+  PROMPT_NOT_REGISTERED: "internal",
+  PROMPT_NOT_RENDERED: "internal",
+  PROMPT_VARIABLE_INVALID: "internal",
   PROJECT_DUPLICATION_INCOMPLETE: "internal",
 } as const satisfies Record<ErrorCode, ErrorCategory>;

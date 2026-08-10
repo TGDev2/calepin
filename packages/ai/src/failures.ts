@@ -88,6 +88,22 @@ export function modelNotConfigured(): InternalError {
 }
 
 /**
+ * A prompt id, or a version of one, the registry does not hold (CAL-053).
+ *
+ * Thrown, like the two above: prompts are code, so the set is closed at build
+ * time and a lookup that misses names a version nobody ever shipped. The
+ * reference travels as `fieldPath` rather than in the message, which is never
+ * interpolated with data (§7).
+ */
+export function promptNotRegistered(reference: string): InternalError {
+  return new InternalError({
+    code: "PROMPT_NOT_REGISTERED",
+    message: "the prompt registry holds no such prompt or version",
+    fieldPath: reference,
+  });
+}
+
+/**
  * The mission was called for the kind of answer it does not produce (CAL-051).
  * A call-site bug, so thrown — and the message names no mission, because
  * `AppError.message` is the first line of a stack and is never interpolated

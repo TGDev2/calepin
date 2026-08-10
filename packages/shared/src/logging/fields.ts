@@ -24,6 +24,13 @@ export interface LogFields {
   jobId?: string;
 
   missionId?: string;
+  /**
+   * Which prompt resource ran, beside the version of it that did (CAL-053).
+   * An identifier from a closed union, so it cannot hold prose — and the
+   * mission id does not stand in for it: a pipeline prompt, the repair re-ask
+   * among them, serves every mission and names none.
+   */
+  promptId?: string;
   promptVersion?: number;
   provider?: string;
   model?: string;
@@ -77,6 +84,7 @@ const LOG_FIELD_ALLOWLIST = {
   chapterId: true,
   jobId: true,
   missionId: true,
+  promptId: true,
   promptVersion: true,
   provider: true,
   model: true,

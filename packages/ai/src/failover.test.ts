@@ -45,6 +45,7 @@ import {
 import { createModelProviderPort } from "./create-model-port";
 import { createProviderHealth } from "./health";
 import type { ModelProviderPort, ProseGenerationResult } from "./port";
+import { fixedPrompt } from "./prompts/testing";
 import type { Scheduler } from "./timing";
 
 /**
@@ -97,7 +98,7 @@ function recordingPersistence(): {
   };
 }
 
-const REQUEST = { missionId: "write-scene", system: "SYSTEM", prompt: "PROMPT" } as const;
+const REQUEST = { prompt: fixedPrompt("write-scene") } as const;
 
 /**
  * The port under test: the real routing table, both real adapters, one shared

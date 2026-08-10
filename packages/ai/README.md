@@ -131,11 +131,55 @@ narrative rule, and never restates a domain schema.
   `runGenerationAttempt`: an invalid output is repaired once, fails explicitly,
   and writes nothing at all.
 
+## What exists (CAL-053)
+
+- `prompts/` — the prompt registry. A prompt is a **versioned resource**: an
+  id, a version, the mission it serves, its typed variables, and the two pieces
+  of text it is made of. One module per prompt, versions in an append-only
+  array, the current one last — the shape `SourceTextVersion` already uses,
+  and the reason a recorded `promptVersion` still points at fixed text a year
+  later.
+- **Prompts are code, not rows.** A `Prompt` table would let the text that
+  produces the novel change without review, drift between environments, and
+  need a migration to ship a wording fix. Being code, a prompt change is a diff
+  a human reads and is reachable forever from the version an attempt recorded.
+- **The port stops accepting strings.** `ModelRequest.prompt` is a
+  `RenderedPrompt` — branded, mintable only by `renderPrompt`, the
+  `ProjectScope` idiom one layer up. Two consequences, and both are the point:
+  no prompt text reaches a provider from outside the registry (§5.2), and no
+  call can happen without a version to record. The mission is read off the
+  prompt rather than passed beside it, so a request cannot name one mission and
+  carry another's text.
+- **Variables are declared and typed** — `text`, `number`, `list` — and all of
+  them are required; an optional section is a `list`, and an empty one renders
+  as a dash. `currentPrompt(id)` is typed as the *last* version, so shipping a
+  version that adds a variable breaks every call site that does not supply it,
+  at compile time. `registry.test.ts` checks the two directions no compiler
+  can: every placeholder is declared, and every declared variable is used.
+- **The version is recorded before the call**, not read off the answer:
+  `runGenerationAttempt` takes `promptVersion` and hands it to `start`, so a
+  worker that dies mid-generation still attributes the attempt to a prompt.
+  `ModelCallMeta` carries `promptId` and `promptVersion` too, and both are on
+  the §9 log allowlist — they are identifiers, and the composed context they
+  were filled with never is.
+- **The repair re-ask became a prompt** (`prompts/repair.ts`), scoped to the
+  pipeline rather than to a mission: it serves every mission and names none.
+  The derived pass keeps the *mission* prompt's id and version, because
+  `GenerationAttempt` has one `promptVersion` column and recording the repair
+  resource's own would attribute the answer to the wrong prompt. `repair.ts`
+  keeps the classification and the bound, and now holds no instruction to a
+  model at all.
+- **The comparison tool**: `comparePromptVersions(id, from, to)` returns the
+  variable contract's changes — added, removed, retyped — and a line-level diff
+  of both texts; `formatPromptComparison` renders it; `pnpm prompt:diff` is the
+  command. Two versions of the *same* prompt only: two different prompts share
+  no variable set, so a diff of them says nothing about either.
+
 ## What arrives in its own task
 
-Prompt registry (CAL-053) · context composer (CAL-054) · token accounting and
-pricing (CAL-056) · the credentials both adapters take, resolved from the
-validated config module by the process shell (CAL-060).
+Context composer (CAL-054) · token accounting and pricing (CAL-056) · the
+credentials both adapters take, resolved from the validated config module by
+the process shell (CAL-060).
 
 ## Hard rules
 
