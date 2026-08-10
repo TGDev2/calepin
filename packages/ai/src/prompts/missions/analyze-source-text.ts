@@ -21,8 +21,22 @@
  * (`ANALYSIS_WORD_TARGETS`), the CAL-055 pattern, so the target and the
  * schema's bound are one number.
  *
- * V1 stays beside it, unmodified: a `GenerationAttempt` that recorded version
- * 1 must still resolve to the text that produced it.
+ * V3 (CAL-071) tightens one thing and leaves the rest of V2 alone: the marker.
+ * A `FACTUAL` element now *owes* a citation — a continuous passage copied
+ * character for character, no elision and no bracket — and anything that cannot
+ * produce one is an interpretation whatever the model's confidence. It also
+ * says out loud that the citations are read back against the text and that an
+ * unfound one costs the element its marker, because a rule whose enforcement is
+ * announced is a rule a model can plan for. The citation's length arrives as a
+ * variable owned by `@calepin/analysis`, so the number the prompt asks for and
+ * the number the schema bounds are one number (the CAL-055 pattern again).
+ *
+ * Nothing else moved. V2 was exercised on three stories of different registers
+ * before it shipped, and a reworded section is a section whose findings no
+ * longer apply.
+ *
+ * V1 and V2 stay beside it, unmodified: a `GenerationAttempt` that recorded a
+ * version must still resolve to the text that produced it.
  */
 
 import type { PromptDefinition } from "../types";
@@ -131,4 +145,66 @@ const V2 = {
   ].join("\n"),
 } as const satisfies PromptDefinition;
 
-export const ANALYZE_SOURCE_TEXT_PROMPTS = [V1, V2] as const;
+const V3 = {
+  id: "analyze-source-text",
+  version: 3,
+  scope: { kind: "mission", missionId: "analyze-source-text" },
+  variables: [
+    ...V2.variables,
+    {
+      name: "evidenceWordTarget",
+      type: "number",
+      description: "Words a supporting quotation stays under — it anchors, it does not reproduce.",
+    },
+  ],
+  system: [
+    "Tu es analyste littéraire. Tu accompagnes un auteur qui prépare un roman à partir d'un texte de départ, et ton diagnostic est le socle de tout ce qui suivra : les directions, la bible, le plan et les chapitres se construiront dessus.",
+    "Tu écris en {{language}}. Toute citation du texte source reste exactement telle que le texte l'écrit, dans sa langue et sa graphie d'origine — jamais traduite, jamais corrigée, jamais résumée entre guillemets.",
+    "Tu cherches ce qui rend ce texte singulier, jamais ce qui le rend classable. Une étiquette situe, elle ne conclut pas ; une observation qui vaudrait pour cent autres textes n'est pas une observation sur celui-ci ; ce que le texte fait compte plus que ce à quoi il ressemble.",
+    "Tu sépares ce que le texte établit — FACTUAL — de ce que tu en déduis — INTERPRETATION. Un élément n'est FACTUAL que si tu peux le poser sur un passage précis du texte et le citer ; sans ce passage, il est INTERPRETATION, quelle que soit ta certitude.",
+    "Tu ne combles jamais un vide du texte par une invention : ce que le texte tait est une ambiguïté ou une question ouverte, pas un blanc à remplir.",
+  ].join("\n"),
+  instruction: [
+    "Analyse le texte source ci-dessous et produis le diagnostic narratif en dix-sept sections que le schéma demande, dans son ordre.",
+    "",
+    "Lectorat visé : {{targetAudience}}",
+    "",
+    "Ce que chaque section attend :",
+    "- Résumé factuel (environ {{summaryWordTarget}} mots) : ce qui arrive, dans l'ordre où le texte le donne — aucune lecture, aucun jugement, aucun mobile que le texte n'énonce pas.",
+    "- Prémisse : la situation qui met le récit en marche, en une ou deux phrases.",
+    "- Conflit principal : qui veut quoi, et ce qui s'y oppose — tel que ce texte le construit, pas le conflit type auquel il fait penser.",
+    "- Promesse du récit : ce que l'ouverture engage envers le lecteur, ce qu'il serait trahi de ne pas retrouver à la fin.",
+    "- Thèmes : l'étiquette nomme le thème, la phrase dit ce que ce texte en fait ; un thème dont tu ne peux pas montrer le traitement dans ce texte n'a pas sa place.",
+    "- Personnages : chacun désigné comme le texte le désigne, avec ce que le texte établit de lui et ce qui le distingue.",
+    "- Relations : entre entrées de la section personnages uniquement, reprises par leur étiquette exacte et orientées (« A → B ») — qui est quoi pour qui, et ce que le texte montre de ce lien.",
+    "- Point de vue : en étiquette la désignation technique, en phrase la conduite réelle de la narration — distance, accès aux pensées, fiabilité, écarts.",
+    "- Temps verbal : en étiquette le temps dominant, en phrase les bascules s'il y en a.",
+    "- Tonalité : ce que la voix fait, et ce qu'elle s'interdit — jamais un simple adjectif de genre.",
+    "- Éléments singuliers : ce que ce texte fait qu'un autre ne ferait pas — un dispositif, une image, un silence, une construction. Chaque entrée s'appuie sur un passage précis.",
+    "- Ambiguïtés : ce que le texte laisse volontairement double, avec les lectures qu'il maintient ensemble.",
+    "- Questions non résolues : ce que le texte pose et ne referme pas.",
+    "- Éléments à préserver : ce qui doit survivre au passage au roman — ce qui serait perdu si on le normalisait.",
+    "- Fragilités : ce qui, en l'état, ne tiendrait pas la longueur d'un roman — dit précisément, jamais adouci.",
+    "- Risques de clichés : les pentes du déjà-lu vers lesquelles un développement de ce texte-ci glisserait.",
+    "- Potentiel de développement (environ {{potentialWordTarget}} mots) : ce que la matière peut porter à l'échelle d'un roman — où elle est dense, où elle est mince, ce que l'allongement coûterait.",
+    "",
+    "Marqueur et citation, la règle la plus stricte de ce diagnostic :",
+    "- FACTUAL exige une citation. « evidence » porte alors un passage continu du texte, copié caractère pour caractère, au plus {{evidenceWordTarget}} mots : ni coupe, ni crochets, ni points de suspension ajoutés, ni traduction, ni correction d'une graphie qui te semblerait fautive.",
+    "- INTERPRETATION couvre tout le reste : ce que tu déduis, ce que tu supposes, ce que le texte suggère sans le dire. Dans le doute, INTERPRETATION.",
+    "- Une interprétation peut citer le passage dont elle part ; la citation obéit alors aux mêmes règles, sinon « evidence » reste à null.",
+    "- Ne cite jamais de mémoire. Si tu ne retrouves pas le passage exact dans le texte ci-dessous, mets « evidence » à null et marque INTERPRETATION.",
+    "- Chaque citation est relue mot pour mot contre le texte après ta réponse : une citation introuvable est supprimée, et l'élément qui s'en réclamait retombe en INTERPRETATION.",
+    "- Le résumé factuel, appuyé par le texte entier et non par un passage, garde « evidence » à null.",
+    "",
+    "Tiens chaque élément en une à trois phrases ; le diagnostic entier tient sous {{totalWordBudget}} mots.",
+    "Une section-liste ne reste vide que si le texte n'offre réellement rien pour elle ; ne remplis jamais une section pour la forme.",
+    "Une même observation ne sert qu'une fois : chaque section ajoute, aucune ne répète.",
+    "",
+    "Texte source :",
+    "{{sourceText}}",
+    "",
+    "Réponds uniquement par l'objet JSON demandé, sans texte avant ni après.",
+  ].join("\n"),
+} as const satisfies PromptDefinition;
+
+export const ANALYZE_SOURCE_TEXT_PROMPTS = [V1, V2, V3] as const;

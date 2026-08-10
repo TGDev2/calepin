@@ -23,4 +23,5 @@ export {
   sourceTextLimitMessage,
   type SourceTextMeasure,
 } from "./source-text-limit";
+export { createVerbatimMatcher, type VerbatimMatcher } from "./verbatim";
 export { countWords, normalizeText } from "./word-count";

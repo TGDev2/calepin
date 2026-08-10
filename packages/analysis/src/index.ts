@@ -8,9 +8,21 @@
  */
 
 export {
+  type AnalysisEvidenceCheck,
+  type AnalysisEvidenceReport,
+  EVIDENCE_CORRECTION_REASONS,
+  type EvidenceCorrection,
+  type EvidenceCorrectionReason,
+  isVerifiedAnalysis,
+  VERIFIED_ANALYSIS_BRAND,
+  type VerifiedSourceTextAnalysis,
+  verifyAnalysisEvidence,
+} from "./evidence";
+export {
   ANALYSIS_CHAR_CEILINGS,
   ANALYSIS_ELEMENT_COUNTS,
   ANALYSIS_ELEMENT_KINDS,
+  ANALYSIS_FIXED_KINDS,
   ANALYSIS_LABEL_CHAR_CEILING,
   ANALYSIS_SECTION_FIELDS,
   ANALYSIS_SECTIONS,

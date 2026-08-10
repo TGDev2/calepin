@@ -222,6 +222,30 @@ export const sourceTextAnalysisSchema = z.strictObject({
 export type SourceTextAnalysis = z.infer<typeof sourceTextAnalysisSchema>;
 
 /**
+ * The five sections whose marker the section's own definition decides, and what
+ * it decides — the literals above, gathered where code can read them.
+ *
+ * CAL-071 is what makes the list worth stating rather than leaving implicit in
+ * the schema. Verification rewrites the marker of an element the source text
+ * turns out not to support; these five markers are not claims a model made, so
+ * there is nothing there to verify. The factual summary is not one assertion
+ * among others — it is the text restated, supported by the whole of it rather
+ * than by a passage — and the four judgements are about a novel that does not
+ * exist yet, which no passage could support either. Rewriting one would also
+ * produce a value this very schema refuses.
+ *
+ * `schema.test.ts` pins the list against the schema in both directions, so a
+ * literal added, moved or relaxed later cannot leave this behind.
+ */
+export const ANALYSIS_FIXED_KINDS = {
+  FACTUAL_SUMMARY: "FACTUAL",
+  ELEMENTS_TO_PRESERVE: "INTERPRETATION",
+  WEAKNESSES: "INTERPRETATION",
+  CLICHE_RISKS: "INTERPRETATION",
+  DEVELOPMENT_POTENTIAL: "INTERPRETATION",
+} as const satisfies Partial<Record<AnalysisSection, AnalysisElementKind>>;
+
+/**
  * Which output field carries each `AnalysisSection` — what CAL-073+'s
  * persistence walks. `satisfies` makes it total over the enum mirror at
  * compile time; `schema.test.ts` asserts it is onto the fields too.

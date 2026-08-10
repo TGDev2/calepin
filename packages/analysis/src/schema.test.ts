@@ -16,10 +16,13 @@ import {
   ANALYSIS_CHAR_CEILINGS,
   ANALYSIS_ELEMENT_COUNTS,
   ANALYSIS_ELEMENT_KINDS,
+  ANALYSIS_FIXED_KINDS,
   ANALYSIS_SECTION_FIELDS,
   ANALYSIS_SECTIONS,
   ANALYSIS_TOTAL_WORD_BUDGET,
   ANALYSIS_WORD_TARGETS,
+  type AnalysisElementKind,
+  type AnalysisSection,
   type SourceTextAnalysis,
   sourceTextAnalysisSchema,
 } from "./schema";
@@ -183,6 +186,30 @@ describe("the analysis schema", () => {
 
     potential["developmentPotential"] = paragraph("FACTUAL");
     expect(sourceTextAnalysisSchema.safeParse(potential).success).toBe(false);
+  });
+
+  // CAL-071 reads this list to know whose marker it may rewrite, so the list
+  // has to agree with the schema in both directions rather than describe it
+  // from memory: a section named here must refuse the other marker, and a
+  // section left out must accept both.
+  it("lists exactly the sections whose marker the schema fixes", () => {
+    for (const section of ANALYSIS_SECTIONS) {
+      const field = ANALYSIS_SECTION_FIELDS[section];
+      const fixed: AnalysisElementKind | undefined = (
+        ANALYSIS_FIXED_KINDS as Partial<Record<AnalysisSection, AnalysisElementKind>>
+      )[section];
+
+      for (const kind of ANALYSIS_ELEMENT_KINDS) {
+        const analysis = validAnalysis();
+        const listed = Array.isArray(analysis[field]);
+
+        analysis[field] = listed ? [element(kind)] : paragraph(kind);
+
+        expect(sourceTextAnalysisSchema.safeParse(analysis).success, `${section} ${kind}`).toBe(
+          fixed === undefined || fixed === kind,
+        );
+      }
+    }
   });
 
   it("lets a section be empty only where absence is meaningful", () => {
