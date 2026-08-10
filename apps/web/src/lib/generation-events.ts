@@ -31,6 +31,8 @@ export interface RunningGenerationView {
    * and what a reader sees is built from the class on the other side.
    */
   readonly failureClass: GenerationFailureClass | null;
+  /** This row's rank among the project's queued generations (CAL-065). */
+  readonly queuePosition: number | null;
 }
 
 /** The two members of `EventSource` this module actually uses. */

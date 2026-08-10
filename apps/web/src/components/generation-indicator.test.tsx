@@ -13,6 +13,7 @@ function running(view: Partial<RunningGenerationView> = {}): RunningGenerationVi
     progressStep: null,
     progressPercent: null,
     failureClass: null,
+    queuePosition: null,
     ...view,
   };
 }
@@ -81,6 +82,34 @@ describe("GenerationIndicator", () => {
     );
 
     expect(html).not.toContain("nouvelle tentative");
+  });
+
+  /**
+   * CAL-065. A `QUEUED` row carries its rank among the project's own queued
+   * generations, and the banner is the one place it is shown.
+   */
+  it("shows a queued generation's position in the queue", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator
+        projectId="project-1"
+        initial={[running({ queuePosition: 3 })]}
+        cancelAction={cancel}
+      />,
+    );
+
+    expect(html).toContain("position 3");
+  });
+
+  it("says nothing about a position for a generation that already has a slot", () => {
+    const html = renderToStaticMarkup(
+      <GenerationIndicator
+        projectId="project-1"
+        initial={[running({ queuePosition: null })]}
+        cancelAction={cancel}
+      />,
+    );
+
+    expect(html).not.toContain("file d’attente");
   });
 
   /**

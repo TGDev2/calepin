@@ -73,13 +73,16 @@ import type { GenerationRetryPolicy } from "./retry";
 /**
  * Why a claim did not open an attempt. Every one of them is an ordinary state
  * of the world under a queue, never a fault: the first three say the task is
- * over, the fourth says someone else is on it.
+ * over, the fourth says someone else is on it, and the fifth says a slot is
+ * owed but none is free right now (CAL-065) — the row stays `QUEUED` and the
+ * reconciliation sweep offers it again shortly.
  */
 export const GENERATION_CLAIM_REFUSALS = [
   "already-succeeded",
   "already-failed",
   "cancelled",
   "in-flight",
+  "at-capacity",
 ] as const;
 
 export type GenerationClaimRefusal = (typeof GENERATION_CLAIM_REFUSALS)[number];

@@ -135,10 +135,17 @@ export const GENERATION_LEASE_MS = 120_000;
 export const GENERATION_LEASE_RENEWAL_MS = 5_000;
 
 /**
- * How many jobs one worker runs at once, by default.
+ * How many jobs one worker runs at once, when nothing else says otherwise.
  *
- * One, because a generation is the unit of load and the tariff table prices it
- * that way. CAL-065 owns concurrency limits properly, with a policy rather than
- * a constant; this is the value that behaves predictably until then.
+ * The `maintenance` queue's worker (the health probe and the reconciliation
+ * sweep) stays on this default — one at a time is exactly right for jobs the
+ * system runs for itself. The `generation` queue's worker no longer does: it is
+ * started with `GENERATION_WORKER_CONCURRENCY` instead (CAL-065), because the
+ * real policy on how many generations may run at once is the per-user and
+ * per-project cap enforced at the claim (`@calepin/shared/repository`), and a
+ * process-wide ceiling of one would make that cap meaningless — only one
+ * generation could ever run regardless of what either cap allowed. This
+ * constant is what a worker falls back to if a caller starts one without
+ * naming a concurrency at all.
  */
 export const DEFAULT_WORKER_CONCURRENCY = 1;

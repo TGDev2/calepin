@@ -52,6 +52,18 @@ export const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
   REDIS_URL: z.string().url(),
+  /**
+   * How many generation jobs one worker process runs at once (CAL-065).
+   * Optional, with a default, so an existing `.env` is not forced to gain a
+   * required line the way a variable with no default would (`tasks/lessons.md`
+   * already records that trap). The per-user and per-project caps enforced at
+   * the claim (`@calepin/shared/repository`) are the real policy; this is only
+   * the process-level ceiling that has to be raised above the historical `1`
+   * (`DEFAULT_WORKER_CONCURRENCY`, `@calepin/shared/queue`) for those caps to
+   * mean anything at all — with a single worker slot, only one generation
+   * could ever run regardless of what either cap allowed.
+   */
+  GENERATION_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(10),
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
   S3_BUCKET: z.string().min(1),

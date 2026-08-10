@@ -61,6 +61,11 @@ async function main(): Promise<void> {
     startQueueWorker({
       queue: GENERATION_JOB.queue,
       connection: consumer,
+      // The per-user and per-project caps (CAL-065) are enforced at the claim,
+      // not here — this is only the process-level ceiling on how many
+      // generation jobs run at once, which has to sit above those caps or they
+      // would never bind at all.
+      concurrency: env.GENERATION_WORKER_CONCURRENCY,
       jobs: [
         defineJob(GENERATION_JOB, (payload) =>
           runGenerationJob({

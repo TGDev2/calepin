@@ -93,6 +93,74 @@ describe("listRunningGenerations (CAL-039)", () => {
     for (const row of running) expect(row).not.toHaveProperty("input");
   });
 
+  /**
+   * CAL-065. Computed over the same oldest-first array this query already
+   * returns: a `QUEUED` row's rank among the project's own queued
+   * generations, and nothing for a `RUNNING` one — it already has a slot.
+   */
+  it("ranks the queued generations, oldest first, and gives a running one no position", async () => {
+    const user = await prisma.user.create({
+      data: { email: "generation-repository-queue-position@example.test" },
+    });
+    setActor(user.id);
+
+    const project = await prisma.project.create({
+      data: { userId: user.id, title: "Queue position fixture" },
+    });
+
+    const first = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "ANALYZE_SOURCE_TEXT",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-queue-position-1"),
+        status: "QUEUED",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    });
+    const second = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "EXTRACT_FACTS",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-queue-position-2"),
+        status: "QUEUED",
+        createdAt: new Date("2026-01-01T00:01:00.000Z"),
+      },
+    });
+    const running = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "WRITE_SCENE",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-queue-position-running"),
+        status: "RUNNING",
+        createdAt: new Date("2026-01-01T00:02:00.000Z"),
+      },
+    });
+    const third = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "CHECK_COHERENCE",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-queue-position-3"),
+        status: "QUEUED",
+        createdAt: new Date("2026-01-01T00:03:00.000Z"),
+      },
+    });
+
+    const opened = await openProjectScope({ ownerId: user.id, projectId: project.id });
+    if (!opened.ok) throw new Error("the owner could not open a scope on their own project");
+
+    const rows = await listRunningGenerations(opened.value);
+    const byId = new Map(rows.map((row) => [row.id, row.queuePosition]));
+
+    expect(byId.get(first.id)).toBe(1);
+    expect(byId.get(second.id)).toBe(2);
+    expect(byId.get(running.id)).toBeNull();
+    expect(byId.get(third.id)).toBe(3);
+  });
+
   it("carries the named step and percentage a mission last reported (CAL-062)", async () => {
     const user = await prisma.user.create({
       data: { email: "generation-repository-progress@example.test" },

@@ -264,30 +264,33 @@ describe("runGenerationAttempt, progress reporting (CAL-062)", () => {
 });
 
 describe("runGenerationAttempt, when the claim refuses", () => {
-  it.each([["already-succeeded"], ["already-failed"], ["cancelled"], ["in-flight"]] as const)(
-    "asks no provider and writes nothing: %s",
-    async (reason) => {
-      let produced = false;
-      const persist = refusing({ kind: "refused", reason, attempt: 2 });
+  it.each([
+    ["already-succeeded"],
+    ["already-failed"],
+    ["cancelled"],
+    ["in-flight"],
+    ["at-capacity"],
+  ] as const)("asks no provider and writes nothing: %s", async (reason) => {
+    let produced = false;
+    const persist = refusing({ kind: "refused", reason, attempt: 2 });
 
-      const result = await runGenerationAttempt({
-        generationId: "gen-1",
-        produce: () => {
-          produced = true;
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: () => {
+        produced = true;
 
-          return succeed(RESULT_TOKEN);
-        },
-        persist,
-      });
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+    });
 
-      // A redelivery is not a failure of this function — it is the resume path,
-      // and its whole value is the call that did not happen.
-      expect(result).toEqual({ ok: true, value: { kind: "skipped", reason, attempt: 2 } });
-      expect(produced).toBe(false);
-      expect(persist.written).toEqual([]);
-      expect(persist.outcomes).toEqual([]);
-    },
-  );
+    // A redelivery is not a failure of this function — it is the resume path,
+    // and its whole value is the call that did not happen.
+    expect(result).toEqual({ ok: true, value: { kind: "skipped", reason, attempt: 2 } });
+    expect(produced).toBe(false);
+    expect(persist.written).toEqual([]);
+    expect(persist.outcomes).toEqual([]);
+  });
 });
 
 describe("runGenerationAttempt, when the completion is refused", () => {

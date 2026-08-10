@@ -72,6 +72,14 @@ export function GenerationIndicator({
             {generation.failureClass === null ? null : (
               <> — nouvelle tentative programmée après un incident</>
             )}
+            {/*
+             * The queue position (CAL-065) — only a `QUEUED` row carries one,
+             * so it never appears alongside a step or a percentage, which are
+             * only ever reported once a generation is actually running.
+             */}
+            {generation.queuePosition === null ? null : (
+              <> — en file d’attente, position {generation.queuePosition}</>
+            )}
             {generation.progressStep === null ? null : <> — {generation.progressStep}</>}
             {generation.progressPercent === null ? null : (
               <>

@@ -57,11 +57,23 @@ export interface RunningGeneration {
    * rather than leaving an author watching a spinner that looks stuck.
    */
   readonly failureClass: GenerationFailureClass | null;
+  /**
+   * This row's 1-based rank among the project's own `QUEUED` generations
+   * (CAL-065) — "you are third in line," not a promise of when a slot opens,
+   * since a slot also depends on the owner's cap across their other projects.
+   * Null for a `RUNNING` row: it already has a slot, and has no position to
+   * report.
+   */
+  readonly queuePosition: number | null;
 }
 
 /**
  * A project's generations still in flight, oldest first — the order a queue
  * is read in, and the one the `[projectId, createdAt]` index already serves.
+ *
+ * `queuePosition` is computed here, over the array this query already fetches
+ * in that same order — no second query, no window function: a running count
+ * of the `QUEUED` rows seen so far *is* each one's rank.
  */
 export async function listRunningGenerations(scope: ProjectScope): Promise<RunningGeneration[]> {
   assertProjectScope(scope);
@@ -80,10 +92,13 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
     },
   });
 
+  let queued = 0;
+
   return rows.map((row) => ({
     ...row,
     status: row.status as RunningGenerationStatus,
     failureClass: toFailureClass(row.failureClass),
+    queuePosition: row.status === "QUEUED" ? (queued += 1) : null,
   }));
 }
 

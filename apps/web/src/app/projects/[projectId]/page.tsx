@@ -150,6 +150,7 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
           progressStep: row.progressStep,
           progressPercent: row.progressPercent,
           failureClass: row.failureClass,
+          queuePosition: row.queuePosition,
         }))}
         cancelAction={cancelGenerationAction}
       />

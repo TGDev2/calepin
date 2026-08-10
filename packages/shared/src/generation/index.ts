@@ -23,6 +23,11 @@ export type {
   RunGenerationAttemptOptions,
 } from "./attempt";
 export { GENERATION_CLAIM_REFUSALS, runGenerationAttempt } from "./attempt";
+export {
+  CAPACITY_RETRY_DELAY_MS,
+  DEFAULT_PROJECT_GENERATION_CONCURRENCY_LIMIT,
+  DEFAULT_USER_GENERATION_CONCURRENCY_LIMIT,
+} from "./concurrency";
 export type { GenerationKeyInput } from "./key";
 export {
   GENERATION_KEY_PATTERN,

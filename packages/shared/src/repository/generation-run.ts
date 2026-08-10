@@ -40,6 +40,9 @@ import type { ErrorCategory } from "../errors/categories";
 import { fail, type Result, succeed } from "../errors/result";
 import {
   type AttemptCompletion,
+  CAPACITY_RETRY_DELAY_MS,
+  DEFAULT_PROJECT_GENERATION_CONCURRENCY_LIMIT,
+  DEFAULT_USER_GENERATION_CONCURRENCY_LIMIT,
   type GenerationAttemptOutcome,
   type GenerationClaim,
   type GenerationFailureClass,
@@ -251,6 +254,52 @@ export async function reserveGeneration(
 }
 
 /**
+ * Reads the two numbers a capacity decision needs, in one round trip: how many
+ * of this project's — and this owner's, across every project they hold — other
+ * generations are `RUNNING` right now, and the caps each is bound by (the
+ * row's own override, else the system default). `id != generationId` is what
+ * lets a generation being resumed after a worker crash never count against
+ * itself.
+ */
+async function readGenerationConcurrencyCapacity(
+  tx: TransactionClient,
+  scope: ProjectScope,
+  generationId: string,
+): Promise<{ readonly atCapacity: boolean }> {
+  const rows = await tx.$queryRaw<
+    { projectRunning: bigint; userRunning: bigint; projectLimit: number; userLimit: number }[]
+  >`
+    SELECT
+      (SELECT count(*) FROM "generations"
+        WHERE "projectId" = ${scope.projectId} AND "status" = 'RUNNING' AND "id" != ${generationId}
+      ) AS "projectRunning",
+      (SELECT count(*) FROM "generations" g
+        JOIN "projects" p ON p."id" = g."projectId"
+        WHERE p."userId" = ${scope.ownerId} AND g."status" = 'RUNNING' AND g."id" != ${generationId}
+      ) AS "userRunning",
+      COALESCE(
+        (SELECT "generationConcurrencyLimit" FROM "projects" WHERE "id" = ${scope.projectId}),
+        ${DEFAULT_PROJECT_GENERATION_CONCURRENCY_LIMIT}
+      ) AS "projectLimit",
+      COALESCE(
+        (SELECT "generationConcurrencyLimit" FROM "users" WHERE "id" = ${scope.ownerId}),
+        ${DEFAULT_USER_GENERATION_CONCURRENCY_LIMIT}
+      ) AS "userLimit"
+  `;
+
+  const row = rows[0];
+
+  if (row === undefined) {
+    throw new InternalError({ message: "the concurrency capacity check returned no row" });
+  }
+
+  const overProjectLimit = row.projectRunning >= BigInt(row.projectLimit);
+  const overUserLimit = row.userRunning >= BigInt(row.userLimit);
+
+  return { atCapacity: overProjectLimit || overUserLimit };
+}
+
+/**
  * Decides whether an attempt is owed, and opens one if it is.
  *
  * Everything happens under the generation's own row lock, which is what makes
@@ -259,6 +308,16 @@ export async function reserveGeneration(
  * on purpose: two chapters of one novel may be generated at once, and
  * serialising them behind the project row would make a queue's concurrency
  * setting a lie.
+ *
+ * **Since CAL-065 the transaction also locks the owning `users` row.** That is
+ * not the project-row serialisation the paragraph above rules out — it is held
+ * only for this short decision, never for the mission call that follows once
+ * the transaction commits, so two chapters of one novel (or of two projects of
+ * one author) still run fully concurrently once each has been admitted. What it
+ * buys is a race-free capacity check: every claim belonging to one owner, across
+ * every project they hold, is serialised for the few statements below, which is
+ * exactly what makes "count the owner's running generations, then decide"
+ * atomic instead of a check two concurrent claims could each pass at once.
  */
 export async function claimGenerationAttempt(
   scope: ProjectScope,
@@ -275,95 +334,128 @@ export async function claimGenerationAttempt(
 
   const now = input.now ?? new Date();
 
-  return runLockedOnGeneration<GenerationClaim>(scope, input.generationId, async (tx, status) => {
-    const settled = REFUSAL_BY_STATUS[status];
+  return runLockedOnGeneration<GenerationClaim>(
+    scope,
+    input.generationId,
+    async (tx, status) => {
+      const settled = REFUSAL_BY_STATUS[status];
 
-    if (settled !== undefined) return succeed({ kind: "refused", reason: settled } as const);
+      if (settled !== undefined) return succeed({ kind: "refused", reason: settled } as const);
 
-    // The whole of the "worker restarted" answer, in one statement. The token
-    // and cost columns are not in the SET list, and their absence is the
-    // guarantee: nobody can say what an unfinished call consumed, so nothing is
-    // written where a number would be invented, and the replay that follows is
-    // charged once.
-    const reclaimed = await tx.generationAttempt.updateMany({
-      where: scopedWhere("GenerationAttempt", scope, {
-        generationId: input.generationId,
-        status: "RUNNING",
-        leaseExpiresAt: { lte: now },
-      }),
-      data: {
-        status: "FAILED",
-        errorCode: "GENERATION_INTERRUPTED",
-        errorCategory: "INTERNAL",
-        completedAt: now,
-        leaseExpiresAt: null,
-      },
-    });
+      // Only a genuinely new admission competes for a slot. A generation that
+      // is already `RUNNING` here is being resumed after its lease expired —
+      // it was already granted a slot, and the sweep's own
+      // `requeueOrphanedGenerations` is the fallback if it ever needs to
+      // re-enter the queue instead.
+      if (status === "QUEUED") {
+        const capacity = await readGenerationConcurrencyCapacity(tx, scope, input.generationId);
 
-    if (reclaimed.count > 0) {
-      // Identifiers and a count (§9). Worth a line: it is the only trace that a
-      // worker died, and the number of them is how an operations view sees a
-      // host restarting in a loop.
-      logger.warn("generation.attempt-reclaimed", {
-        generationId: input.generationId,
-        itemCount: reclaimed.count,
+        if (capacity.atCapacity) {
+          // No attempt is opened and nothing failed, so there is nothing to
+          // classify (`failureClass` stays null) — but the row still needs a
+          // deadline, or it would wait out the sweep's full staleness window
+          // before being reconsidered at all.
+          await tx.$executeRaw`
+            UPDATE "generations"
+            SET "nextAttemptAt" = ${new Date(now.getTime() + CAPACITY_RETRY_DELAY_MS)}
+            WHERE "id" = ${input.generationId}
+              AND "status" = 'QUEUED'
+              AND "projectId" IN (
+                SELECT "id" FROM "projects"
+                WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+              )
+          `;
+
+          return succeed({ kind: "refused", reason: "at-capacity" } as const);
+        }
+      }
+
+      // The whole of the "worker restarted" answer, in one statement. The token
+      // and cost columns are not in the SET list, and their absence is the
+      // guarantee: nobody can say what an unfinished call consumed, so nothing is
+      // written where a number would be invented, and the replay that follows is
+      // charged once.
+      const reclaimed = await tx.generationAttempt.updateMany({
+        where: scopedWhere("GenerationAttempt", scope, {
+          generationId: input.generationId,
+          status: "RUNNING",
+          leaseExpiresAt: { lte: now },
+        }),
+        data: {
+          status: "FAILED",
+          errorCode: "GENERATION_INTERRUPTED",
+          errorCategory: "INTERNAL",
+          completedAt: now,
+          leaseExpiresAt: null,
+        },
       });
-    }
 
-    const live = await tx.generationAttempt.findFirst({
-      where: scopedWhere("GenerationAttempt", scope, {
-        generationId: input.generationId,
-        status: "RUNNING",
-      }),
-      orderBy: { attempt: "desc" },
-      select: { attempt: true },
-    });
+      if (reclaimed.count > 0) {
+        // Identifiers and a count (§9). Worth a line: it is the only trace that a
+        // worker died, and the number of them is how an operations view sees a
+        // host restarting in a loop.
+        logger.warn("generation.attempt-reclaimed", {
+          generationId: input.generationId,
+          itemCount: reclaimed.count,
+        });
+      }
 
-    // Someone holds a lease that has not expired. A redelivery must leave them
-    // alone: two workers on one ask is two answers and two prices.
-    if (live !== null) {
-      return succeed({ kind: "refused", reason: "in-flight", attempt: live.attempt } as const);
-    }
+      const live = await tx.generationAttempt.findFirst({
+        where: scopedWhere("GenerationAttempt", scope, {
+          generationId: input.generationId,
+          status: "RUNNING",
+        }),
+        orderBy: { attempt: "desc" },
+        select: { attempt: true },
+      });
 
-    const last = await tx.generationAttempt.findFirst({
-      where: scopedWhere("GenerationAttempt", scope, { generationId: input.generationId }),
-      orderBy: { attempt: "desc" },
-      select: { attempt: true },
-    });
+      // Someone holds a lease that has not expired. A redelivery must leave them
+      // alone: two workers on one ask is two answers and two prices.
+      if (live !== null) {
+        return succeed({ kind: "refused", reason: "in-flight", attempt: live.attempt } as const);
+      }
 
-    const attempt = (last?.attempt ?? 0) + 1;
+      const last = await tx.generationAttempt.findFirst({
+        where: scopedWhere("GenerationAttempt", scope, { generationId: input.generationId }),
+        orderBy: { attempt: "desc" },
+        select: { attempt: true },
+      });
 
-    await tx.generationAttempt.create({
-      data: {
-        generationId: input.generationId,
-        attempt,
-        model: input.model,
-        promptVersion: input.promptVersion ?? null,
-        status: "RUNNING",
-        startedAt: now,
-        leaseExpiresAt: new Date(now.getTime() + leaseMs),
-      },
-    });
+      const attempt = (last?.attempt ?? 0) + 1;
 
-    // Progress is cleared with the same statement that opens the attempt: a
-    // reload during attempt 2 must never show attempt 1's last step. The retry
-    // pair goes with it (CAL-063): the wait is over — this *is* the attempt it
-    // was waiting for — and nothing has failed yet, so a screen watching the row
-    // must not still be told a retry is pending.
-    await tx.$executeRaw`
-      UPDATE "generations"
-      SET "status" = 'RUNNING', "progressStep" = NULL, "progressPercent" = NULL,
-          "failureClass" = NULL, "nextAttemptAt" = NULL
-      WHERE "id" = ${input.generationId}
-        AND "status" IN ('QUEUED', 'RUNNING')
-        AND "projectId" IN (
-          SELECT "id" FROM "projects"
-          WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
-        )
-    `;
+      await tx.generationAttempt.create({
+        data: {
+          generationId: input.generationId,
+          attempt,
+          model: input.model,
+          promptVersion: input.promptVersion ?? null,
+          status: "RUNNING",
+          startedAt: now,
+          leaseExpiresAt: new Date(now.getTime() + leaseMs),
+        },
+      });
 
-    return succeed({ kind: "claimed", attempt } as const);
-  });
+      // Progress is cleared with the same statement that opens the attempt: a
+      // reload during attempt 2 must never show attempt 1's last step. The retry
+      // pair goes with it (CAL-063): the wait is over — this *is* the attempt it
+      // was waiting for — and nothing has failed yet, so a screen watching the row
+      // must not still be told a retry is pending.
+      await tx.$executeRaw`
+        UPDATE "generations"
+        SET "status" = 'RUNNING', "progressStep" = NULL, "progressPercent" = NULL,
+            "failureClass" = NULL, "nextAttemptAt" = NULL
+        WHERE "id" = ${input.generationId}
+          AND "status" IN ('QUEUED', 'RUNNING')
+          AND "projectId" IN (
+            SELECT "id" FROM "projects"
+            WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+          )
+      `;
+
+      return succeed({ kind: "claimed", attempt } as const);
+    },
+    { lockOwner: true },
+  );
 }
 
 /**
@@ -842,6 +934,19 @@ export function createGenerationPersistence<T>(
   };
 }
 
+interface RunLockedOnGenerationOptions {
+  /**
+   * Also locks the owning `users` row for the transaction (CAL-065). Only the
+   * claim needs it — the capacity check that runs under this lock is the one
+   * decision that reads across every generation an owner has, and it has to be
+   * atomic against another claim by the same owner doing the same read.
+   * `completeGenerationAttempt`, `replayGeneration` and `cancelGeneration` each
+   * touch one row they already hold and never increase what is running, so
+   * they have no reason to pay for the extra lock.
+   */
+  readonly lockOwner?: boolean;
+}
+
 /**
  * One transaction, holding the generation's row lock, with its ownership proven
  * by the same statement that takes it — `./project-lock`'s shape, one level
@@ -852,18 +957,30 @@ async function runLockedOnGeneration<T>(
   scope: ProjectScope,
   generationId: string,
   body: (client: TransactionClient, status: $Enums.GenerationStatus) => Promise<Result<T>>,
+  options: RunLockedOnGenerationOptions = {},
 ): Promise<Result<T>> {
   try {
     return await getDatabaseClient().$transaction(async (tx) => {
-      const rows = await tx.$queryRaw`
-        SELECT g."status"::text AS "status"
-        FROM "generations" g
-        JOIN "projects" p ON p."id" = g."projectId"
-        WHERE g."id" = ${generationId}
-          AND p."id" = ${scope.projectId}
-          AND p."userId" = ${scope.ownerId}
-        FOR UPDATE OF g
-      `;
+      const rows = options.lockOwner
+        ? await tx.$queryRaw`
+            SELECT g."status"::text AS "status"
+            FROM "generations" g
+            JOIN "projects" p ON p."id" = g."projectId"
+            JOIN "users" u ON u."id" = p."userId"
+            WHERE g."id" = ${generationId}
+              AND p."id" = ${scope.projectId}
+              AND p."userId" = ${scope.ownerId}
+            FOR UPDATE OF g, u
+          `
+        : await tx.$queryRaw`
+            SELECT g."status"::text AS "status"
+            FROM "generations" g
+            JOIN "projects" p ON p."id" = g."projectId"
+            WHERE g."id" = ${generationId}
+              AND p."id" = ${scope.projectId}
+              AND p."userId" = ${scope.ownerId}
+            FOR UPDATE OF g
+          `;
 
       const status = readStatus(rows);
 

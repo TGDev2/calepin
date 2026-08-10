@@ -81,6 +81,14 @@ model User {
   /// The avatar URL a provider supplied. Never fetched, never proxied.
   image String?
 
+  /// This user's own override of how many generations may run at once across
+  /// every project they own (CAL-065), when it is not the system default —
+  /// `DEFAULT_USER_GENERATION_CONCURRENCY_LIMIT` in
+  /// @calepin/shared/generation. The same nullable-override shape
+  /// `Generation.attemptCeiling` already uses, and enforced the same way: at
+  /// the claim, under the row's own lock — see users_generation_concurrency_limit_check.
+  generationConcurrencyLimit Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -339,6 +347,13 @@ model Project {
   /// The sum of each written chapter's *latest* revision — never every revision
   /// (CAL-033). Same maintenance, same statement, so the two can never disagree.
   totalWordCount      Int @default(0)
+
+  /// This project's own override of how many of its generations may run at
+  /// once (CAL-065), when it is not the system default —
+  /// `DEFAULT_PROJECT_GENERATION_CONCURRENCY_LIMIT` in
+  /// @calepin/shared/generation. Same shape and same reasoning as `User`'s own
+  /// field above — see projects_generation_concurrency_limit_check.
+  generationConcurrencyLimit Int?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -2318,6 +2333,12 @@ model Generation {
   /// nothing, because the wait is in PostgreSQL like everything else that is
   /// true about this generation.
   ///
+  /// A second producer since CAL-065: a claim refused for being over its
+  /// project's or its owner's concurrency cap sets a near deadline here too,
+  /// with `failureClass` left null — nothing failed, there was simply no slot
+  /// free. `generations_retry_check` allows both shapes; only the pairing
+  /// with a `failureClass` is CAL-063's own.
+  ///
   /// Read by `listDeliverableGenerations` and by nothing else. Only the
   /// **automatic** redelivery honours it: an author replaying by hand, or asking
   /// the same thing again, is a decision and is never throttled by it.
@@ -2363,6 +2384,11 @@ model Generation {
   // The operations view (CAL-070) and the generation list: a project's
   // generations, newest first.
   @@index([projectId, createdAt])
+  // The concurrency claim (CAL-065): how many of a project's generations are
+  // RUNNING right now. Neither index above serves an equality filter on
+  // `status` without also matching on `mission`/`targetId` or scanning
+  // `createdAt` order, and this check runs on every claim.
+  @@index([projectId, status])
   // The reconciliation task (CAL-060): everything still QUEUED or RUNNING past
   // its deadline, across every project.
   @@index([status, createdAt])
