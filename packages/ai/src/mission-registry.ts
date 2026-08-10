@@ -318,3 +318,38 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 25_000,
   },
 } as const satisfies MissionRegistry;
+
+/**
+ * The evaluation bench's judge (CAL-059) — mechanics only, like a mission.
+ *
+ * Declared in this file because this file and the capability sheet are the
+ * only places a model id may appear (`mission-registry.test.ts` walks the
+ * workspace to prove it), and because "change the judge's model" should be the
+ * same one-file edit as every other model change.
+ *
+ * Not a `MissionDefinition`, on purpose. The bench is a development tool, not
+ * a product path: its executor has no fallback model and no health memory —
+ * a bench run that hits an outage fails loudly and is rerun — so declaring a
+ * `fallbackModel` here would promise a behaviour nothing implements. No
+ * `expectedUsage` either: bench runs are launched deliberately and report
+ * their real cost afterwards; nothing estimates them beforehand (CAL-057 is
+ * for the product's operations).
+ */
+export interface BenchJudgeDefinition {
+  readonly model: ModelId;
+  readonly effort: EffortLevel;
+  readonly maxOutputTokens: number;
+  readonly timeoutMs: number;
+}
+
+/**
+ * The strongest model, at `high`: the specification separates writing from
+ * criticism, and the judge's whole value is reading closely enough to cite —
+ * a cheap judge produces exactly the unargued verdicts the bench forbids.
+ */
+export const BENCH_JUDGE: BenchJudgeDefinition = {
+  model: "claude-opus-5",
+  effort: "high",
+  maxOutputTokens: 16_000,
+  timeoutMs: 300_000,
+};

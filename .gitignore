@@ -30,6 +30,10 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# prompt evaluation bench output — quotes evaluated outputs, so it never
+# enters git, a log or CI output (CLAUDE.md §9, CAL-059)
+bench-reports/
+
 # editors and os
 .vscode/
 .idea/

@@ -24,6 +24,9 @@
 
 import { promptNotRegistered } from "../failures";
 import type { MissionId } from "../missions";
+import { BENCH_COMPARE_OUTPUTS_PROMPTS } from "./bench/judge-comparison";
+import { BENCH_REVIEW_OUTPUT_PROMPTS } from "./bench/judge-review";
+import { BENCH_SYNTHESIZE_COMPARISON_PROMPTS } from "./bench/judge-synthesis";
 import { ANALYZE_SOURCE_TEXT_PROMPTS } from "./missions/analyze-source-text";
 import { BUILD_CHAPTER_OUTLINE_PROMPTS } from "./missions/build-chapter-outline";
 import { CHECK_COHERENCE_PROMPTS } from "./missions/check-coherence";
@@ -56,6 +59,9 @@ export const PROMPT_REGISTRY = {
   "summarize-chapter": SUMMARIZE_CHAPTER_PROMPTS,
   "summarize-part": SUMMARIZE_PART_PROMPTS,
   "repair-structured-output": REPAIR_STRUCTURED_OUTPUT_PROMPTS,
+  "bench-review-output": BENCH_REVIEW_OUTPUT_PROMPTS,
+  "bench-compare-outputs": BENCH_COMPARE_OUTPUTS_PROMPTS,
+  "bench-synthesize-comparison": BENCH_SYNTHESIZE_COMPARISON_PROMPTS,
 } as const satisfies PromptRegistry;
 
 type Last<T extends readonly unknown[]> = T extends readonly [...unknown[], infer L] ? L : never;

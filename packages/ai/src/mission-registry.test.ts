@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { MODEL_CAPABILITIES, MODEL_IDS } from "./capabilities";
-import { DOMAIN_PACKAGES, MISSION_REGISTRY, type MissionDefinition } from "./mission-registry";
+import {
+  BENCH_JUDGE,
+  DOMAIN_PACKAGES,
+  MISSION_REGISTRY,
+  type MissionDefinition,
+} from "./mission-registry";
 import { MISSION_IDS } from "./missions";
 
 describe("the mission registry", () => {
@@ -92,6 +97,21 @@ describe("the mission registry", () => {
     expect(new Set(entries.map((mission) => mission.id)).size).toBe(MISSION_IDS.length);
     expect(new Set(entries.map((mission) => mission.model)).size).toBeGreaterThan(1);
     expect(new Set(entries.map((mission) => mission.effort)).size).toBeGreaterThan(1);
+  });
+});
+
+describe("the bench judge (CAL-059)", () => {
+  it("is a coherent declaration its model can serve", () => {
+    const capability = MODEL_CAPABILITIES[BENCH_JUDGE.model];
+
+    // The judge's answers are structured contracts, under `effort` — a model
+    // that supports neither cannot judge.
+    expect(capability.supportsStructuredOutput).toBe(true);
+    expect(capability.supportsEffort).toBe(true);
+
+    expect(BENCH_JUDGE.maxOutputTokens).toBeGreaterThan(0);
+    expect(BENCH_JUDGE.maxOutputTokens).toBeLessThanOrEqual(capability.maxOutputTokens);
+    expect(BENCH_JUDGE.timeoutMs).toBeGreaterThan(0);
   });
 });
 

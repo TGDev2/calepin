@@ -39,8 +39,20 @@ import { MISSION_IDS, type MissionId } from "../missions";
  * `repair-structured-output` serves no mission and every mission: it is the
  * pipeline's own re-ask (CAL-052), appended to whichever mission prompt was
  * just rejected.
+ *
+ * The three `bench-*` prompts are the evaluation bench's judge (CAL-059): the
+ * review of one output, the blinded comparison of two, and the synthesis of a
+ * whole comparison run. They instruct a model, so §5.2 puts them here — being
+ * registry resources is also what versions the judge itself, and a judgement
+ * is only comparable to last month's if the question asked was the same.
  */
-export const PROMPT_IDS = [...MISSION_IDS, "repair-structured-output"] as const;
+export const PROMPT_IDS = [
+  ...MISSION_IDS,
+  "repair-structured-output",
+  "bench-review-output",
+  "bench-compare-outputs",
+  "bench-synthesize-comparison",
+] as const;
 
 export type PromptId = (typeof PROMPT_IDS)[number];
 
@@ -52,9 +64,16 @@ export type PromptId = (typeof PROMPT_IDS)[number];
  * cannot pretend to have one. It is also what lets `ModelRequest` require a
  * mission-scoped prompt at the top level: a repair re-ask is never a request on
  * its own.
+ *
+ * `bench` (CAL-059) is the evaluation bench's own scope: a judge prompt serves
+ * no mission — it judges mission *outputs* — and it never reaches the mission
+ * pipeline, whose requests still demand a mission-scoped prompt. The bench's
+ * executor is the only caller that renders one.
  */
 export type PromptScope =
-  { readonly kind: "mission"; readonly missionId: MissionId } | { readonly kind: "pipeline" };
+  | { readonly kind: "mission"; readonly missionId: MissionId }
+  | { readonly kind: "pipeline" }
+  | { readonly kind: "bench" };
 
 export const PROMPT_VARIABLE_TYPES = ["text", "number", "list"] as const;
 

@@ -34,7 +34,7 @@ import { toFieldPath } from "@calepin/shared/errors";
 import type { z } from "zod";
 
 import { renderPrompt } from "./render";
-import type { MissionPrompt, PromptDefinition } from "./types";
+import type { MissionPrompt, PromptDefinition, RenderedPrompt } from "./types";
 
 /** Clauses quoted back to the model. A wholly wrong answer cannot inflate the prompt. */
 const MAX_REPAIR_CLAUSES = 10;
@@ -85,12 +85,28 @@ export const REPAIR_STRUCTURED_OUTPUT_PROMPTS = [V1] as const;
  * and prompt, no conversation — so a model asked to "fix the fields below" has
  * nothing to fix unless it is shown what it produced. Without it this would be
  * a re-ask wearing a repair's name, which is the blind retry §6 rules out.
+ *
+ * Two signatures, one body: the pipeline hands in a mission prompt and gets a
+ * mission prompt back; the evaluation bench (CAL-059) hands in its own
+ * bench-scoped prompt and the identity travels through the same way. The
+ * overload keeps the pipeline's call sites narrow — a repair inside a mission
+ * pass can never come back without its mission.
  */
 export function deriveRepairPrompt(options: {
   readonly original: MissionPrompt;
   readonly value: unknown;
   readonly issues: readonly z.core.$ZodIssue[];
-}): MissionPrompt {
+}): MissionPrompt;
+export function deriveRepairPrompt(options: {
+  readonly original: RenderedPrompt;
+  readonly value: unknown;
+  readonly issues: readonly z.core.$ZodIssue[];
+}): RenderedPrompt;
+export function deriveRepairPrompt(options: {
+  readonly original: RenderedPrompt;
+  readonly value: unknown;
+  readonly issues: readonly z.core.$ZodIssue[];
+}): RenderedPrompt {
   const repair = renderPrompt(V1, {
     // `undefined` is the one value `JSON.stringify` answers with nothing at all,
     // and it is exactly what a body that would not parse leaves behind.

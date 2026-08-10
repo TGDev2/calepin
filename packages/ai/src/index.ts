@@ -24,6 +24,62 @@ export {
   type CreateBedrockAdapterOptions,
 } from "./adapters/bedrock";
 export type { MessagesClient } from "./adapters/messages";
+export { assertReferenceCorpus, type BenchCase, type ReferenceCorpus } from "./bench/corpus";
+export {
+  assertBenchCriteria,
+  BENCH_CRITERIA,
+  type BenchCriterion,
+  criteriaLines,
+} from "./bench/criteria";
+export {
+  type BenchJudge,
+  type BenchJudgeCall,
+  BLINDED_VERDICTS,
+  type BlindedVerdict,
+  comparisonContract,
+  type ComparisonJudgement,
+  type ComparisonJudgment,
+  createBenchJudge,
+  type CreateBenchJudgeOptions,
+  EXPECTATION_STATUSES,
+  type ExpectationCheck,
+  type ExpectationStatus,
+  FINDING_KINDS,
+  type FindingKind,
+  JUDGE_CONTRACT_BOUNDS,
+  type MergedVerdict,
+  PAIR_VERDICTS,
+  type PairVerdict,
+  type Recommendation,
+  RECOMMENDATIONS,
+  reviewContract,
+  type ReviewFinding,
+  type ReviewJudgement,
+  synthesisContract,
+  type SynthesisJudgement,
+} from "./bench/judge";
+export { formatComparisonReport, formatEvaluationReport } from "./bench/report";
+export {
+  type BenchJudgeIdentity,
+  type BenchOutputContract,
+  type BenchTotals,
+  type CandidateRun,
+  type ComparisonCaseReport,
+  type ComparisonPassReport,
+  type CriterionTally,
+  type EvaluationCaseReport,
+  type JudgeCallMechanics,
+  type JudgeFailure,
+  MERGED_VERDICT_LABELS,
+  type MergedCriterionJudgement,
+  type PassOrder,
+  type PromptComparisonOptions,
+  type PromptComparisonReport,
+  type PromptEvaluationOptions,
+  type PromptEvaluationReport,
+  runPromptComparison,
+  runPromptEvaluation,
+} from "./bench/run";
 export {
   EFFORT_LEVELS,
   type EffortLevel,
@@ -69,6 +125,8 @@ export {
   type ProviderHealthPolicy,
 } from "./health";
 export {
+  BENCH_JUDGE,
+  type BenchJudgeDefinition,
   DOMAIN_PACKAGES,
   type DomainPackage,
   MISSION_REGISTRY,
