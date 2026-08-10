@@ -101,9 +101,14 @@ jobs:
     # add a real connection": CAL-024 is it. The session suite signs a browser
     # in and reloads twice, which is a session row in a real database — so the
     # job now attaches Postgres and applies the committed migrations to it.
-    # Redis and S3 are still shape-valid values only here: the browser journey
-    # reaches no queue, and the worker is a separate process this job does not
-    # start (CAL-060 covers it with its own integration suite instead).
+    # Redis attaches too, since CAL-063: the replay screen's server action
+    # calls `enqueueGeneration`, a real producer command, so a shape-valid
+    # `REDIS_URL` pointing at nothing left it retrying a refused connection
+    # for the length of the request — enough to make the page's post-replay
+    # render lag past the spec's assertion. S3 is still shape-valid only: no
+    # browser journey in this suite reaches storage, and the worker is a
+    # separate process this job does not start (CAL-060 covers it with its
+    # own integration suite instead).
     services:
       postgres:
         image: postgres:16-alpine
@@ -115,6 +120,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U calepin -d calepin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
