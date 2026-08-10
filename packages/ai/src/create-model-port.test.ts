@@ -100,6 +100,7 @@ const ROUTE: MissionDefinition = {
   output: { kind: "prose" },
   contextBudgetTokens: 40_000,
   expectedUsage: { inputTokens: 10_000, outputTokens: 4_000 },
+  expectedDurationMs: 30_000,
 };
 const STRUCTURED_ROUTE: MissionDefinition = {
   ...ROUTE,

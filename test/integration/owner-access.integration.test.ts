@@ -40,6 +40,7 @@ import {
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  readMissionMeasurements,
   readProjectCostSummary,
   readSourceTextObsolescence,
   reconcileProjectAggregates,
@@ -82,6 +83,7 @@ const ENTRY_POINTS = [
   "listRunningGenerations",
   "listSourceTextVersions",
   "openProjectScope",
+  "readMissionMeasurements",
   "readProjectCostSummary",
   "readProjectProgress",
   "readSourceTextObsolescence",
@@ -346,6 +348,21 @@ describe("owner access policy", () => {
       }
 
       const theirs = await readProjectCostSummary(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs.ok).toBe(false);
+      if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
+    });
+
+    // CAL-057. The graph's one attempt records no usage, so the owner's own
+    // history is empty rather than absent — the answer that makes an estimate
+    // fall back on the mission registry, and a different answer from the
+    // refusal below (`generation-measurements.integration.test.ts` covers the
+    // medians).
+    it("readMissionMeasurements refuses another owner's project", async () => {
+      const mine = await readMissionMeasurements(aliceScope);
+      expect(mine.ok).toBe(true);
+      if (mine.ok) expect(mine.value).toEqual([]);
+
+      const theirs = await readMissionMeasurements(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs.ok).toBe(false);
       if (!theirs.ok) expect(theirs.error.code).toBe("NOT_FOUND");
     });

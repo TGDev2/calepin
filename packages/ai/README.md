@@ -261,12 +261,46 @@ narrative rule, and never restates a domain schema.
   `@calepin/shared/repository`'s `readProjectCostSummary` — this layer prices
   a call, it does not persist or sum one.
 
+## What exists (CAL-057)
+
+- `operations.ts` — what a costly operation is made of: a **consumption
+  profile**, one entry per operation the specification calls costly, declaring
+  how many calls of which mission it bills as one action, each marked
+  `production`, `analysis` or `control`. It says nothing about when those calls
+  run or what is done with their answers — that is the domains' business, in
+  the epics that own it. Writing a chapter is five calls, and the four that
+  produce no prose carry more than half its price; `operation-estimate.test.ts`
+  asserts that against the tariff table rather than claiming it.
+- `mission-registry.ts` — `expectedDurationMs` beside `expectedUsage`: how long
+  a typical call is expected to take, which is the estimate's fallback and is
+  not `timeoutMs` (that is the deadline, and quoting it would forecast the
+  worst case as the normal one).
+- `pricing.ts` — `sumCostUsd`, exact addition over the six-decimal strings
+  `estimateCostUsd` returns, in integer micro-dollars. An operation whose
+  phases ran on two models at two rates still totals to the sum of its lines.
+- `operation-estimate.ts` — `estimateOperation`, which prefers a measurement of
+  the same mission on the same project and falls back per phase on the
+  registry's expectation, carrying the `basis` and the sample count of each; and
+  `acceptOperationEstimate`, the only way to mint an `AcceptedOperationEstimate`.
+  That value is branded, refuses an acknowledgement that no longer matches, and
+  is what the task that launches a generation will take — so "nothing costly
+  starts without an estimate shown and confirmed" is a property of the type
+  rather than a rule to remember.
+
+The measured half is `@calepin/shared/repository`'s `readMissionMeasurements`
+and is handed in: this layer never reads a database. Money is derived from the
+measured tokens at today's tariff, never replayed from a recorded price.
+
 ## What arrives in its own task
 
 The credentials both adapters take, resolved from the validated config
 module by the process shell (CAL-060) · context assemblies for the remaining
 missions, in the epics that own them (`check-coherence` in E13,
-`extract-facts` in E12), over the same `context/` engine.
+`extract-facts` in E12), over the same `context/` engine · the screens that
+show an estimate and take its confirmation, in the epics that own the
+operations (E09, E11, E13); the panel and the gate are here and in
+`apps/web/src/components/operation-estimate-panel.tsx`, but no screen can
+start a costly operation yet.
 
 ## Hard rules
 

@@ -100,6 +100,23 @@ export interface MissionDefinition {
    * so an entry cannot expect more than it permits.
    */
   readonly expectedUsage: TokenUsage;
+  /**
+   * How long a typical call is expected to take (CAL-057) — the *theoretical*
+   * duration, and the estimate's fallback when a project has never run this
+   * mission and has nothing measured to answer with.
+   *
+   * Not `timeoutMs`. That is the deadline past which an attempt is abandoned,
+   * so quoting it would forecast the worst case as the normal one and put
+   * minutes on a screen that no call ever spends. This is the expectation, and
+   * the test keeps it under the deadline: a mission expected to take longer
+   * than it is allowed would be a mission that always fails.
+   *
+   * A declared number rather than one derived from `expectedUsage` and a
+   * throughput table, for the same reason `expectedUsage` is declared rather
+   * than derived from the context budget: the second table would be the copy
+   * that drifts, and the first real measurement replaces this one anyway.
+   */
+  readonly expectedDurationMs: number;
 }
 
 export type MissionRegistry = Readonly<Record<MissionId, MissionDefinition>>;
@@ -121,6 +138,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "analysis" },
     contextBudgetTokens: 200_000,
     expectedUsage: { inputTokens: 60_000, outputTokens: 8_000 },
+    expectedDurationMs: 180_000,
   },
 
   /** Divergence: several genuinely different novels out of one text. */
@@ -134,6 +152,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "direction" },
     contextBudgetTokens: 60_000,
     expectedUsage: { inputTokens: 20_000, outputTokens: 8_000 },
+    expectedDurationMs: 180_000,
   },
 
   /**
@@ -151,6 +170,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "direction" },
     contextBudgetTokens: 40_000,
     expectedUsage: { inputTokens: 12_000, outputTokens: 4_000 },
+    expectedDurationMs: 90_000,
   },
 
   /** One sheet, from the bible's identity section and the chosen direction. */
@@ -164,6 +184,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "bible" },
     contextBudgetTokens: 40_000,
     expectedUsage: { inputTokens: 12_000, outputTokens: 4_000 },
+    expectedDurationMs: 90_000,
   },
 
   /** Structural work: what this chapter does to the threads around it. */
@@ -177,6 +198,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "outline" },
     contextBudgetTokens: 60_000,
     expectedUsage: { inputTokens: 20_000, outputTokens: 6_000 },
+    expectedDurationMs: 150_000,
   },
 
   /**
@@ -194,6 +216,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "prose" },
     contextBudgetTokens: 80_000,
     expectedUsage: { inputTokens: 30_000, outputTokens: 12_000 },
+    expectedDurationMs: 300_000,
   },
 
   /**
@@ -213,6 +236,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "bible" },
     contextBudgetTokens: 60_000,
     expectedUsage: { inputTokens: 15_000, outputTokens: 4_000 },
+    expectedDurationMs: 60_000,
   },
 
   /**
@@ -231,6 +255,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "coherence" },
     contextBudgetTokens: 120_000,
     expectedUsage: { inputTokens: 40_000, outputTokens: 10_000 },
+    expectedDurationMs: 300_000,
   },
 
   /**
@@ -248,6 +273,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "coherence" },
     contextBudgetTokens: 60_000,
     expectedUsage: { inputTokens: 15_000, outputTokens: 6_000 },
+    expectedDurationMs: 150_000,
   },
 
   /**
@@ -265,6 +291,7 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "manuscript" },
     contextBudgetTokens: 40_000,
     expectedUsage: { inputTokens: 10_000, outputTokens: 2_000 },
+    expectedDurationMs: 40_000,
   },
 
   /**
@@ -288,5 +315,6 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "manuscript" },
     contextBudgetTokens: 30_000,
     expectedUsage: { inputTokens: 8_000, outputTokens: 1_000 },
+    expectedDurationMs: 25_000,
   },
 } as const satisfies MissionRegistry;

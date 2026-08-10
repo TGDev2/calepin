@@ -72,6 +72,14 @@ export const ERROR_CODES = [
    * they correct.
    */
   "CHAPTER_NOT_VALIDATED",
+  /**
+   * A costly operation was asked to start on an acknowledgement that does not
+   * match what it now costs (CAL-057). `conflict` rather than `validation`:
+   * the form is well formed and the author did confirm — the estimate simply
+   * moved underneath them, and the remedy is to look at the new one, not to
+   * correct a field.
+   */
+  "OPERATION_NOT_CONFIRMED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -190,6 +198,7 @@ export const CATEGORY_BY_CODE = {
   GENERATION_CANCELLED: "conflict",
   ILLEGAL_STATUS_TRANSITION: "conflict",
   CHAPTER_NOT_VALIDATED: "conflict",
+  OPERATION_NOT_CONFIRMED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

@@ -69,6 +69,18 @@ describe("the mission registry", () => {
     );
   });
 
+  it.each(MISSION_IDS)("%s expects a duration it is also allowed (CAL-057)", (missionId) => {
+    const mission: MissionDefinition = MISSION_REGISTRY[missionId];
+
+    expect(Number.isInteger(mission.expectedDurationMs)).toBe(true);
+    expect(mission.expectedDurationMs).toBeGreaterThan(0);
+
+    // A mission expected to take longer than its own deadline is a mission
+    // expected to fail. The forecast is of the normal path; `timeoutMs` is the
+    // point past which there is no longer a normal path.
+    expect(mission.expectedDurationMs).toBeLessThan(mission.timeoutMs);
+  });
+
   // §5.4: never one general-purpose prompt. The registry being total over
   // `MissionId` is what makes that structural — a mission cannot be served
   // without a declaration of its own, so there is no shared default to fall

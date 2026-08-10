@@ -77,6 +77,32 @@ export {
   type MissionRegistry,
 } from "./mission-registry";
 export { MISSION_IDS, type MissionId } from "./missions";
+export {
+  type AcceptedOperationEstimate,
+  acceptOperationEstimate,
+  ESTIMATE_BASES,
+  type EstimateBasis,
+  estimateOperation,
+  isAcceptedOperationEstimate,
+  type MissionMeasurement,
+  type OperationAcknowledgement,
+  type OperationEstimate,
+  type OperationEstimateBasis,
+  type OperationEstimateInput,
+  type PhaseEstimate,
+} from "./operation-estimate";
+export {
+  COSTLY_OPERATION_IDS,
+  COSTLY_OPERATION_REGISTRY,
+  type CostlyOperationDefinition,
+  type CostlyOperationId,
+  type CostlyOperationRegistry,
+  OPERATION_PHASE_KINDS,
+  OPERATION_UNITS,
+  type OperationPhase,
+  type OperationPhaseKind,
+  type OperationUnit,
+} from "./operations";
 export type {
   ModelCallMeta,
   ModelProviderPort,
@@ -86,7 +112,7 @@ export type {
   StructuredGenerationResult,
   TokenUsage,
 } from "./port";
-export { estimateCostUsd, MODEL_PRICING, type ModelPricing } from "./pricing";
+export { estimateCostUsd, MODEL_PRICING, type ModelPricing, sumCostUsd } from "./pricing";
 export {
   assertMissionPrompt,
   comparePrompts,

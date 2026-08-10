@@ -45,6 +45,7 @@ export {
   type ProjectCostSummary,
   readProjectCostSummary,
 } from "./generation-cost";
+export { type MissionMeasurement, readMissionMeasurements } from "./generation-measurements";
 export {
   delegateName,
   isProjectOwnedModel,

@@ -11,6 +11,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@calepin/ai": "workspace:*",
     "@calepin/analysis": "workspace:*",
     "@calepin/bible": "workspace:*",
     "@calepin/coherence": "workspace:*",
