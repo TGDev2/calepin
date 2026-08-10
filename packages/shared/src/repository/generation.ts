@@ -17,7 +17,7 @@
 import type { $Enums } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
-import { NotFoundError } from "../errors/app-error";
+import { InternalError, NotFoundError } from "../errors/app-error";
 import type { ErrorCategory } from "../errors/categories";
 import { ERROR_CODES, type ErrorCode } from "../errors/codes";
 import { fail, type Result, succeed } from "../errors/result";
@@ -235,6 +235,251 @@ function toErrorCode(value: string | null): ErrorCode | null {
   // `./generation-run.ts` already uses: the narrowing is the search's own result,
   // so §6's "never cast" holds without a comment promising it does.
   return value === null ? null : (ERROR_CODES.find((code) => code === value) ?? null);
+}
+
+/**
+ * `Generation.status`, re-exported under the repository's own name — the
+ * five-value execution status, never to be confused with the three-value
+ * attempt outcome `GenerationStatus` of `@calepin/shared/generation`.
+ */
+export type GenerationExecutionStatus = $Enums.GenerationStatus;
+
+const GENERATION_EXECUTION_STATUSES = [
+  "QUEUED",
+  "RUNNING",
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELLED",
+] as const satisfies readonly $Enums.GenerationStatus[];
+
+function toGenerationExecutionStatus(value: string): GenerationExecutionStatus {
+  const status = GENERATION_EXECUTION_STATUSES.find((candidate) => candidate === value);
+
+  if (status === undefined) {
+    throw new InternalError({
+      message: "the recent generations query returned a status this build has no name for",
+      fieldPath: "status",
+    });
+  }
+
+  return status;
+}
+
+/**
+ * The user's own generations, newest first — CAL-068's operations screen, the
+ * one place every mission call an author has ever asked for is diagnosable
+ * without opening the database.
+ *
+ * **User-wide, not project-scoped.** The backlog names it "les générations
+ * récentes de l'utilisateur", and the same shape `listProjectDashboardRows`
+ * already uses: an owner id, no `ProjectScope`, because the whole point is to
+ * cross every project the author has.
+ *
+ * **Every field that `Generation` itself cannot answer — model, tokens,
+ * duration, cost, attempt count — is aggregated from `GenerationAttempt`**,
+ * the same reasoning `readMissionMeasurements` and `readProjectCostSummary`
+ * already carry: a retried generation may have called more than one model, so
+ * none of those numbers is a column on the generation, only a sum or a most-
+ * recent value over its attempts. `model` is the *latest* attempt's, read via
+ * `ARRAY_AGG(... ORDER BY "attempt" DESC)`, since a fallback (CAL-050) can
+ * change it between tries and the reader wants what was last asked, not what
+ * was first.
+ *
+ * **Never selects `Generation.input` or `targetId`.** `input` is the mission's
+ * resolved payload — literary content, forbidden here by §9 — and a raw
+ * `targetId` on screen would be a database key with nothing to resolve it
+ * against, which is not what "diagnose without opening the database" means.
+ *
+ * `estimatedCostUsd` is cast to `text` in SQL, never read as a `Decimal` —
+ * the same rule `generation-cost.ts`'s own doc-comment states and the same
+ * reason: money is a decimal string on both sides of the boundary, never a
+ * float.
+ */
+export interface RecentGeneration {
+  readonly id: string;
+  readonly projectId: string;
+  readonly projectTitle: string;
+  readonly mission: GenerationMission;
+  readonly status: GenerationExecutionStatus;
+  /** The latest attempt's model, or `null` for a generation never attempted. */
+  readonly model: string | null;
+  /** `COUNT` over the attempts, never a stored column (§4.3). */
+  readonly attemptCount: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  /** `SUM` of every attempt's own `durationMs` — the model time actually spent. */
+  readonly durationMs: number;
+  readonly estimatedCostUsd: string;
+  readonly errorCode: ErrorCode | null;
+  readonly errorCategory: ErrorCategory | null;
+  readonly failureClass: GenerationFailureClass | null;
+  readonly createdAt: Date;
+  readonly completedAt: Date | null;
+}
+
+const DEFAULT_RECENT_GENERATIONS_LIMIT = 100;
+
+function assertOwnerId(ownerId: string): void {
+  if (ownerId !== "") return;
+
+  throw new InternalError({
+    code: "PROJECT_SCOPE_REQUIRED",
+    message: "the recent generations query was reached without an owner",
+  });
+}
+
+function toRecentGeneration(row: unknown): RecentGeneration {
+  if (
+    typeof row !== "object" ||
+    row === null ||
+    !("id" in row) ||
+    !("projectId" in row) ||
+    !("projectTitle" in row) ||
+    !("mission" in row) ||
+    !("status" in row) ||
+    !("model" in row) ||
+    !("attemptCount" in row) ||
+    !("inputTokens" in row) ||
+    !("outputTokens" in row) ||
+    !("durationMs" in row) ||
+    !("estimatedCostUsd" in row) ||
+    !("errorCode" in row) ||
+    !("errorCategory" in row) ||
+    !("failureClass" in row) ||
+    !("createdAt" in row) ||
+    !("completedAt" in row)
+  ) {
+    throw new InternalError({ message: "the recent generations query returned an unexpected row" });
+  }
+
+  const {
+    id,
+    projectId,
+    projectTitle,
+    mission,
+    status,
+    model,
+    attemptCount,
+    inputTokens,
+    outputTokens,
+    durationMs,
+    estimatedCostUsd,
+    errorCode,
+    errorCategory,
+    failureClass,
+    createdAt,
+    completedAt,
+  } = row as Record<string, unknown>;
+
+  if (typeof id !== "string") throw new InternalError({ message: "bad row", fieldPath: "id" });
+  if (typeof projectId !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "projectId" });
+  }
+  if (typeof projectTitle !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "projectTitle" });
+  }
+  if (typeof mission !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "mission" });
+  }
+  if (typeof status !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "status" });
+  }
+  if (model !== null && typeof model !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "model" });
+  }
+  if (typeof attemptCount !== "number") {
+    throw new InternalError({ message: "bad row", fieldPath: "attemptCount" });
+  }
+  if (typeof inputTokens !== "number") {
+    throw new InternalError({ message: "bad row", fieldPath: "inputTokens" });
+  }
+  if (typeof outputTokens !== "number") {
+    throw new InternalError({ message: "bad row", fieldPath: "outputTokens" });
+  }
+  if (typeof durationMs !== "number") {
+    throw new InternalError({ message: "bad row", fieldPath: "durationMs" });
+  }
+  if (typeof estimatedCostUsd !== "string") {
+    throw new InternalError({ message: "bad row", fieldPath: "estimatedCostUsd" });
+  }
+  if (!(createdAt instanceof Date)) {
+    throw new InternalError({ message: "bad row", fieldPath: "createdAt" });
+  }
+  if (completedAt !== null && !(completedAt instanceof Date)) {
+    throw new InternalError({ message: "bad row", fieldPath: "completedAt" });
+  }
+
+  return {
+    id,
+    projectId,
+    projectTitle,
+    mission: mission as GenerationMission,
+    status: toGenerationExecutionStatus(status),
+    model,
+    attemptCount,
+    inputTokens,
+    outputTokens,
+    durationMs,
+    estimatedCostUsd,
+    errorCode: toErrorCode(typeof errorCode === "string" ? errorCode : null),
+    // The raw column comes back untyped from `$queryRaw`; narrowed to the
+    // Prisma enum the same way `mission` above is — the value the database
+    // actually stores, asserted rather than reparsed.
+    errorCategory: toErrorCategory(
+      typeof errorCategory === "string" ? (errorCategory as $Enums.ErrorCategory) : null,
+    ),
+    failureClass: toFailureClass(
+      typeof failureClass === "string" ? (failureClass as $Enums.GenerationFailureClass) : null,
+    ),
+    createdAt,
+    completedAt,
+  };
+}
+
+export async function listRecentGenerations(
+  ownerId: string,
+  limit: number = DEFAULT_RECENT_GENERATIONS_LIMIT,
+): Promise<RecentGeneration[]> {
+  assertOwnerId(ownerId);
+
+  const rows = await getDatabaseClient().$queryRaw`
+    WITH "target_generations" AS (
+      SELECT g."id", g."projectId", p."title" AS "projectTitle", g."mission", g."status",
+             g."errorCode", g."errorCategory", g."failureClass", g."createdAt", g."completedAt"
+      FROM "generations" g
+      JOIN "projects" p ON p."id" = g."projectId"
+      WHERE p."userId" = ${ownerId}
+      ORDER BY g."createdAt" DESC
+      LIMIT ${limit}
+    )
+    SELECT tg.*,
+           COALESCE(agg."attemptCount", 0)::int AS "attemptCount",
+           COALESCE(agg."inputTokens", 0)::int AS "inputTokens",
+           COALESCE(agg."outputTokens", 0)::int AS "outputTokens",
+           COALESCE(agg."durationMs", 0)::int AS "durationMs",
+           COALESCE(agg."estimatedCostUsd", 0::numeric(12, 6))::text AS "estimatedCostUsd",
+           agg."model" AS "model"
+    FROM "target_generations" tg
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS "attemptCount",
+             SUM(a."inputTokens")::int AS "inputTokens",
+             SUM(a."outputTokens")::int AS "outputTokens",
+             SUM(a."durationMs")::int AS "durationMs",
+             SUM(a."estimatedCostUsd")::numeric(12, 6) AS "estimatedCostUsd",
+             (ARRAY_AGG(a."model" ORDER BY a."attempt" DESC))[1] AS "model"
+      FROM "generation_attempts" a
+      WHERE a."generationId" = tg."id"
+    ) agg ON true
+    ORDER BY tg."createdAt" DESC
+  `;
+
+  if (!Array.isArray(rows)) {
+    throw new InternalError({
+      message: "the recent generations query returned an unexpected shape",
+    });
+  }
+
+  return rows.map((row: unknown) => toRecentGeneration(row));
 }
 
 /**

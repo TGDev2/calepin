@@ -24,6 +24,18 @@
   letter-spacing: -0.02em;
 }
 
+.headerActions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.generationsLink {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
 .newProjectLink {
   flex-shrink: 0;
   padding: 0.5rem var(--space-2);

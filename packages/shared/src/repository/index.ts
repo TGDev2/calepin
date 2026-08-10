@@ -34,10 +34,13 @@ export {
 export {
   type FailedGeneration,
   type GenerationContext,
+  type GenerationExecutionStatus,
   type GenerationMission,
   getGenerationContextForProject,
   listFailedGenerations,
+  listRecentGenerations,
   listRunningGenerations,
+  type RecentGeneration,
   type RunningGeneration,
   type RunningGenerationStatus,
 } from "./generation";

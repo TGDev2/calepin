@@ -38,6 +38,7 @@ import {
   listFailedGenerations,
   listProjectDashboardRows,
   listProjectsForOwner,
+  listRecentGenerations,
   listRunningGenerations,
   listSourceTextVersions,
   openProjectScope,
@@ -93,6 +94,7 @@ const ENTRY_POINTS = [
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "listFailedGenerations",
+  "listRecentGenerations",
   "listRunningGenerations",
   "listSourceTextVersions",
   "openProjectScope",
@@ -697,6 +699,39 @@ describe("owner access policy", () => {
       expect(bobsFailed.map((row) => row.id)).not.toContain(alice.rows.Generation);
     });
 
+    // CAL-068's operations screen — user-wide, so there is no scope to forge:
+    // the isolation is entirely in `WHERE p."userId" = ...`. The fixture graph
+    // seeds exactly one `Generation` (`WRITE_SCENE`) with one
+    // `GenerationAttempt` (`model: "fixture-model"`, no usage recorded) per
+    // owner, which is enough to prove both the isolation and the aggregation
+    // without a bespoke seed. Runs after `listFailedGenerations`'s own test,
+    // which has already moved Alice's row to `FAILED` — asserted here rather
+    // than re-asserted as `QUEUED`, since that mutation is exactly what proves
+    // the status and error columns are read back correctly too.
+    it("listRecentGenerations never returns another owner's generation", async () => {
+      const bobsGenerations = await listRecentGenerations(bob.ownerId);
+      const alicesGenerations = await listRecentGenerations(alice.ownerId);
+
+      expect(bobsGenerations.map((row) => row.id)).not.toContain(alice.rows.Generation);
+      expect(alicesGenerations.map((row) => row.id)).not.toContain(bob.rows.Generation);
+
+      const alicesRow = alicesGenerations.find((row) => row.id === alice.rows.Generation);
+      expect(alicesRow).toMatchObject({
+        projectId: alice.projectId,
+        mission: "WRITE_SCENE",
+        status: "FAILED",
+        model: "fixture-model",
+        attemptCount: 1,
+        inputTokens: 0,
+        outputTokens: 0,
+        durationMs: 0,
+        estimatedCostUsd: "0.000000",
+        errorCode: "PROVIDER_UNAVAILABLE",
+        errorCategory: "provider",
+        failureClass: "permanent",
+      });
+    });
+
     it("updateProject refuses a scope forged for another owner's project", async () => {
       const before = await getProjectForOwner({
         ownerId: alice.ownerId,
@@ -1018,6 +1053,9 @@ describe("owner access policy", () => {
       await expect(
         openProjectScope({ ownerId: "", projectId: alice.projectId }),
       ).rejects.toMatchObject({ code: "PROJECT_SCOPE_REQUIRED" });
+      await expect(listRecentGenerations("")).rejects.toMatchObject({
+        code: "PROJECT_SCOPE_REQUIRED",
+      });
     });
   });
 });

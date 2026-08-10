@@ -68,9 +68,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     <main className={styles.main}>
       <div className={styles.header}>
         <h1 className={styles.title}>Mes projets</h1>
-        <Link className={styles.newProjectLink} href="/projects/new">
-          Nouveau projet
-        </Link>
+        <div className={styles.headerActions}>
+          <Link className={styles.generationsLink} href="/generations">
+            Générations
+          </Link>
+          <Link className={styles.newProjectLink} href="/projects/new">
+            Nouveau projet
+          </Link>
+        </div>
       </div>
 
       <form className={styles.filters} method="get" action="/">

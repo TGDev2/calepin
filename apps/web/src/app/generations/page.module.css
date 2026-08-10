@@ -1,0 +1,139 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.back {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: -0.02em;
+}
+
+.note {
+  margin: var(--space-1) 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.error {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-danger);
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.table th,
+.table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table thead th {
+  background: var(--color-surface);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table td {
+  white-space: normal;
+}
+
+.mission {
+  margin: 0;
+  font-weight: 600;
+}
+
+.reason {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  max-width: 22rem;
+}
+
+.projectLink {
+  color: inherit;
+  white-space: nowrap;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.15rem var(--space-1);
+  border-radius: var(--radius-1);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.statusFailed {
+  background: var(--color-danger-surface);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.statusRunning,
+.statusQueued {
+  background: var(--color-warning-surface);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.statusSucceeded,
+.statusCancelled {
+  background: var(--color-background);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.form {
+  flex: 0 0 auto;
+}
+
+.skeleton {
+  display: grid;
+  gap: var(--space-1);
+}
