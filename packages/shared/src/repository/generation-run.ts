@@ -336,9 +336,11 @@ export async function claimGenerationAttempt(
       },
     });
 
+    // Progress is cleared with the same statement that opens the attempt: a
+    // reload during attempt 2 must never show attempt 1's last step.
     await tx.$executeRaw`
       UPDATE "generations"
-      SET "status" = 'RUNNING'
+      SET "status" = 'RUNNING', "progressStep" = NULL, "progressPercent" = NULL
       WHERE "id" = ${input.generationId}
         AND "status" IN ('QUEUED', 'RUNNING')
         AND "projectId" IN (
@@ -511,6 +513,48 @@ export async function renewGenerationAttemptLease(
   });
 
   return succeed(renewed.count > 0 ? "renewed" : "lost");
+}
+
+export interface UpdateGenerationProgressInput {
+  readonly generationId: string;
+  readonly step: string;
+  readonly percent?: number;
+}
+
+/**
+ * Records the named step and indicative percentage a running mission last
+ * reported (CAL-062) — `reportProgress` inside `produce`, persisted.
+ *
+ * Raw SQL and unconditional on the row's own `version`/audit block, the same
+ * shape `claimGenerationAttempt`'s status write already uses: this is a
+ * transition authored by nobody, exactly what `./generation-run.ts`'s own
+ * doc comment describes.
+ *
+ * Restricted to a generation that is `RUNNING` — a progress update racing a
+ * completion (the attempt finished and moved the row on) is silently a
+ * no-op rather than resurrecting a display value on a settled generation.
+ * Best-effort by design: nothing here throws for "no row matched", because
+ * that is the ordinary outcome of a late update, not a failure.
+ */
+export async function updateGenerationProgress(
+  scope: ProjectScope,
+  input: UpdateGenerationProgressInput,
+): Promise<void> {
+  assertProjectScope(scope);
+
+  const percent =
+    input.percent === undefined ? null : Math.min(100, Math.max(0, Math.round(input.percent)));
+
+  await getDatabaseClient().$executeRaw`
+    UPDATE "generations"
+    SET "progressStep" = ${input.step}, "progressPercent" = ${percent}
+    WHERE "id" = ${input.generationId}
+      AND "status" = 'RUNNING'
+      AND "projectId" IN (
+        SELECT "id" FROM "projects"
+        WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+      )
+  `;
 }
 
 /**

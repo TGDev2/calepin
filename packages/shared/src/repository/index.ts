@@ -69,6 +69,8 @@ export {
   type ReservedGeneration,
   reserveGeneration,
   type ReserveGenerationInput,
+  updateGenerationProgress,
+  type UpdateGenerationProgressInput,
 } from "./generation-run";
 export {
   delegateName,

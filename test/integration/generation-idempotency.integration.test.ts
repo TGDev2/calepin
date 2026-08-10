@@ -49,6 +49,7 @@ import {
   readProjectCostSummary,
   replayGeneration,
   reserveGeneration,
+  updateGenerationProgress,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -699,6 +700,156 @@ describe("generation idempotency (CAL-058)", () => {
 
       const unit = Number(usageOf(FIRST_CALL).estimatedCostUsd);
       expect(Number(await accountedCost(scope))).toBeCloseTo(unit * 5, 6);
+    });
+  });
+
+  describe("generation progress (CAL-062)", () => {
+    async function progressOf(
+      generationId: string,
+    ): Promise<{ progressStep: string | null; progressPercent: number | null }> {
+      const row = await prisma.generation.findUniqueOrThrow({
+        where: { id: generationId },
+        select: { progressStep: true, progressPercent: true },
+      });
+
+      return row;
+    }
+
+    it("records a running generation's step and clamps the percentage to [0, 100]", async () => {
+      const { ownerId, scope } = await createFixture();
+      const reserved = await runWithActor(ownerId, async () =>
+        reserveGeneration(scope, { mission: "WRITE_SCENE", input: { chapterId: "p1" } }),
+      );
+      if (!reserved.ok) throw new Error("the reservation was refused");
+
+      await claimGenerationAttempt(scope, { generationId: reserved.value.id, model: MODEL });
+
+      await updateGenerationProgress(scope, {
+        generationId: reserved.value.id,
+        step: "Composition du contexte",
+        percent: 42,
+      });
+      expect(await progressOf(reserved.value.id)).toEqual({
+        progressStep: "Composition du contexte",
+        progressPercent: 42,
+      });
+
+      // A later call states the total again — it does not add to it, the same
+      // discipline `report` uses for usage.
+      await updateGenerationProgress(scope, {
+        generationId: reserved.value.id,
+        step: "Rédaction en cours",
+        percent: 150,
+      });
+      expect(await progressOf(reserved.value.id)).toEqual({
+        progressStep: "Rédaction en cours",
+        progressPercent: 100,
+      });
+
+      await updateGenerationProgress(scope, {
+        generationId: reserved.value.id,
+        step: "Validation",
+        percent: -5,
+      });
+      expect((await progressOf(reserved.value.id)).progressPercent).toBe(0);
+    });
+
+    it("is a no-op once the generation has left RUNNING", async () => {
+      const { ownerId, scope } = await createFixture();
+      const reserved = await runWithActor(ownerId, async () =>
+        reserveGeneration(scope, { mission: "WRITE_SCENE", input: { chapterId: "p2" } }),
+      );
+      if (!reserved.ok) throw new Error("the reservation was refused");
+
+      await claimGenerationAttempt(scope, { generationId: reserved.value.id, model: MODEL });
+      await completeGenerationAttempt(scope, {
+        generationId: reserved.value.id,
+        attempt: 1,
+        durationMs: 500,
+        status: "succeeded",
+        retryable: false,
+        usage: usageOf(FIRST_CALL),
+      });
+
+      // The attempt is over; a late progress update racing the completion must
+      // not resurrect a display value on a settled generation.
+      await updateGenerationProgress(scope, {
+        generationId: reserved.value.id,
+        step: "Rédaction en cours",
+        percent: 80,
+      });
+
+      expect(await progressOf(reserved.value.id)).toEqual({
+        progressStep: null,
+        progressPercent: null,
+      });
+    });
+
+    it("is scoped: it never writes a row outside the caller's project", async () => {
+      const mine = await createFixture();
+      const theirs = await createFixture();
+      const reserved = await runWithActor(theirs.ownerId, async () =>
+        reserveGeneration(theirs.scope, { mission: "WRITE_SCENE", input: { chapterId: "p3" } }),
+      );
+      if (!reserved.ok) throw new Error("the reservation was refused");
+
+      await claimGenerationAttempt(theirs.scope, {
+        generationId: reserved.value.id,
+        model: MODEL,
+      });
+
+      const forged = { ...mine.scope, projectId: theirs.scope.projectId } as ProjectScope;
+
+      // Not a throw: an update matching no row is the ordinary shape of a
+      // forged or late call, not a failure this function reports.
+      await updateGenerationProgress(forged, {
+        generationId: reserved.value.id,
+        step: "Rédaction en cours",
+        percent: 50,
+      });
+
+      expect(await progressOf(reserved.value.id)).toEqual({
+        progressStep: null,
+        progressPercent: null,
+      });
+    });
+
+    it("clears a reclaimed attempt's progress when the next one opens", async () => {
+      const { ownerId, scope } = await createFixture();
+      const reserved = await runWithActor(ownerId, async () =>
+        reserveGeneration(scope, { mission: "WRITE_SCENE", input: { chapterId: "p4" } }),
+      );
+      if (!reserved.ok) throw new Error("the reservation was refused");
+
+      const held = new Date("2026-03-01T10:00:00.000Z");
+      await claimGenerationAttempt(scope, {
+        generationId: reserved.value.id,
+        model: MODEL,
+        leaseMs: 60_000,
+        now: held,
+      });
+      await updateGenerationProgress(scope, {
+        generationId: reserved.value.id,
+        step: "Rédaction en cours",
+        percent: 75,
+      });
+      expect((await progressOf(reserved.value.id)).progressStep).toBe("Rédaction en cours");
+
+      // The worker holding that progress died. A redelivery past the lease
+      // reclaims the attempt and opens a new one, which must not show the
+      // dead attempt's last step.
+      const afterRestart = new Date(held.getTime() + 120_000);
+      const retaken = await claimGenerationAttempt(scope, {
+        generationId: reserved.value.id,
+        model: MODEL,
+        now: afterRestart,
+      });
+
+      expect(retaken.ok && retaken.value).toEqual({ kind: "claimed", attempt: 2 });
+      expect(await progressOf(reserved.value.id)).toEqual({
+        progressStep: null,
+        progressPercent: null,
+      });
     });
   });
 });

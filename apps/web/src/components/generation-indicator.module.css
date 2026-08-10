@@ -44,3 +44,21 @@
     transform: rotate(360deg);
   }
 }
+
+.progressTrack {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: var(--space-1);
+  width: 6rem;
+  height: 0.35rem;
+  border-radius: var(--radius-1);
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  background: var(--color-text-muted);
+  transition: width 0.3s ease;
+}

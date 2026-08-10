@@ -1,66 +1,42 @@
 "use client";
 
 /**
- * The persistent generation indicator (CAL-039).
+ * The persistent generation indicator (CAL-039), now live via server-sent
+ * events (CAL-062) instead of a poll.
  *
- * **Nothing produces a `Generation` row yet** — the mission registry
- * (`@calepin/ai`, CAL-048) and the worker that runs it (CAL-060) are both
- * still to come (CLAUDE.md §13). This component is the display half of a
- * read path that already works end-to-end against the real schema
- * (`listRunningGenerations`, CAL-021); it renders nothing today and starts
- * showing real rows the moment something enqueues one.
+ * **The initial list is the server's own read**, passed in as `initial` —
+ * unchanged from CAL-039, and what makes the banner correct on first paint
+ * and with JavaScript off. After that this component opens one SSE
+ * connection to `/api/projects/{projectId}/generations/events` via
+ * `subscribeToGenerationEvents` (`@/lib/generation-events`) and replaces
+ * `running` with whatever full snapshot the stream last sent.
  *
- * **"Persistent" means it stays live without a page reload.** The initial
- * list is the server's own read, passed in as `initial`; after that this
- * component polls `getRunningGenerations` on an interval so a generation
- * that finishes — or a new one that starts — updates the banner without the
- * visitor doing anything.
- *
- * **`getRunningGenerations` arrives as a prop, the server action itself
- * rather than an import of the module that defines it** — the same shape
- * `ProjectOverview`'s `renameAction` and `ArchiveProjectSection`'s
- * `archiveAction`/`restoreAction` already take. Importing the action module
- * directly would pull in `@/lib/current-user` → `@/lib/auth`, which validates
- * the process's environment at import time — fine in the running app, fatal
- * in a unit test that renders this component with no `.env` loaded.
+ * **Leaving the page and coming back loses nothing.** Unmounting closes the
+ * connection (nothing about a closed tab touches the generation, which only
+ * ever talks to Postgres and Redis); remounting — a reload, or navigating
+ * back — opens a fresh one, whose first frame already carries the current
+ * state. There is no separate "restore" code path, and the browser's own
+ * `EventSource` retries a dropped connection on its own.
  */
 
 import { useEffect, useState } from "react";
 
-import type { RunningGenerationView } from "@/app/projects/[projectId]/generation-status-action";
+import { type RunningGenerationView, subscribeToGenerationEvents } from "@/lib/generation-events";
 import { generationMissionLabel } from "@/lib/generation-mission-label";
 
 import styles from "./generation-indicator.module.css";
 
-const POLL_INTERVAL_MS = 5000;
-
 export interface GenerationIndicatorProps {
   readonly projectId: string;
   readonly initial: RunningGenerationView[];
-  readonly getRunningGenerations: (projectId: string) => Promise<RunningGenerationView[]>;
 }
 
-export function GenerationIndicator({
-  projectId,
-  initial,
-  getRunningGenerations,
-}: GenerationIndicatorProps) {
+export function GenerationIndicator({ projectId, initial }: GenerationIndicatorProps) {
   const [running, setRunning] = useState(initial);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const interval = setInterval(() => {
-      void getRunningGenerations(projectId).then((next) => {
-        if (!cancelled) setRunning(next);
-      });
-    }, POLL_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [projectId, getRunningGenerations]);
+    return subscribeToGenerationEvents(`/api/projects/${projectId}/generations/events`, setRunning);
+  }, [projectId]);
 
   if (running.length === 0) return null;
 
@@ -69,7 +45,21 @@ export function GenerationIndicator({
       {running.map((generation) => (
         <p key={generation.id} className={styles.line}>
           <span className={styles.spinner} aria-hidden="true" />
-          Génération en cours&nbsp;: {generationMissionLabel(generation.mission)}
+          <span>
+            Génération en cours&nbsp;: {generationMissionLabel(generation.mission)}
+            {generation.progressStep === null ? null : <> — {generation.progressStep}</>}
+            {generation.progressPercent === null ? null : (
+              <>
+                &nbsp;({generation.progressPercent}&nbsp;%)
+                <span className={styles.progressTrack} aria-hidden="true">
+                  <span
+                    className={styles.progressFill}
+                    style={{ width: `${generation.progressPercent}%` }}
+                  />
+                </span>
+              </>
+            )}
+          </span>
         </p>
       ))}
     </div>

@@ -195,6 +195,66 @@ describe("runGenerationAttempt, when the generation succeeds", () => {
   });
 });
 
+describe("runGenerationAttempt, progress reporting (CAL-062)", () => {
+  it("forwards reportProgress to onProgress, with the claimed attempt's context", async () => {
+    const persist = createRecorder({ claim: () => ({ kind: "claimed", attempt: 3 }) });
+    const seen: unknown[] = [];
+
+    await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (_report, reportProgress) => {
+        reportProgress({ step: "Composition du contexte", percent: 20 });
+
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+      onProgress: (progress, context) => seen.push({ progress, context }),
+    });
+
+    expect(seen).toEqual([
+      {
+        progress: { step: "Composition du contexte", percent: 20 },
+        context: { generationId: "gen-1", attempt: 3 },
+      },
+    ]);
+  });
+
+  it("forwards every call, stated rather than merged", async () => {
+    const persist = createRecorder();
+    const steps: string[] = [];
+
+    await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (_report, reportProgress) => {
+        reportProgress({ step: "Composition du contexte" });
+        reportProgress({ step: "Rédaction en cours", percent: 60 });
+
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+      onProgress: (progress) => steps.push(progress.step),
+    });
+
+    expect(steps).toEqual(["Composition du contexte", "Rédaction en cours"]);
+  });
+
+  it("is a safe no-op when nothing is listening", async () => {
+    const persist = createRecorder();
+
+    const result = await runGenerationAttempt({
+      generationId: "gen-1",
+      produce: (_report, reportProgress) => {
+        reportProgress({ step: "Composition du contexte" });
+
+        return succeed(RESULT_TOKEN);
+      },
+      persist,
+    });
+
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("runGenerationAttempt, when the claim refuses", () => {
   it.each([["already-succeeded"], ["already-failed"], ["cancelled"], ["in-flight"]] as const)(
     "asks no provider and writes nothing: %s",

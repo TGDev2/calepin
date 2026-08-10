@@ -1548,6 +1548,16 @@ describe("prisma schema", () => {
         expect(modelBlock("Generation")).not.toMatch(/^\s*idempotencyKey\s+String\s+@default/m);
       });
 
+      // CAL-062. Display-only, advisory columns for the live progress stream
+      // — nullable, and the percent is never bare (its range is a database
+      // CHECK, not something a caller can be trusted to respect).
+      it("carries an advisory named step and percentage, both nullable", () => {
+        const generation = modelBlock("Generation");
+
+        expect(generation).toMatch(/^\s*progressStep\s+String\?$/m);
+        expect(generation).toMatch(/^\s*progressPercent\s+Int\?$/m);
+      });
+
       it("indexes cost-per-mission, the project listing and the reconciliation sweep", () => {
         const generation = modelBlock("Generation");
 

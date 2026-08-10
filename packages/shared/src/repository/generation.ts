@@ -45,6 +45,9 @@ export interface RunningGeneration {
   readonly mission: GenerationMission;
   readonly status: RunningGenerationStatus;
   readonly createdAt: Date;
+  /** The named step and indicative percentage last reported (CAL-062). */
+  readonly progressStep: string | null;
+  readonly progressPercent: number | null;
 }
 
 /**
@@ -57,7 +60,14 @@ export async function listRunningGenerations(scope: ProjectScope): Promise<Runni
   const rows = await getDatabaseClient().generation.findMany({
     where: scopedWhere("Generation", scope, { status: { in: RUNNING_STATUSES } }),
     orderBy: { createdAt: "asc" },
-    select: { id: true, mission: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      mission: true,
+      status: true,
+      createdAt: true,
+      progressStep: true,
+      progressPercent: true,
+    },
   });
 
   return rows.map((row) => ({ ...row, status: row.status as RunningGenerationStatus }));

@@ -359,6 +359,28 @@ export async function setGenerationStatus(
 }
 
 /**
+ * Writes a named step and percentage directly onto a `Generation` row —
+ * CAL-062's spec proves the progress stream's own tick picks the change up
+ * without a page reload, the same "seed the effect, drive the screen" shape
+ * `setGenerationStatus` above already uses in place of a real executor.
+ */
+export async function setGenerationProgress(
+  generationId: string,
+  progress: { step: string; percent?: number },
+): Promise<void> {
+  const prisma = new PrismaClient();
+
+  try {
+    await prisma.generation.update({
+      where: { id: generationId },
+      data: { progressStep: progress.step, progressPercent: progress.percent ?? null },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * The titles of one account's projects, most recently modified first — what
  * CAL-035's specs check a rename and a duplication against.
  *

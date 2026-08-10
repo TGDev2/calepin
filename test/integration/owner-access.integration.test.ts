@@ -52,6 +52,7 @@ import {
   requireOwnedRow,
   reserveGeneration,
   scopedWhere,
+  updateGenerationProgress,
   updateProject,
   type UpdateProjectInput,
   updateSourceText,
@@ -103,6 +104,7 @@ const ENTRY_POINTS = [
   "requireOwnedRow",
   "reserveGeneration",
   "restoreProject",
+  "updateGenerationProgress",
   "updateProject",
   "updateSourceText",
   "withProjectAggregates",
@@ -494,6 +496,42 @@ describe("owner access policy", () => {
         leaseMs: 60_000,
       });
       expect(mine.ok && mine.value).toBe("renewed");
+    });
+
+    // CAL-062. A progress write is exactly as confined as any other write on
+    // a live generation: a forged scope must not be able to plant a step or a
+    // percentage onto another owner's row. The fixture's generation is
+    // `QUEUED` by default; this function only ever writes a `RUNNING` one
+    // (§7's own reasoning — nothing is "in progress" before an attempt has
+    // claimed it), so the test moves it there itself, harmlessly for every
+    // later assertion in this file: nothing downstream reads this row's exact
+    // status, only its presence in the "running" list, which already
+    // includes `QUEUED`.
+    it("updateGenerationProgress writes no step but the owner's", async () => {
+      await prisma.generation.update({
+        where: { id: alice.rows.Generation },
+        data: { status: "RUNNING" },
+      });
+
+      await updateGenerationProgress(forgedScope(bob.ownerId, alice.projectId), {
+        generationId: alice.rows.Generation,
+        step: "seized",
+        percent: 90,
+      });
+      expect(
+        (await prisma.generation.findUniqueOrThrow({ where: { id: alice.rows.Generation } }))
+          .progressStep,
+      ).toBeNull();
+
+      await updateGenerationProgress(aliceScope, {
+        generationId: alice.rows.Generation,
+        step: "Rédaction en cours",
+        percent: 40,
+      });
+      expect(
+        (await prisma.generation.findUniqueOrThrow({ where: { id: alice.rows.Generation } }))
+          .progressStep,
+      ).toBe("Rédaction en cours");
     });
 
     // CAL-061. The one ungated read, and the hinge the other four hang on: the

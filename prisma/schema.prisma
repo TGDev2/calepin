@@ -2251,6 +2251,18 @@ model Generation {
 
   status GenerationStatus @default(QUEUED)
 
+  /// A named step and its indicative percentage, as `reportProgress` inside a
+  /// mission's `produce` last stated them (CAL-062) — "Composition du
+  /// contexte", "Rédaction en cours", and so on. Display-only and advisory:
+  /// nothing that decides this row's fate reads either column, which is why
+  /// neither needs the audit block's discipline (§4.3's "authored by
+  /// nobody" transitions, same as `status` itself). Cleared to null exactly
+  /// when `claimGenerationAttempt` opens a new attempt, so a reload during
+  /// attempt 2 never shows attempt 1's last step.
+  progressStep    String?
+  /// 0–100 — generations_progress_percent_check.
+  progressPercent Int?
+
   /// Set exactly when the status is terminal — generations_completion_check.
   /// The wall-clock duration of the task is this minus createdAt, and the wait
   /// in the queue is the first attempt's startedAt minus createdAt; neither is

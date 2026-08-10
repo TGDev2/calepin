@@ -93,6 +93,52 @@ describe("listRunningGenerations (CAL-039)", () => {
     for (const row of running) expect(row).not.toHaveProperty("input");
   });
 
+  it("carries the named step and percentage a mission last reported (CAL-062)", async () => {
+    const user = await prisma.user.create({
+      data: { email: "generation-repository-progress@example.test" },
+    });
+    setActor(user.id);
+
+    const project = await prisma.project.create({
+      data: { userId: user.id, title: "Generation progress fixture" },
+    });
+
+    const withProgress = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "WRITE_SCENE",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-progress-write-scene"),
+        status: "RUNNING",
+        progressStep: "Composition du contexte",
+        progressPercent: 30,
+      },
+    });
+    const withoutProgress = await prisma.generation.create({
+      data: {
+        projectId: project.id,
+        mission: "EXTRACT_FACTS",
+        input: {},
+        idempotencyKey: fixtureGenerationKey("generation-repository-progress-extract-facts"),
+        status: "QUEUED",
+      },
+    });
+
+    const opened = await openProjectScope({ ownerId: user.id, projectId: project.id });
+    if (!opened.ok) throw new Error("the owner could not open a scope on their own project");
+
+    const running = await listRunningGenerations(opened.value);
+
+    expect(running.find((row) => row.id === withProgress.id)).toMatchObject({
+      progressStep: "Composition du contexte",
+      progressPercent: 30,
+    });
+    expect(running.find((row) => row.id === withoutProgress.id)).toMatchObject({
+      progressStep: null,
+      progressPercent: null,
+    });
+  });
+
   it("returns nothing for a project with no generation in flight", async () => {
     const user = await prisma.user.create({
       data: { email: "generation-repository-idle@example.test" },

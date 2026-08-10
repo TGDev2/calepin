@@ -67,6 +67,7 @@ import {
   toFailedAttempt,
   toSucceededAttempt,
 } from "./outcome";
+import type { GenerationProgress } from "./progress";
 
 /**
  * Why a claim did not open an attempt. Every one of them is an ordinary state
@@ -145,9 +146,28 @@ export interface RunGenerationAttemptOptions<T> {
    * usage — on the way to a failure as much as on the way to an answer, since a
    * call billed before its answer was rejected still cost what it cost. A
    * second call *states* the total again; it does not add to it.
+   *
+   * It also receives `reportProgress` (CAL-062), the same shape one level
+   * over: a named step and an indicative percentage, for a screen watching
+   * this generation. Unlike `report`, a call reaches `onProgress` immediately
+   * rather than being read back at completion — a percentage nobody sees
+   * until the work is done is not progress.
    */
-  produce: (report: (usage: AttemptUsage) => void) => Promise<Result<T>> | Result<T>;
+  produce: (
+    report: (usage: AttemptUsage) => void,
+    reportProgress: (progress: GenerationProgress) => void,
+  ) => Promise<Result<T>> | Result<T>;
   persist: GenerationPersistence<T>;
+  /**
+   * Best-effort sink for `reportProgress` (CAL-062). Never awaited and never
+   * allowed to fail the attempt: a progress update is display, not the
+   * result, so a caller that wants it persisted takes care of its own errors
+   * rather than have one turn a working generation into a failed one.
+   */
+  onProgress?: (
+    progress: GenerationProgress,
+    context: { generationId: string; attempt: number },
+  ) => void;
   /** Injected clock (§8). */
   now?: () => number;
 }
@@ -155,7 +175,14 @@ export interface RunGenerationAttemptOptions<T> {
 export async function runGenerationAttempt<T>(
   options: RunGenerationAttemptOptions<T>,
 ): Promise<Result<GenerationRun<T>>> {
-  const { generationId, promptVersion, produce, persist, now = () => Date.now() } = options;
+  const {
+    generationId,
+    promptVersion,
+    produce,
+    persist,
+    onProgress,
+    now = () => Date.now(),
+  } = options;
 
   let claim: GenerationClaim;
 
@@ -182,6 +209,10 @@ export async function runGenerationAttempt<T>(
     usage = reported;
   };
 
+  const reportProgress = (progress: GenerationProgress): void => {
+    onProgress?.(progress, { generationId, attempt });
+  };
+
   const context = (): AttemptContext => ({
     generationId,
     attempt,
@@ -193,7 +224,7 @@ export async function runGenerationAttempt<T>(
   let produced: Result<T>;
 
   try {
-    produced = await produce(report);
+    produced = await produce(report, reportProgress);
   } catch (error: unknown) {
     produced = fail(toAppError(error));
   }

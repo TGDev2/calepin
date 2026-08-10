@@ -38,6 +38,7 @@ import {
   type AttemptUsage,
   type GenerationClaim,
   type GenerationPersistence,
+  type GenerationProgress,
   runGenerationAttempt,
 } from "../generation";
 import { type Logger, logger as processLogger } from "../logging";
@@ -49,6 +50,7 @@ import {
   readGenerationForRun,
   renewGenerationAttemptLease,
   type TransactionClient,
+  updateGenerationProgress,
 } from "../repository";
 import type { JobContract } from "./jobs";
 import { type EnqueuedJob, enqueueJob } from "./producer";
@@ -144,11 +146,14 @@ export interface GenerationExecutor {
   /**
    * The model call and the validation of its answer. Never persists, and calls
    * `report` as soon as a provider has reported usage — on the way to a failure
-   * as much as on the way to an answer.
+   * as much as on the way to an answer. `reportProgress` (CAL-062) is the same
+   * shape for a named step and an indicative percentage, for a screen watching
+   * this generation.
    */
   produce(
     request: GenerationExecutorRequest,
     report: (usage: AttemptUsage) => void,
+    reportProgress: (progress: GenerationProgress) => void,
   ): Promise<Result<GenerationProduct>>;
 }
 
@@ -291,7 +296,23 @@ export async function runGenerationJob(
         generationId,
         promptVersion: executor.promptVersion,
         persist,
-        produce: (report) => executor.produce(request, report),
+        produce: (report, reportProgress) => executor.produce(request, report, reportProgress),
+        // Best-effort and fire-and-forget: a progress write must never fail
+        // the attempt it is only describing (§7 — expected failures here are
+        // not even worth a `Result`, since there is no caller to report one
+        // to before the next report supersedes it).
+        onProgress: (progress) => {
+          void updateGenerationProgress(scope, {
+            generationId,
+            step: progress.step,
+            percent: progress.percent,
+          }).catch((error: unknown) => {
+            logger.warn("generation.progress-not-recorded", {
+              generationId,
+              errorName: error instanceof Error ? error.name : "unknown",
+            });
+          });
+        },
         now: () => now().getTime(),
       }),
     );

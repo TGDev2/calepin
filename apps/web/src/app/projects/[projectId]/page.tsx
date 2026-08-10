@@ -29,7 +29,6 @@ import {
   renameProjectAction,
   restoreProjectAction,
 } from "./actions";
-import { getRunningGenerationsAction } from "./generation-status-action";
 import loadingStyles from "./loading.module.css";
 import styles from "./page.module.css";
 
@@ -139,8 +138,12 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
 
       <GenerationIndicator
         projectId={project.id}
-        initial={runningGenerations.map((row) => ({ id: row.id, mission: row.mission }))}
-        getRunningGenerations={getRunningGenerationsAction}
+        initial={runningGenerations.map((row) => ({
+          id: row.id,
+          mission: row.mission,
+          progressStep: row.progressStep,
+          progressPercent: row.progressPercent,
+        }))}
       />
 
       {/*

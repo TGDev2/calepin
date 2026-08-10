@@ -36,3 +36,4 @@ export type {
   GenerationStatus,
 } from "./outcome";
 export { GENERATION_STATUSES, toFailedAttempt, toSucceededAttempt } from "./outcome";
+export type { GenerationProgress } from "./progress";
