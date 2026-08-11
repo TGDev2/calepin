@@ -27,3 +27,13 @@ that has been checked rather than one somebody remembered to check.
 
 The prompt is V3 in `@calepin/ai/prompts`, beside the V1 and V2 that shipped
 before it.
+
+CAL-075 added the dedicated pass over the déjà-lu. `clicheRiskDetectionSchema`
+is the output contract of `detect-cliche-risks`: at most twelve findings across
+four fronts (situation, character, formula, reversal), each carrying a
+**required** verbatim passage, why it is conventional and what it prevents —
+and no numeric field anywhere, because the specification forbids a banality or
+originality score. `verifyClicheRiskEvidence` reads every quotation back
+against the source text and drops whole any finding whose passage is not
+there; its result is branded (`VerifiedClicheRiskDetection`), like the
+diagnostic's.

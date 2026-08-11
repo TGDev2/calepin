@@ -8,6 +8,23 @@
  */
 
 export {
+  CLICHE_RISK_CATEGORIES,
+  CLICHE_RISK_CHAR_CEILINGS,
+  CLICHE_RISK_COUNT,
+  CLICHE_RISK_WORD_TARGETS,
+  type ClicheRisk,
+  type ClicheRiskCategory,
+  type ClicheRiskDetection,
+  type ClicheRiskDrop,
+  type ClicheRiskEvidenceCheck,
+  type ClicheRiskEvidenceReport,
+  clicheRiskDetectionSchema,
+  isVerifiedClicheRiskDetection,
+  VERIFIED_CLICHE_DETECTION_BRAND,
+  type VerifiedClicheRiskDetection,
+  verifyClicheRiskEvidence,
+} from "./cliche";
+export {
   type AnalysisEvidenceCheck,
   type AnalysisEvidenceReport,
   EVIDENCE_CORRECTION_REASONS,

@@ -114,7 +114,12 @@ const CHARS_PER_WORD = 7;
  */
 const OVERRUN_FACTOR = 2;
 
-function ceilingFor(wordTarget: number): number {
+/**
+ * Package-internal (not on `index.ts`): `cliche.ts` derives its ceilings from
+ * the same two constants, so "a ceiling is twice the target in characters" is
+ * one rule with two users rather than two rules that agree today.
+ */
+export function ceilingFor(wordTarget: number): number {
   return Math.ceil(wordTarget * CHARS_PER_WORD * OVERRUN_FACTOR);
 }
 
