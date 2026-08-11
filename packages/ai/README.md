@@ -7,8 +7,8 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the ten mission identifiers, pinned against the
-  `GenerationMission` Prisma enum.
+- `missions.ts` — the mission identifiers (twelve since CAL-075), pinned
+  against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
   tariff table.
@@ -71,6 +71,7 @@ narrative rule, and never restates a domain schema.
   | mission                  | model    | effort | max out | timeout | output     | budget | expected in/out |
   | ------------------------ | -------- | ------ | ------- | ------- | ---------- | ------ | --------------- |
   | `analyze-source-text`    | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
+  | `detect-cliche-risks`    | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 20 k / 3 k      |
   | `propose-directions`     | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
   | `evaluate-direction`     | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
   | `create-character-sheet` | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
@@ -290,6 +291,25 @@ narrative rule, and never restates a domain schema.
 The measured half is `@calepin/shared/repository`'s `readMissionMeasurements`
 and is handed in: this layer never reads a database. Money is derived from the
 measured tokens at today's tariff, never replayed from a recorded price.
+
+## What exists (CAL-075)
+
+- **A twelfth mission**, `detect-cliche-risks` — the dedicated pass over the
+  déjà-lu. The diagnostic's `CLICHE_RISKS` section names the slopes in one
+  sentence each among sixteen other concerns; §5.4 is why the deep hunt is a
+  mission of its own: four fronts (situation, character, formula, reversal),
+  and per finding a required verbatim passage, why it is conventional and what
+  it forecloses. Its schema is `clicheRiskDetectionSchema` in
+  `@calepin/analysis`, which also owns `verifyClicheRiskEvidence` — an unfound
+  quotation deletes the finding whole, since evidence is required there.
+- `prompts/missions/detect-cliche-risks.ts` **V1** — argue, never rate: the
+  prompt forbids every numeric form a verdict could take (the specification's
+  own prohibition, 1195–1199), asks for the text's own order rather than a
+  severity ranking, states that an empty list is the honest answer for a
+  singular text, and rules out flagging what the text merely evokes and
+  displaces. Word targets and the findings ceiling arrive as variables owned
+  by `@calepin/analysis` (the CAL-055 discipline). Exercised before shipping
+  on conventional and singular trial texts (tasks/todo.md).
 
 ## What arrives in its own task
 

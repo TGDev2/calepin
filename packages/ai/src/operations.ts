@@ -133,7 +133,7 @@ export const COSTLY_OPERATION_REGISTRY = {
 
   /**
    * The full audit: every chapter checked against everything else, on the most
-   * demanding mission of the eleven. Pure control — it produces nothing and
+   * demanding mission of the twelve. Pure control — it produces nothing and
    * changes nothing — and the operation whose price grows fastest, since its
    * unit is the chapter and a manuscript has as many as it has.
    */

@@ -31,6 +31,7 @@ import { ANALYZE_SOURCE_TEXT_PROMPTS } from "./missions/analyze-source-text";
 import { BUILD_CHAPTER_OUTLINE_PROMPTS } from "./missions/build-chapter-outline";
 import { CHECK_COHERENCE_PROMPTS } from "./missions/check-coherence";
 import { CREATE_CHARACTER_SHEET_PROMPTS } from "./missions/create-character-sheet";
+import { DETECT_CLICHE_RISKS_PROMPTS } from "./missions/detect-cliche-risks";
 import { EVALUATE_DIRECTION_PROMPTS } from "./missions/evaluate-direction";
 import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
 import { FIX_ISSUE_PROMPTS } from "./missions/fix-issue";
@@ -48,6 +49,7 @@ export type PromptRegistry = Readonly<Record<PromptId, PromptVersions>>;
 
 export const PROMPT_REGISTRY = {
   "analyze-source-text": ANALYZE_SOURCE_TEXT_PROMPTS,
+  "detect-cliche-risks": DETECT_CLICHE_RISKS_PROMPTS,
   "propose-directions": PROPOSE_DIRECTIONS_PROMPTS,
   "evaluate-direction": EVALUATE_DIRECTION_PROMPTS,
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,

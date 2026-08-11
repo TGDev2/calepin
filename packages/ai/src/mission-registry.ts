@@ -10,13 +10,13 @@
  * `mission-registry.test.ts` proves that claim by walking the workspace: no
  * file outside this one and the capability sheet names a model at all.
  *
- * **Never one general-purpose prompt** (CLAUDE.md §5.4). The ten missions ask
- * ten different things of a model — a diagnosis, a set of proposals, a
- * judgement, a character sheet, a chapter plan, a scene, a list of atomic
- * facts, a contradiction hunt, a targeted correction, a summary — and merging
- * them behind one treatment would mean tuning none of them. The registry is
- * total over `MissionId` (`satisfies` below), so a mission cannot exist
- * without its own declaration.
+ * **Never one general-purpose prompt** (CLAUDE.md §5.4). The twelve missions
+ * ask twelve different things of a model — a diagnosis, a hunt for the
+ * déjà-lu, a set of proposals, a judgement, a character sheet, a chapter
+ * plan, a scene, a list of atomic facts, a contradiction hunt, a targeted
+ * correction, a summary — and merging them behind one treatment would mean
+ * tuning none of them. The registry is total over `MissionId` (`satisfies`
+ * below), so a mission cannot exist without its own declaration.
  *
  * **No temperature, and there will not be one**: the current model family
  * rejects the sampling parameters outright, so `effort` is the real control
@@ -125,7 +125,7 @@ export const MISSION_REGISTRY = {
   /**
    * The whole source text, read once, in depth — the one mission whose input
    * legitimately is the entire starting text, hence the largest budget of the
-   * ten. Everything downstream is built on its answer, so it stays on the
+   * twelve. Everything downstream is built on its answer, so it stays on the
    * strongest model.
    */
   "analyze-source-text": {
@@ -139,6 +139,27 @@ export const MISSION_REGISTRY = {
     contextBudgetTokens: 200_000,
     expectedUsage: { inputTokens: 60_000, outputTokens: 8_000 },
     expectedDurationMs: 180_000,
+  },
+
+  /**
+   * The dedicated pass over the déjà-lu (CAL-075): the same whole source text
+   * in, at most twelve argued findings out. Recognising what is conventional
+   * is breadth-of-culture work — the reading has to place a passage against
+   * everything it resembles — so it stays on the strongest model at `high`;
+   * the budget is smaller than the diagnosis's because the answer is one
+   * hunt, not seventeen sections.
+   */
+  "detect-cliche-risks": {
+    id: "detect-cliche-risks",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "analysis" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 20_000, outputTokens: 3_000 },
+    expectedDurationMs: 120_000,
   },
 
   /** Divergence: several genuinely different novels out of one text. */
@@ -204,7 +225,8 @@ export const MISSION_REGISTRY = {
   /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
-   * the ten, on the strongest model — this is not where a cost saving is made.
+   * the twelve, on the strongest model — this is not where a cost saving is
+   * made.
    */
   "write-scene": {
     id: "write-scene",
@@ -242,8 +264,8 @@ export const MISSION_REGISTRY = {
   /**
    * The mission the product is judged on: a contradiction between a chapter
    * and everything established before it. The most demanding reasoning of the
-   * ten over the widest context, so it is the one raised to `xhigh` and given
-   * the second-largest budget.
+   * twelve over the widest context, so it is the one raised to `xhigh` and
+   * given the second-largest budget.
    */
   "check-coherence": {
     id: "check-coherence",
@@ -277,7 +299,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the eleven and the most frequent after `extract-facts`: one
+   * The cheapest of the twelve and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */

@@ -76,7 +76,11 @@ export type GenerationWriteTargetKind = (typeof GENERATION_WRITE_TARGET_KINDS)[n
  * chapter and writes a `ChapterSummaryRevision` under it.
  */
 export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWriteTargetKind>> = {
+  // Both write the project's one analysis — the diagnostic's sections and the
+  // cliché findings land in the same document, so the two exclude each other.
   ANALYZE_SOURCE_TEXT: "analysis",
+  DETECT_CLICHE_RISKS: "analysis",
+
   PROPOSE_DIRECTIONS: "directions",
   EVALUATE_DIRECTION: "direction",
 
