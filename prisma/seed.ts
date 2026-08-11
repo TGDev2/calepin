@@ -162,6 +162,7 @@ Marc continua son chemin, sa valise à la main, se demandant ce que son propre r
   // not writing the words into a column.
   await seedUpToOutline("proj_outline_demo", demoUserId);
   await seedUpToOutline("proj_writing_demo", demoUserId);
+  await seedRelationshipGraph("proj_writing_demo");
   await seedFirstChapter("proj_writing_demo", demoUserId);
   await seedAnalysisContent("proj_writing_demo", demoUserId, sourceTextVersion.id);
 
@@ -232,6 +233,107 @@ async function seedUpToOutline(projectId: string, demoUserId: string) {
     update: { validatedAt: new Date(), validatedById: demoUserId },
     create: { projectId, validatedAt: new Date(), validatedById: demoUserId },
   });
+}
+
+/**
+ * A cast of three and the ties between them (CAL-091).
+ *
+ * Deliberately not tidy: the three classifications a pair can have are all
+ * present, because a demo graph where everyone answers everyone would show the
+ * screen working and the *feature* not. Marc and Simone declare the same tie
+ * from both sides (`mutual`); Marc has read Julien off a station platform and
+ * Julien has never heard of Marc (`one-sided`, carrying the asymmetry); and
+ * mother and son name their weekly journey differently (`divergent`).
+ *
+ * The descriptions are written the way `resolveCharacterRelations` writes
+ * them, so what the seed shows is the shape a generated graph would have.
+ */
+async function seedRelationshipGraph(projectId: string) {
+  const bible = await prisma.bible.findUniqueOrThrow({ where: { projectId } });
+
+  const cast = [
+    { name: "Marc", importance: "MAIN" as const },
+    { name: "Simone", importance: "MAIN" as const },
+    { name: "Julien", importance: "SECONDARY" as const },
+  ];
+
+  const ids = new Map<string, string>();
+
+  for (const member of cast) {
+    const character = await prisma.character.upsert({
+      where: { bibleId_name: { bibleId: bible.id, name: member.name } },
+      update: {},
+      create: { bibleId: bible.id, name: member.name, importance: member.importance },
+      select: { id: true },
+    });
+
+    ids.set(member.name, character.id);
+  }
+
+  const ties = [
+    {
+      from: "Marc",
+      to: "Simone",
+      type: "FRIENDSHIP" as const,
+      label: "compagnon de quai de",
+      description: "Il lui a parlé une fois, et y repense depuis.",
+    },
+    {
+      from: "Simone",
+      to: "Marc",
+      type: "FRIENDSHIP" as const,
+      label: "compagne de quai de",
+      description: "Elle lui a raconté quarante ans en dix minutes, sans rien en attendre.",
+    },
+    {
+      from: "Marc",
+      to: "Julien",
+      type: "OTHER" as const,
+      label: "témoin de",
+      description:
+        "Il l'a vu attendre sa mère avec des chrysanthèmes. Asymétrie : Marc a observé Julien sur le quai de Nîmes — Marc sait ; Julien ignore.",
+    },
+    {
+      from: "Simone",
+      to: "Julien",
+      type: "FAMILY" as const,
+      label: "mère de",
+      description: "Le jeudi est la seule chose qu'elle lui demande.",
+    },
+    {
+      from: "Julien",
+      to: "Simone",
+      type: "OTHER" as const,
+      label: "rendez-vous hebdomadaire avec",
+      description: "Il n'a jamais dit à personne que c'était devenu une obligation.",
+    },
+  ];
+
+  for (const tie of ties) {
+    const fromCharacterId = ids.get(tie.from);
+    const toCharacterId = ids.get(tie.to);
+
+    if (fromCharacterId === undefined || toCharacterId === undefined) continue;
+
+    // No mirror is written for the third tie, and that is the point: the
+    // screen must be able to show a relation nobody answered.
+    await prisma.relationship.upsert({
+      where: {
+        fromCharacterId_toCharacterId_type: { fromCharacterId, toCharacterId, type: tie.type },
+      },
+      update: {},
+      create: {
+        bibleId: bible.id,
+        fromCharacterId,
+        toCharacterId,
+        type: tie.type,
+        label: tie.label,
+        description: tie.description,
+      },
+    });
+  }
+
+  console.log("Relationships: 3 characters, 5 directed ties");
 }
 
 /** A plan of three chapters, the first of which carries text. */

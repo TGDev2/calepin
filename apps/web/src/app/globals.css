@@ -30,6 +30,17 @@
   --color-warning: #8a5a12;
   --color-warning-surface: #fdf2df;
 
+  /*
+   * The relationship network (CAL-091). Three tokens rather than a categorical
+   * palette: the diagram distinguishes a tie both characters declare from one
+   * only one side does, which is a two-state distinction, not nine. Colouring
+   * by relationship type would need a real categorical scale, and that is
+   * CAL-181's to design once for the whole product.
+   */
+  --color-graph-node: #6b655e;
+  --color-graph-edge: #b3aca2;
+  --color-graph-edge-asymmetric: #8a5a12;
+
   --space-1: 0.5rem;
   --space-2: 1rem;
   --space-3: 1.5rem;
@@ -54,6 +65,10 @@
     --color-danger-surface: #3a1c19;
     --color-warning: #e8b765;
     --color-warning-surface: #33260f;
+
+    --color-graph-node: #a09a91;
+    --color-graph-edge: #4b453e;
+    --color-graph-edge-asymmetric: #e8b765;
   }
 }
 

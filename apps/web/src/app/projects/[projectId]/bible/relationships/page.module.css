@@ -1,0 +1,145 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. A single reading column, unlike directions/page.module.css: the
+ * diagram is the wide element and it is centred inside the column.
+ */
+
+.main {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.back {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.5rem;
+}
+
+.intro {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.pairs {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pair {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+}
+
+.pairTitle {
+  margin: 0 0 var(--space-1);
+  font-size: 1.1rem;
+}
+
+/*
+ * The classification, as a word rather than only a colour: an asymmetric tie
+ * is the thing this screen exists to show, and a reader who cannot tell the
+ * two surfaces apart must still be able to read which it is.
+ */
+.badge,
+.badgeAsymmetric {
+  display: inline-block;
+  margin: 0 0 var(--space-2);
+  padding: 0.15rem var(--space-1);
+  border-radius: var(--radius-1);
+  font-size: 0.8rem;
+}
+
+.badge {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.badgeAsymmetric {
+  background: var(--color-warning-surface);
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+}
+
+.notice {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.edges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.edge {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.edgeHead {
+  margin: 0;
+}
+
+.edgeType {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.edgeLabel {
+  margin: 0.15rem 0 0;
+}
+
+.edgeDescription {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.locked {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.add {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.addTitle {
+  margin: 0 0 var(--space-1);
+  font-size: 1.1rem;
+}
+
+.addIntro {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}

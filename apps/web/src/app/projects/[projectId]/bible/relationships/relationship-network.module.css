@@ -1,0 +1,49 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.network {
+  display: block;
+  width: 100%;
+  max-width: 32rem;
+  height: auto;
+  margin: 0 auto var(--space-3);
+}
+
+.node {
+  fill: var(--color-graph-node);
+}
+
+.nodeLabel {
+  fill: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.edge {
+  fill: none;
+  stroke: var(--color-graph-edge);
+  stroke-width: 1.5;
+}
+
+/*
+ * A tie only one side declares, or one the two sides declare differently. The
+ * dash is what carries the distinction when colour cannot: it survives a
+ * greyscale print and a colour-vision difference, which a hue alone does not.
+ */
+.edgeAsymmetric {
+  fill: none;
+  stroke: var(--color-graph-edge-asymmetric);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+
+.arrowHead {
+  fill: var(--color-graph-edge);
+}
+
+.arrowHeadAsymmetric {
+  fill: var(--color-graph-edge-asymmetric);
+}

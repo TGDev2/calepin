@@ -866,3 +866,84 @@ export async function userExists(userId: string): Promise<boolean> {
     await prisma.$disconnect();
   }
 }
+
+/**
+ * A project whose bible holds three characters and five directed ties
+ * (CAL-091).
+ *
+ * The graph is deliberately not symmetric, because that is what the screen
+ * under test exists to show: Alix and Bernard declare the same tie from both
+ * sides, Alix declares one toward Camille that Camille never answers, and
+ * Bernard and Camille name the same tie differently. One fixture, three
+ * classifications.
+ */
+export async function seedProjectWithRelationships(
+  userId: string,
+  title: string,
+): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({
+      data: { userId, title, updatedById: userId },
+    });
+
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+
+    const names = ["Alix Renard", "Bernard Coste", "Camille Vasseur"];
+    const ids: string[] = [];
+
+    for (const name of names) {
+      const character = await prisma.character.create({
+        data: { bibleId: bible.id, name, importance: "MAIN", updatedById: userId },
+      });
+      ids.push(character.id);
+    }
+
+    const [alix, bernard, camille] = ids;
+
+    if (alix === undefined || bernard === undefined || camille === undefined) {
+      throw new Error("the relationship fixture could not seed its cast");
+    }
+
+    const ties = [
+      { from: alix, to: bernard, type: "FRIENDSHIP", label: "amie de", description: null },
+      { from: bernard, to: alix, type: "FRIENDSHIP", label: "ami de", description: null },
+      {
+        from: alix,
+        to: camille,
+        type: "RIVALRY",
+        label: "rivale de",
+        description: "Elle sait ce que Camille a signé, et ne l'a dit à personne.",
+      },
+      { from: bernard, to: camille, type: "ALLIANCE", label: "allié de", description: null },
+      {
+        from: camille,
+        to: bernard,
+        type: "PROFESSIONAL",
+        label: "employeur de",
+        description: null,
+      },
+    ] as const;
+
+    for (const tie of ties) {
+      await prisma.relationship.create({
+        data: {
+          bibleId: bible.id,
+          fromCharacterId: tie.from,
+          toCharacterId: tie.to,
+          type: tie.type,
+          label: tie.label,
+          description: tie.description,
+          updatedById: userId,
+        },
+      });
+    }
+
+    return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
