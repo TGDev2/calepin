@@ -50,7 +50,19 @@
  * the style section legislates how its prose *behaves* — every element a rule
  * paired with the observable breach of it, an instruction the identity prompt
  * has no hole for — and `write-scene` will be *held to* those constraints,
- * not asked to author them.
+ * not asked to author them. `relate-characters` (CAL-091) is the bible's
+ * fourth, and the separation from `create-character-sheet` is not a matter of
+ * taste but of what the ask can *see*: a sheet is asked of one character, so
+ * its answer declares that character's outgoing edges and nothing else, and no
+ * amount of prompt could make it state that **A holds something about B that B
+ * does not** — the asymmetry is a property of the pair, and one side of a pair
+ * is not a place to put it. This mission is asked of the whole cast and
+ * answers with the graph, which is also why its answer is judged by gates the
+ * sheet's has no use for (`verifyCharacterRelations`,
+ * `resolveRelationshipGraph`). Running the sheet prompt once per character and
+ * unioning the results would produce a graph in which every edge was written
+ * without its counterpart in view — precisely the graph the acceptance
+ * criterion asks not to have.
  */
 
 export const MISSION_IDS = [
@@ -65,6 +77,7 @@ export const MISSION_IDS = [
   "define-novel-identity",
   "define-style",
   "create-character-sheet",
+  "relate-characters",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

@@ -366,6 +366,31 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 120_000,
   },
 
+  /**
+   * The bible's fourth section: the whole cast in one call, because the
+   * asymmetry it exists to declare is a property of a pair and cannot be
+   * written one character at a time (`missions.ts`). A larger context budget
+   * than its siblings for exactly that reason — the ask carries every
+   * character's line, where a sheet ask carries one — and an output cap sized
+   * to forty edges each carrying a label, a side-specific description and up
+   * to three asymmetries, which the contract's own ceilings put around
+   * 2 000 words. Same model and effort as the sections before it: what is hard
+   * here is holding a whole cast in view while declaring what one side of it
+   * does not know, which is judgement rather than format.
+   */
+  "relate-characters": {
+    id: "relate-characters",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 12_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 20_000, outputTokens: 5_000 },
+    expectedDurationMs: 150_000,
+  },
+
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {
     id: "build-chapter-outline",

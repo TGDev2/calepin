@@ -147,6 +147,7 @@ describe("missionsWritingTo", () => {
       "DEFINE_NOVEL_IDENTITY",
       "DEFINE_STYLE",
       "EXTRACT_FACTS",
+      "RELATE_CHARACTERS",
     ]);
     expect(missionsWritingTo("directions").sort()).toEqual([
       "COMBINE_DIRECTIONS",

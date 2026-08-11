@@ -51,6 +51,7 @@ export const MISSION_ID_BY_GENERATION_MISSION = {
   DEFINE_NOVEL_IDENTITY: "define-novel-identity",
   DEFINE_STYLE: "define-style",
   CREATE_CHARACTER_SHEET: "create-character-sheet",
+  RELATE_CHARACTERS: "relate-characters",
   BUILD_CHAPTER_OUTLINE: "build-chapter-outline",
   WRITE_SCENE: "write-scene",
   EXTRACT_FACTS: "extract-facts",

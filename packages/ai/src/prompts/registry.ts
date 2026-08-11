@@ -41,6 +41,7 @@ import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
 import { FIX_ISSUE_PROMPTS } from "./missions/fix-issue";
 import { PROPOSE_DIRECTIONS_PROMPTS } from "./missions/propose-directions";
 import { REGENERATE_ANALYSIS_SECTION_PROMPTS } from "./missions/regenerate-analysis-section";
+import { RELATE_CHARACTERS_PROMPTS } from "./missions/relate-characters";
 import { REPLACE_DIRECTION_PROMPTS } from "./missions/replace-direction";
 import { SUMMARIZE_CHAPTER_PROMPTS } from "./missions/summarize-chapter";
 import { SUMMARIZE_PART_PROMPTS } from "./missions/summarize-part";
@@ -65,6 +66,7 @@ export const PROMPT_REGISTRY = {
   "define-novel-identity": DEFINE_NOVEL_IDENTITY_PROMPTS,
   "define-style": DEFINE_STYLE_PROMPTS,
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,
+  "relate-characters": RELATE_CHARACTERS_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,
   "extract-facts": EXTRACT_FACTS_PROMPTS,
