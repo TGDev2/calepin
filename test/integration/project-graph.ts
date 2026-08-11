@@ -97,7 +97,37 @@ export async function createProjectGraph(
       protagonistArc: "fixture",
       endingNature: "fixture",
       novelPotentialAssessment: "fixture",
+      narrativeEngine: {
+        conflictNature: "interpersonal",
+        tensionSource: "pursuit",
+        protagonistStake: "life",
+        shiftTrigger: "revelation",
+        resolutionNature: "victory",
+      },
       origin: "PROPOSED",
+    },
+  });
+  const directionEvaluation = await prisma.directionEvaluation.create({
+    data: {
+      directionId: direction.id,
+      promises: [
+        { label: "fixture", element: "workingTitle", evidence: null, whatItCommitsTo: "fixture" },
+      ],
+      shortfalls: [
+        { label: "fixture", element: "workingTitle", evidence: null, whyAtRisk: "fixture" },
+      ],
+      conventions: [
+        { label: "fixture", element: "workingTitle", evidence: null, whyConventional: "fixture" },
+      ],
+      comparativeWeaknesses: [
+        {
+          label: "fixture",
+          element: "workingTitle",
+          evidence: null,
+          whyLessInteresting: "fixture",
+        },
+      ],
+      createdById: user.id,
     },
   });
 
@@ -319,6 +349,7 @@ export async function createProjectGraph(
       AnalysisElement: element.id,
       AnalysisAnnotation: annotation.id,
       CreativeDirection: direction.id,
+      DirectionEvaluation: directionEvaluation.id,
       Bible: bible.id,
       BibleIdentity: identity.id,
       BibleStyle: style.id,

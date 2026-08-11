@@ -462,6 +462,56 @@ describe("prisma schema", () => {
     it("maps to a snake_case plural table", () => {
       expect(modelBlock("CreativeDirection")).toMatch(/@@map\("creative_directions"\)/);
     });
+
+    // CAL-080's declaration, stored as the mission's own validated shape
+    // rather than five columns (CAL-082) — see narrativeEngineSchema in
+    // @calepin/direction.
+    it("carries the narrative engine declaration as a required Json column", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/narrativeEngine\s+Json(?!\?)/);
+    });
+  });
+
+  describe("direction evaluation", () => {
+    // CAL-081's four argued lists, stored as the mission's own validated
+    // shape — see directionEvaluationSchema in @calepin/direction.
+    it("carries the four argued lists as required Json columns", () => {
+      const evaluation = modelBlock("DirectionEvaluation");
+
+      for (const field of ["promises", "shortfalls", "conventions", "comparativeWeaknesses"]) {
+        expect(evaluation).toMatch(new RegExp(`^\\s*${field}\\s+Json(?!\\?)`, "m"));
+      }
+    });
+
+    // One evaluation per direction, not an append-only history: nothing in
+    // the backlog re-evaluates a direction in place (CAL-082's plan).
+    it("holds at most one evaluation per direction", () => {
+      expect(modelBlock("DirectionEvaluation")).toMatch(/directionId\s+String\s+@unique/);
+    });
+
+    // No updatedAt: modeled on AnalysisSectionRevision's append-only shape,
+    // a row nobody edits does not need to say who edited it.
+    it("carries no audit block", () => {
+      expect(modelBlock("DirectionEvaluation")).not.toMatch(/^\s*updatedAt\s/m);
+    });
+
+    it("cascades away with its direction, but never loses its author or generation silently", () => {
+      const evaluation = modelBlock("DirectionEvaluation");
+
+      expect(evaluation).toMatch(
+        /direction\s+CreativeDirection\s+@relation\([^)]*onDelete:\s*Cascade/,
+      );
+    });
+
+    it("names its generation and its author with the AnalysisSectionRevision convention", () => {
+      const evaluation = modelBlock("DirectionEvaluation");
+
+      expect(evaluation).toMatch(/createdBy\s+User\s+@relation\([^)]*onDelete:\s*Restrict/);
+      expect(evaluation).toMatch(/generation\s+Generation\?\s+@relation\([^)]*onDelete:\s*SetNull/);
+    });
+
+    it("maps to a snake_case plural table", () => {
+      expect(modelBlock("DirectionEvaluation")).toMatch(/@@map\("direction_evaluations"\)/);
+    });
   });
 
   describe("narrative bible", () => {

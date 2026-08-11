@@ -1,0 +1,33 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. Wider than analysis/page.module.css's 48rem on purpose: three cards
+ * side by side need the room a single-column reading measure does not.
+ */
+
+.main {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.back {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.5rem;
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.intro {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}

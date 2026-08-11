@@ -95,16 +95,17 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  projects                 Project[]                 @relation("ProjectOwner")
-  sourceTextVersionsEdited SourceTextVersion[]
-  analysesValidated        Analysis[]                @relation("AnalysisValidatedBy")
-  analysisRevisionsCreated AnalysisSectionRevision[]
-  analysisAnnotations      AnalysisAnnotation[]      @relation("AnalysisAnnotationAuthor")
-  biblesValidated          Bible[]                   @relation("BibleValidatedBy")
-  chapterRevisionsCreated  ChapterRevision[]
-  chapterSummariesCreated  ChapterSummaryRevision[]
-  partSummariesCreated     PartSummaryRevision[]
-  exportsRequested         Export[]                  @relation("ExportRequestedBy")
+  projects                    Project[]                 @relation("ProjectOwner")
+  sourceTextVersionsEdited    SourceTextVersion[]
+  analysesValidated           Analysis[]                @relation("AnalysisValidatedBy")
+  analysisRevisionsCreated    AnalysisSectionRevision[]
+  analysisAnnotations         AnalysisAnnotation[]      @relation("AnalysisAnnotationAuthor")
+  biblesValidated             Bible[]                   @relation("BibleValidatedBy")
+  directionEvaluationsCreated DirectionEvaluation[]
+  chapterRevisionsCreated     ChapterRevision[]
+  chapterSummariesCreated     ChapterSummaryRevision[]
+  partSummariesCreated        PartSummaryRevision[]
+  exportsRequested            Export[]                  @relation("ExportRequestedBy")
 
   /// The audit trail (CAL-022): every mutable row this account last modified.
   /// One field per audited model, because Prisma requires the opposite side of
@@ -695,6 +696,13 @@ model CreativeDirection {
   elementsKeptFromSource   String[] // éléments conservés du texte source
   elementsTransformed      String[] // éléments transformés
   novelPotentialAssessment String // évaluation du potentiel romanesque
+  /// The five-axis declaration CAL-080 compares directions on — conflict
+  /// nature, tension source, protagonist stake, shift trigger, resolution
+  /// nature (NarrativeEngine in @calepin/direction). Stored as the mission's
+  /// own validated shape rather than five columns, the way Generation.input
+  /// already stores a validated contract as Json: the domain owns what is
+  /// inside it, this table only owns that a direction has one.
+  narrativeEngine          Json
 
   /// The marker the backlog asks for. At most one true row per project is
   /// enforced by creative_directions_canonical_per_project_key, a partial
@@ -709,10 +717,47 @@ model CreativeDirection {
   version     Int      @default(1)
   updatedBy   User     @relation("CreativeDirectionUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evaluation DirectionEvaluation?
 
   @@index([projectId])
   @@map("creative_directions")
+}
+
+/// The argued critique of one direction (CAL-081), strictly separate from the
+/// mission that proposes it (principle 6.2). Four lists — promises,
+/// shortfalls, conventions, comparativeWeaknesses — stored as the mission's
+/// own validated shape, DirectionEvaluation in @calepin/direction, the same
+/// choice narrativeEngine above makes and for the same reason.
+///
+/// One per direction (`directionId` is unique) rather than an append-only
+/// history: nothing in the backlog re-evaluates a direction in place, so a
+/// second row would be a feature this schema does not yet support, not a
+/// version of this one. Modeled on AnalysisSectionRevision otherwise — no
+/// updatedAt, since a row nobody edits does not need to say who edited it.
+model DirectionEvaluation {
+  id          String @id @default(cuid())
+  directionId String @unique
+
+  promises              Json
+  shortfalls            Json
+  conventions           Json
+  comparativeWeaknesses Json
+
+  /// The generation that produced this critique (CAL-021), null for a
+  /// fixture or an import — ADR-001's link, as AnalysisSectionRevision.
+  generationId String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  direction  CreativeDirection @relation(fields: [directionId], references: [id], onDelete: Cascade)
+  createdBy  User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  // SetNull, not Restrict: a generation row is an accounting record with its
+  // own retention, and losing the pointer to it must never cost the author
+  // their critique of a direction.
+  generation Generation?       @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@map("direction_evaluations")
 }
 
 /// The narrative bible — the reference every later generation reads from. One
@@ -2392,7 +2437,7 @@ model Generation {
   /// generation is open again and `generations_failure_check` reserves a code for
   /// a row that has actually failed; the class stays, because it is the only
   /// thing that says *why* the row is waiting rather than running.
-  failureClass  GenerationFailureClass?
+  failureClass   GenerationFailureClass?
   /// When the next automatic attempt becomes due — the exponential backoff of
   /// CAL-063, expressed as a deadline on the row instead of a timer in a
   /// process. That is the whole point: a worker killed mid-backoff loses
@@ -2408,7 +2453,7 @@ model Generation {
   /// Read by `listDeliverableGenerations` and by nothing else. Only the
   /// **automatic** redelivery honours it: an author replaying by hand, or asking
   /// the same thing again, is a decision and is never throttled by it.
-  nextAttemptAt DateTime?
+  nextAttemptAt  DateTime?
   /// This row's own attempt ceiling, when it is not the default
   /// `MAX_GENERATION_ATTEMPTS` (CAL-063).
   ///
@@ -2430,6 +2475,7 @@ model Generation {
   attempts                 GenerationAttempt[]
   /// What this generation produced, when it produced a versioned entity.
   analysisSectionRevisions AnalysisSectionRevision[]
+  directionEvaluations     DirectionEvaluation[]
   chapterRevisions         ChapterRevision[]
   /// The summaries this generation produced (CAL-055).
   chapterSummaryRevisions  ChapterSummaryRevision[]

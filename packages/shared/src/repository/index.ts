@@ -40,6 +40,11 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type DirectionEvaluationSnapshot,
+  type DirectionSnapshot,
+  getDirectionsForComparison,
+} from "./direction";
+export {
   type DuplicatedProject,
   duplicateProject,
   type DuplicateProjectInput,

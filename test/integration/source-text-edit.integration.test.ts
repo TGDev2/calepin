@@ -323,6 +323,13 @@ describe("source text editing and obsolescence propagation (CAL-046)", () => {
           protagonistArc: "fixture",
           endingNature: "fixture",
           novelPotentialAssessment: "fixture",
+          narrativeEngine: {
+            conflictNature: "interpersonal",
+            tensionSource: "pursuit",
+            protagonistStake: "life",
+            shiftTrigger: "revelation",
+            resolutionNature: "victory",
+          },
           origin: "PROPOSED",
           isCanonical: true,
         },

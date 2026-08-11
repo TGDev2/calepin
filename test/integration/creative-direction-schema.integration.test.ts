@@ -34,6 +34,13 @@ function fixtureDirection(
     elementsKeptFromSource: ["fixture kept element"],
     elementsTransformed: ["fixture transformed element"],
     novelPotentialAssessment: "fixture assessment",
+    narrativeEngine: {
+      conflictNature: "interpersonal",
+      tensionSource: "pursuit",
+      protagonistStake: "life",
+      shiftTrigger: "revelation",
+      resolutionNature: "victory",
+    },
     origin: "PROPOSED",
     ...overrides,
   };
@@ -139,12 +146,15 @@ describe("creative direction schema", () => {
                ("id", "projectId", "workingTitle", "developedPremise", "dominantGenre",
                 "mainConflict", "protagonistArc", "newStakes", "charactersToIntroduce",
                 "endingNature", "mainRisks", "elementsKeptFromSource", "elementsTransformed",
-                "novelPotentialAssessment", "isCanonical", "origin", "updatedAt", "updatedById")
+                "novelPotentialAssessment", "narrativeEngine", "isCanonical", "origin",
+                "updatedAt", "updatedById")
              VALUES
                ($1, $2, 'fixture title', 'fixture premise', 'fixture genre',
                 'fixture conflict', 'fixture arc', '{}', '{}',
                 'fixture ending', '{}', '{}', '{}',
-                'fixture assessment', true, 'PROPOSED', now(),
+                'fixture assessment',
+                '{"conflictNature":"interpersonal","tensionSource":"pursuit","protagonistStake":"life","shiftTrigger":"revelation","resolutionNature":"victory"}'::jsonb,
+                true, 'PROPOSED', now(),
                 (SELECT "userId" FROM "projects" WHERE "id" = $2))`,
             ["raw-insert-fixture", projectId],
           ),

@@ -211,6 +211,20 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
         </Link>
       </section>
 
+      <section className={styles.action} aria-labelledby="direction-heading">
+        <h3 className={styles.actionTitle} id="direction-heading">
+          Direction
+        </h3>
+        <p className={styles.actionNote}>
+          Les directions romanesques proposées, côte à côte : leurs moteurs narratifs, la critique
+          argumentée de chacune, et les éléments du texte source qu&apos;elles conservent ou
+          transforment.
+        </p>
+        <Link className={styles.actionLink} href={`/projects/${project.id}/directions`}>
+          Comparer les directions…
+        </Link>
+      </section>
+
       <section className={styles.action} aria-labelledby="duplicate-heading">
         <h3 className={styles.actionTitle} id="duplicate-heading">
           Dupliquer

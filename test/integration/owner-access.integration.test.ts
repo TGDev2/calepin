@@ -35,6 +35,7 @@ import {
   duplicateProject,
   editAnalysisSection,
   getAnalysis,
+  getDirectionsForComparison,
   getGenerationContextForProject,
   getProjectForOwner,
   getProjectTargetLength,
@@ -99,6 +100,7 @@ const ENTRY_POINTS = [
   "duplicateProject",
   "editAnalysisSection",
   "getAnalysis",
+  "getDirectionsForComparison",
   "getGenerationContextForProject",
   "getProjectForOwner",
   "getProjectTargetLength",
@@ -1001,6 +1003,23 @@ describe("owner access policy", () => {
 
       const theirs = await getAnalysis(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs).toBeNull();
+    });
+
+    // CAL-082's comparison screen. The fixture graph seeds one
+    // `CreativeDirection` with one `DirectionEvaluation` per owner — a bare
+    // array rather than a `Result`, `getAnalysis`'s convention: "refused"
+    // reads the same as "none proposed yet", both an empty array.
+    it("getDirectionsForComparison refuses another owner's project", async () => {
+      const mine = await getDirectionsForComparison(aliceScope);
+      expect(mine).toHaveLength(1);
+      expect(mine[0]).toMatchObject({
+        workingTitle: "fixture",
+        origin: "PROPOSED",
+        evaluation: { createdAt: expect.any(Date) },
+      });
+
+      const theirs = await getDirectionsForComparison(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs).toEqual([]);
     });
 
     // CAL-073's three write paths. Each is refused the same way and for the

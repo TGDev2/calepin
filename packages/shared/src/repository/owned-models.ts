@@ -57,6 +57,7 @@ export const PROJECT_OWNED_MODELS = {
   AnalysisAnnotation: { table: "analysis_annotations", path: ["analysis", "project"] },
 
   CreativeDirection: { table: "creative_directions", path: ["project"] },
+  DirectionEvaluation: { table: "direction_evaluations", path: ["direction", "project"] },
 
   Bible: { table: "bibles", path: ["project"] },
   BibleIdentity: { table: "bible_identities", path: ["bible", "project"] },

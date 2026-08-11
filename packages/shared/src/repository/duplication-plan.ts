@@ -126,6 +126,14 @@ export const DUPLICATION_PLAN = [
   },
 
   { model: "CreativeDirection", references: { projectId: "Project" } },
+  {
+    model: "DirectionEvaluation",
+    references: {
+      directionId: "CreativeDirection",
+      generationId: "Generation",
+      createdById: "User",
+    },
+  },
 
   { model: "Bible", references: { projectId: "Project", validatedById: "User" } },
   { model: "BibleIdentity", references: { bibleId: "Bible" } },

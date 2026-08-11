@@ -376,6 +376,135 @@ export async function seedProjectWithAnalysis(
 }
 
 /**
+ * A project with three proposed directions (CAL-082) — enough to prove the
+ * comparison screen renders three cards, flags a narrative-engine axis that
+ * differs while leaving a shared one alone, shows an argued critique for the
+ * directions that have one, and says so plainly for the one that does not.
+ *
+ * All three share `protagonistStake` and differ on `conflictNature`, so the
+ * screen's divergence highlight has exactly one axis to flag and at least one
+ * to leave unflagged — deterministic, rather than left to chance.
+ *
+ * No matching teardown, for the reason `seedProjectWithChapters` gives:
+ * `Project.user` cascades, so `closeSignedInSession` already removes it.
+ */
+export async function seedProjectWithDirections(
+  userId: string,
+  title: string,
+): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+
+    const sharedEngine = {
+      tensionSource: "pursuit",
+      protagonistStake: "life",
+      shiftTrigger: "revelation",
+      resolutionNature: "victory",
+    };
+
+    const directionsData = [
+      {
+        workingTitle: "Le fleuve remonté",
+        conflictNature: "interpersonal",
+        evaluated: true,
+      },
+      {
+        workingTitle: "L'orage annoncé",
+        conflictNature: "societal",
+        evaluated: true,
+      },
+      {
+        workingTitle: "Le silence du puits",
+        conflictNature: "internal",
+        evaluated: false,
+      },
+    ];
+
+    for (const data of directionsData) {
+      const direction = await prisma.creativeDirection.create({
+        data: {
+          projectId: project.id,
+          workingTitle: data.workingTitle,
+          developedPremise: "Prémisse de démonstration pour la comparaison des directions.",
+          dominantGenre: "Roman contemporain",
+          mainConflict: "Conflit de démonstration.",
+          protagonistArc: "Trajectoire de démonstration.",
+          newStakes: ["Enjeu de démonstration"],
+          charactersToIntroduce: ["Personnage de démonstration"],
+          endingNature: "Fin ouverte",
+          mainRisks: ["Risque de démonstration"],
+          elementsKeptFromSource: ["Le décor du fleuve"],
+          elementsTransformed: ["Le dénouement"],
+          novelPotentialAssessment: "Évaluation de démonstration du potentiel romanesque.",
+          narrativeEngine: { conflictNature: data.conflictNature, ...sharedEngine },
+          origin: "PROPOSED",
+          updatedById: userId,
+        },
+      });
+
+      if (data.evaluated) {
+        await prisma.directionEvaluation.create({
+          data: {
+            directionId: direction.id,
+            promises: [
+              {
+                label: "Une tension familiale tenue",
+                element: "mainConflict",
+                evidence: null,
+                whatItCommitsTo: "La direction promet de tenir la tension jusqu'au dénouement.",
+              },
+              {
+                label: "Un décor exploité",
+                element: "elementsKeptFromSource",
+                evidence: null,
+                whatItCommitsTo: "Le fleuve reste un repère pour le lecteur.",
+              },
+            ],
+            shortfalls: [
+              {
+                label: "Un enjeu peu développé",
+                element: "newStakes",
+                evidence: null,
+                whyAtRisk: "L'enjeu annoncé n'est pas repris ailleurs dans la direction.",
+              },
+              {
+                label: "Une fin ouverte fragile",
+                element: "endingNature",
+                evidence: null,
+                whyAtRisk: "Rien n'indique comment l'ouverture serait exploitée.",
+              },
+            ],
+            conventions: [
+              {
+                label: "Un dénouement attendu",
+                element: "endingNature",
+                evidence: null,
+                whyConventional: "La fin ouverte est la résolution la plus courante du genre.",
+              },
+            ],
+            comparativeWeaknesses: [
+              {
+                label: "Un protagoniste moins engagé",
+                element: "protagonistArc",
+                evidence: null,
+                whyLessInteresting: "La trajectoire proposée est moins risquée que ses voisines.",
+              },
+            ],
+            createdById: userId,
+          },
+        });
+      }
+    }
+
+    return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
  * Every version of a project's source text, newest first — what a spec asserts
  * an edit against, since the browser only ever shows the current one.
  */

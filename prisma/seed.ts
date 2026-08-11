@@ -214,6 +214,13 @@ async function seedUpToOutline(projectId: string, demoUserId: string) {
         protagonistArc: "Trajectoire de démonstration.",
         endingNature: "Fin ouverte",
         novelPotentialAssessment: "Évaluation de démonstration.",
+        narrativeEngine: {
+          conflictNature: "interpersonal",
+          tensionSource: "pursuit",
+          protagonistStake: "life",
+          shiftTrigger: "revelation",
+          resolutionNature: "victory",
+        },
         origin: "PROPOSED",
         isCanonical: true,
       },

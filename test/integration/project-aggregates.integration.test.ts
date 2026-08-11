@@ -122,6 +122,13 @@ describe("project aggregates (CAL-033)", () => {
         protagonistArc: "fixture",
         endingNature: "fixture",
         novelPotentialAssessment: "fixture",
+        narrativeEngine: {
+          conflictNature: "interpersonal",
+          tensionSource: "pursuit",
+          protagonistStake: "life",
+          shiftTrigger: "revelation",
+          resolutionNature: "victory",
+        },
         origin: "PROPOSED",
         isCanonical: true,
       },
