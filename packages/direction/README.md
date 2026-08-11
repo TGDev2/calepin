@@ -51,5 +51,12 @@ What exists today:
   `checkDirectionCombinationAnswer` demands one dominant source engine —
   never the blend between two — and verifies every named conflict against
   the ask's own selection.
+- `edit.ts` (CAL-085) — what a person may make a direction say by hand:
+  `directionContentSchema`, reusing `directionProposalSchema`'s own field
+  schemas rather than restating their bounds (minus `dimensionTreatments`,
+  never persisted for any direction), and `parseDirectionContent`, the
+  `parseAnalysisSectionEdit` shape one epic later. The origin-transition rule
+  itself lives in `@calepin/shared/repository`, not here — see that module's
+  doc comment for why.
 
 Backlog: E08 — CAL-079 to CAL-087. Schema: CAL-015.

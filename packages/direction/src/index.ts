@@ -43,6 +43,7 @@ export {
   NARRATIVE_ENGINE_DIVERGENCE_MINIMUM,
   type NarrativeEngineComparison,
 } from "./divergence";
+export { type DirectionContent, directionContentSchema, parseDirectionContent } from "./edit";
 export {
   describeDirectionElements,
   DIRECTION_ELEMENT_LABELS,

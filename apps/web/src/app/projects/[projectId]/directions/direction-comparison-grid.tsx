@@ -21,6 +21,7 @@
  * it off screen. The roving tabindex owns the card, not what is in it.
  */
 
+import type { NarrativeEngine } from "@calepin/direction";
 import { useActionState, useRef, useState } from "react";
 
 import {
@@ -28,8 +29,9 @@ import {
   INITIAL_DIRECTION_DISCARD_STATE,
 } from "@/lib/direction-discard";
 
-import { discardDirectionAction } from "./actions";
+import { discardDirectionAction, editDirectionAction } from "./actions";
 import styles from "./direction-comparison-grid.module.css";
+import { DirectionForm, type DirectionFormValues } from "./direction-form";
 
 export interface EngineAxisRow {
   readonly axis: string;
@@ -68,6 +70,8 @@ export interface DirectionCard {
   readonly isCanonical: boolean;
   readonly originLabel: string;
   readonly engineRows: readonly EngineAxisRow[];
+  /** The raw declaration, for prefilling the edit form's five `<select>`s. */
+  readonly narrativeEngine: NarrativeEngine;
   readonly evaluationLists: readonly EvaluationList[] | null;
 }
 
@@ -233,10 +237,56 @@ export function DirectionComparisonGrid({
             )}
           </section>
 
+          <EditForm card={card} projectId={projectId} />
+
           <DiscardForm card={card} projectId={projectId} reasonCharCeiling={reasonCharCeiling} />
         </li>
       ))}
     </ul>
+  );
+}
+
+interface EditFormProps {
+  readonly card: DirectionCard;
+  readonly projectId: string;
+}
+
+/**
+ * Rewriting one direction freely (CAL-085), behind the same closed-by-default
+ * `<details>` `DiscardForm` uses — a full rewrite is as much a decision as
+ * écarter, and prefilling twelve fields on screen by default would bury the
+ * comparison it sits inside.
+ */
+function EditForm({ card, projectId }: EditFormProps) {
+  const values: DirectionFormValues = {
+    workingTitle: card.workingTitle,
+    developedPremise: card.developedPremise,
+    dominantGenre: card.dominantGenre,
+    mainConflict: card.mainConflict,
+    protagonistArc: card.protagonistArc,
+    newStakes: card.newStakes,
+    charactersToIntroduce: card.charactersToIntroduce,
+    endingNature: card.endingNature,
+    mainRisks: card.mainRisks,
+    elementsKeptFromSource: card.elementsKeptFromSource,
+    elementsTransformed: card.elementsTransformed,
+    novelPotentialAssessment: card.novelPotentialAssessment,
+    narrativeEngine: card.narrativeEngine,
+  };
+
+  return (
+    <details className={styles.discard}>
+      <summary className={styles.discardSummary}>Modifier cette direction</summary>
+
+      <DirectionForm
+        action={editDirectionAction}
+        projectId={projectId}
+        directionId={card.id}
+        initialValues={values}
+        submitLabel={`Enregistrer « ${card.workingTitle} »`}
+        idPrefix={`${card.id}-edit`}
+      />
+    </details>
   );
 }
 

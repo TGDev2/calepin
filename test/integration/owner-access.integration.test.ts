@@ -88,6 +88,11 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * `discardDirection` is isolated in `direction-discard.integration.test.ts`,
  * which seeds the three directions a discard is chosen among — the graph below
  * holds one, and one direction cannot show that the others do not move.
+ * `editDirection` and `writeUserDirection` are isolated in
+ * `direction-edit.integration.test.ts` for the same reason: they need a
+ * direction with a chosen origin (proposed, edited, user-written, discarded,
+ * canonical) to prove the transition and refusal rules, which the shared
+ * graph's one always-`PROPOSED` direction cannot do on its own.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -103,6 +108,7 @@ const ENTRY_POINTS = [
   "discardDirection",
   "duplicateProject",
   "editAnalysisSection",
+  "editDirection",
   "getAnalysis",
   "getDirectionsForComparison",
   "getGenerationContextForProject",
@@ -137,6 +143,7 @@ const ENTRY_POINTS = [
   "withProjectAggregates",
   "withProjectStatus",
   "withProjectTransaction",
+  "writeUserDirection",
 ];
 
 /**

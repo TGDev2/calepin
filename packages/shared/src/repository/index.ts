@@ -40,12 +40,19 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type DirectionContentInput,
   type DirectionDiscarded,
+  type DirectionEdited,
   type DirectionEvaluationSnapshot,
   type DirectionSnapshot,
   discardDirection,
   type DiscardDirectionInput,
+  editDirection,
+  type EditDirectionInput,
   getDirectionsForComparison,
+  type UserDirectionWritten,
+  writeUserDirection,
+  type WriteUserDirectionInput,
 } from "./direction";
 export {
   type DuplicatedProject,

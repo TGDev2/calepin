@@ -431,11 +431,15 @@ export async function seedProjectWithDirections(
           dominantGenre: "Roman contemporain",
           mainConflict: "Conflit de démonstration.",
           protagonistArc: "Trajectoire de démonstration.",
-          newStakes: ["Enjeu de démonstration"],
+          // At least two, matching DIRECTION_LIST_COUNTS' own minimum
+          // (@calepin/direction) — a real propose-directions answer could
+          // never produce fewer, and CAL-085's edit form re-validates the
+          // whole direction against that same bound.
+          newStakes: ["Enjeu de démonstration", "Second enjeu de démonstration"],
           charactersToIntroduce: ["Personnage de démonstration"],
           endingNature: "Fin ouverte",
-          mainRisks: ["Risque de démonstration"],
-          elementsKeptFromSource: ["Le décor du fleuve"],
+          mainRisks: ["Risque de démonstration", "Second risque de démonstration"],
+          elementsKeptFromSource: ["Le décor du fleuve", "Le rythme des saisons"],
           elementsTransformed: ["Le dénouement"],
           novelPotentialAssessment: "Évaluation de démonstration du potentiel romanesque.",
           narrativeEngine: { conflictNature: data.conflictNature, ...sharedEngine },

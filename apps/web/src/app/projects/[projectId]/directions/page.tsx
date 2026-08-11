@@ -24,6 +24,7 @@ import { notFound, redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
+import { writeUserDirectionAction } from "./actions";
 import {
   type DirectionCard,
   DirectionComparisonGrid,
@@ -31,6 +32,7 @@ import {
   type EvaluationItem,
   type EvaluationList,
 } from "./direction-comparison-grid";
+import { DirectionForm, EMPTY_DIRECTION_FORM_VALUES } from "./direction-form";
 import styles from "./page.module.css";
 
 const ORIGIN_LABEL: Record<DirectionSnapshot["origin"], string> = {
@@ -178,6 +180,26 @@ export default async function DirectionsPage({
           </ul>
         </section>
       )}
+
+      <section className={styles.history} aria-labelledby="directions-new">
+        <details>
+          <summary className={styles.historyTitle} id="directions-new">
+            Écrire ma propre direction
+          </summary>
+          <p className={styles.historyIntro}>
+            Une direction que vous rédigez entièrement vous-même compte comme les autres : elle peut
+            être comparée, écartée, et retenue pour la bible.
+          </p>
+
+          <DirectionForm
+            action={writeUserDirectionAction}
+            projectId={projectId}
+            initialValues={EMPTY_DIRECTION_FORM_VALUES}
+            submitLabel="Ajouter cette direction"
+            idPrefix="new-direction"
+          />
+        </details>
+      </section>
     </main>
   );
 }
@@ -268,6 +290,7 @@ function toCard(
     isCanonical: direction.isCanonical,
     originLabel: ORIGIN_LABEL[direction.origin],
     engineRows,
+    narrativeEngine: engine,
     evaluationLists: direction.evaluation === null ? null : toEvaluationLists(direction.evaluation),
   };
 }
