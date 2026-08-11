@@ -51,10 +51,10 @@ export const PROJECT_OWNED_MODELS = {
     table: "analysis_elements",
     path: ["sectionRevision", "analysis", "project"],
   },
-  AnalysisAnnotation: {
-    table: "analysis_annotations",
-    path: ["element", "sectionRevision", "analysis", "project"],
-  },
+  // Two hops, not four: since CAL-073 an annotation names the analysis and a
+  // lineage rather than one element row, so it no longer walks through a
+  // revision that an edit is about to replace.
+  AnalysisAnnotation: { table: "analysis_annotations", path: ["analysis", "project"] },
 
   CreativeDirection: { table: "creative_directions", path: ["project"] },
 

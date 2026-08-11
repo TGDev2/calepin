@@ -1,0 +1,20 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.form {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.button {
+  padding: 0.15em 0.6em;
+  font-size: 0.8rem;
+}
+
+.error {
+  font-size: 0.8rem;
+}

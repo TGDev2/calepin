@@ -84,6 +84,7 @@ describe("analysis schema", () => {
               create: {
                 position: 0,
                 kind: "FACTUAL",
+                origin: "GENERATED",
                 label: section,
                 statement: FIXTURE_STATEMENT,
                 evidence: "fixture passage",
@@ -164,8 +165,19 @@ describe("analysis schema", () => {
           createdById: userId,
           elements: {
             create: [
-              { position: 0, kind: "FACTUAL", statement: FIXTURE_STATEMENT, evidence: "fixture" },
-              { position: 1, kind: "INTERPRETATION", statement: FIXTURE_STATEMENT },
+              {
+                position: 0,
+                kind: "FACTUAL",
+                origin: "GENERATED",
+                statement: FIXTURE_STATEMENT,
+                evidence: "fixture",
+              },
+              {
+                position: 1,
+                kind: "INTERPRETATION",
+                origin: "GENERATED",
+                statement: FIXTURE_STATEMENT,
+              },
             ],
           },
         },
@@ -350,6 +362,7 @@ describe("analysis schema", () => {
             sectionRevisionId: revision.id,
             position: -1,
             kind: "FACTUAL",
+            origin: "GENERATED",
             statement: FIXTURE_STATEMENT,
           },
         }),
@@ -369,34 +382,52 @@ describe("analysis schema", () => {
           sourceTextVersionId,
           createdById: userId,
           elements: {
-            create: { position: 0, kind: "INTERPRETATION", statement: FIXTURE_STATEMENT },
+            create: {
+              position: 0,
+              kind: "INTERPRETATION",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
           },
         },
         include: { elements: true },
       });
-      const elementId = revision.elements[0]?.id ?? "";
+      const lineageId = revision.elements[0]?.lineageId ?? "";
 
       await prisma.analysisAnnotation.createMany({
         data: [
-          { elementId, authorId: userId, body: "fixture note 1" },
-          { elementId, authorId: userId, body: "fixture note 2" },
+          { analysisId, lineageId, authorId: userId, body: "fixture note 1" },
+          { analysisId, lineageId, authorId: userId, body: "fixture note 2" },
         ],
       });
 
-      const element = await prisma.analysisElement.findUniqueOrThrow({
-        where: { id: elementId },
-        include: { annotations: true },
+      expect(await prisma.analysisAnnotation.count({ where: { analysisId, lineageId } })).toBe(2);
+    });
+
+    // No foreign key can check a lineage, so nothing at this level refuses one
+    // that names no element — the repository resolves it before writing
+    // (`addAnalysisAnnotation`). Asserted rather than left implicit: the day a
+    // constraint is added, this is the test that says what it changed.
+    it("does not itself refuse a lineage no element carries", async () => {
+      const { analysisId } = await createAnalysisFixture();
+
+      await prisma.analysisAnnotation.create({
+        data: { analysisId, lineageId: "lin_nothing", authorId: userId, body: "fixture note" },
       });
 
-      expect(element.annotations).toHaveLength(2);
+      expect(
+        await prisma.analysisAnnotation.count({ where: { analysisId, lineageId: "lin_nothing" } }),
+      ).toBe(1);
     });
   });
 
   // The reason the section is the unit of versioning. CAL-077 requires that
   // regenerating one section modify neither the other sections nor the
-  // annotations already attached to them; with per-section revisions the other
-  // sections' rows are not rewritten, so their identifiers — and therefore the
-  // annotations pointing at them — survive by construction.
+  // annotations already attached to them. Two halves, and CAL-073 supplied the
+  // second: the other sections' rows are not rewritten, so they survive by
+  // construction — and since a note is keyed on a lineage rather than on an
+  // element row, the notes on the *regenerated* section survive too, as long as
+  // the new revision carries that lineage forward.
   describe("regenerating one section", () => {
     it("leaves the other sections and their annotations byte-identical", async () => {
       const { analysisId, sourceTextVersionId } = await createAnalysisFixture();
@@ -410,14 +441,25 @@ describe("analysis schema", () => {
           sourceTextVersionId,
           createdById: userId,
           elements: {
-            create: { position: 0, kind: "FACTUAL", statement: FIXTURE_STATEMENT },
+            create: {
+              position: 0,
+              kind: "FACTUAL",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
           },
         },
         include: { elements: true },
       });
       const untouchedElementId = untouched.elements[0]?.id ?? "";
+      const untouchedLineageId = untouched.elements[0]?.lineageId ?? "";
       await prisma.analysisAnnotation.create({
-        data: { elementId: untouchedElementId, authorId: userId, body: "fixture note" },
+        data: {
+          analysisId,
+          lineageId: untouchedLineageId,
+          authorId: userId,
+          body: "fixture note",
+        },
       });
 
       await prisma.analysisSectionRevision.create({
@@ -429,14 +471,18 @@ describe("analysis schema", () => {
           sourceTextVersionId,
           createdById: userId,
           elements: {
-            create: { position: 0, kind: "INTERPRETATION", statement: FIXTURE_STATEMENT },
+            create: {
+              position: 0,
+              kind: "INTERPRETATION",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
           },
         },
       });
 
       const before = await prisma.analysisElement.findUniqueOrThrow({
         where: { id: untouchedElementId },
-        include: { annotations: true },
       });
 
       // The regeneration: a second revision of THEMES only.
@@ -449,22 +495,122 @@ describe("analysis schema", () => {
           sourceTextVersionId,
           createdById: userId,
           elements: {
-            create: { position: 0, kind: "INTERPRETATION", statement: FIXTURE_STATEMENT },
+            create: {
+              position: 0,
+              kind: "INTERPRETATION",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
           },
         },
       });
 
       const after = await prisma.analysisElement.findUniqueOrThrow({
         where: { id: untouchedElementId },
-        include: { annotations: true },
       });
 
       expect(after).toEqual(before);
+      expect(
+        await prisma.analysisAnnotation.count({
+          where: { analysisId, lineageId: untouchedLineageId },
+        }),
+      ).toBe(1);
       // And the regenerated section did gain a revision, so the assertion above
       // is not passing because nothing happened.
       expect(
         await prisma.analysisSectionRevision.count({ where: { analysisId, section: "THEMES" } }),
       ).toBe(2);
+    });
+
+    // The half the lineage buys. Rewriting the section a note is about used to
+    // delete it: the note pointed at an element row, and a new revision
+    // replaces every one of them.
+    it("keeps a note on the section that was rewritten, when the lineage carries over", async () => {
+      const { analysisId, sourceTextVersionId } = await createAnalysisFixture();
+
+      const first = await prisma.analysisSectionRevision.create({
+        data: {
+          analysisId,
+          section: "THEMES",
+          revisionNumber: 1,
+          origin: "GENERATED",
+          sourceTextVersionId,
+          createdById: userId,
+          elements: {
+            create: {
+              position: 0,
+              kind: "INTERPRETATION",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
+          },
+        },
+        include: { elements: true },
+      });
+      const lineageId = first.elements[0]?.lineageId ?? "";
+
+      await prisma.analysisAnnotation.create({
+        data: { analysisId, lineageId, authorId: userId, body: "fixture note" },
+      });
+
+      await prisma.analysisSectionRevision.create({
+        data: {
+          analysisId,
+          section: "THEMES",
+          revisionNumber: 2,
+          origin: "EDITED",
+          sourceTextVersionId,
+          createdById: userId,
+          elements: {
+            create: {
+              position: 0,
+              lineageId,
+              kind: "INTERPRETATION",
+              origin: "EDITED",
+              statement: FIXTURE_STATEMENT,
+            },
+          },
+        },
+      });
+
+      expect(await prisma.analysisAnnotation.count({ where: { analysisId, lineageId } })).toBe(1);
+    });
+
+    // The unique index is what stops one form posting the same hidden lineage
+    // twice from splitting an element's history in two.
+    it("refuses the same lineage twice inside one revision", async () => {
+      const { analysisId, sourceTextVersionId } = await createAnalysisFixture();
+
+      await expect(
+        prisma.analysisSectionRevision.create({
+          data: {
+            analysisId,
+            section: "AMBIGUITIES",
+            revisionNumber: 1,
+            origin: "EDITED",
+            sourceTextVersionId,
+            createdById: userId,
+            elements: {
+              create: [
+                {
+                  position: 0,
+                  lineageId: "lin_same",
+                  kind: "INTERPRETATION",
+                  origin: "GENERATED",
+                  statement: FIXTURE_STATEMENT,
+                },
+                {
+                  position: 1,
+                  lineageId: "lin_same",
+                  kind: "INTERPRETATION",
+                  origin: "GENERATED",
+                  statement: FIXTURE_STATEMENT,
+                },
+              ],
+            },
+          },
+        }),
+      ).rejects.toMatchObject({ code: "P2002" });
     });
   });
 
@@ -485,17 +631,19 @@ describe("analysis schema", () => {
           sourceTextVersionId,
           createdById: userId,
           elements: {
-            create: { position: 0, kind: "INTERPRETATION", statement: FIXTURE_STATEMENT },
+            create: {
+              position: 0,
+              kind: "INTERPRETATION",
+              origin: "GENERATED",
+              statement: FIXTURE_STATEMENT,
+            },
           },
         },
         include: { elements: true },
       });
+      const lineageId = revision.elements[0]?.lineageId ?? "";
       await prisma.analysisAnnotation.create({
-        data: {
-          elementId: revision.elements[0]?.id ?? "",
-          authorId: userId,
-          body: "fixture note",
-        },
+        data: { analysisId, lineageId, authorId: userId, body: "fixture note" },
       });
 
       await prisma.project.delete({ where: { id: projectId } });
@@ -508,9 +656,9 @@ describe("analysis schema", () => {
       expect(
         await prisma.analysisAnnotation.count({ where: { authorId: userId } }),
       ).toBeGreaterThan(0);
-      expect(
-        await prisma.analysisAnnotation.count({ where: { elementId: revision.elements[0]?.id } }),
-      ).toBe(0);
+      // Cascaded from the analysis now, not from the element row it used to hang
+      // off — the note goes with the project either way.
+      expect(await prisma.analysisAnnotation.count({ where: { analysisId, lineageId } })).toBe(0);
     });
   });
 });

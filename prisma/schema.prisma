@@ -454,11 +454,41 @@ enum AnalysisElementKind {
 /// Where a section revision came from. Two members, because that is the
 /// distinction the version history has to show (CAL-147): a generation, or a
 /// human edit. A section the author rewrote entirely is still EDITED.
+///
+/// Deliberately not ContentOrigin below, which it resembles. This one is a fact
+/// about the *revision* — was it written by a person or produced by a model —
+/// and a revision has no USER_WRITTEN state to be in: a section the author
+/// filled from nothing is still a revision they edited. The two are read
+/// together (resolveProvenanceState in @calepin/shared/provenance) and merging
+/// them would make that reading impossible.
 enum AnalysisRevisionOrigin {
   GENERATED
   EDITED
 
   @@map("analysis_revision_origin")
+}
+
+/// Who authored the current wording of one element — the traceability pattern
+/// of CAL-073, mirrored by CONTENT_ORIGINS in @calepin/shared/provenance and
+/// pinned against it by schema.test.ts.
+///
+/// Established for AnalysisElement and written to be reused as is by the bible,
+/// the outline and the chapters: the specification's principle 4.2 asks for the
+/// same distinction wherever a person edits something a model proposed, and one
+/// enum answering it four times is one migration rather than four.
+///
+/// Three members for DirectionOrigin's reason: an element the author rewrote
+/// from a proposal and one they started from nothing are worth telling apart.
+/// There is no VALIDATED member, because being validated is not an authorship —
+/// an element still GENERATED inside a revision a person wrote is one they read
+/// and kept, which the pair of columns already says and a fourth member could
+/// only contradict.
+enum ContentOrigin {
+  GENERATED
+  EDITED
+  USER_WRITTEN
+
+  @@map("content_origin")
 }
 
 /// The narrative diagnostic of a project's source text — one per project.
@@ -489,6 +519,7 @@ model Analysis {
   validatedBy User?   @relation("AnalysisValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
 
   sectionRevisions AnalysisSectionRevision[]
+  annotations      AnalysisAnnotation[]
 
   @@map("analyses")
 }
@@ -556,7 +587,19 @@ model AnalysisSectionRevision {
 model AnalysisElement {
   id                String              @id @default(cuid())
   sectionRevisionId String
+  /// The identity of this element across the revisions of its section — minted
+  /// when it first appears, copied by every later revision that keeps it
+  /// (CAL-073). The row dies with its revision; the lineage does not, which is
+  /// what lets provenance be carried forward and what gives an annotation
+  /// something to point at that a rewrite of the section does not destroy.
+  ///
+  /// Not the primary key: two revisions legitimately hold the same lineage, and
+  /// the unique index below is on the pair.
+  lineageId         String              @default(cuid())
   position          Int
+  /// Who authored this wording. Monotone across edits — see originAfterEdit in
+  /// @calepin/shared/provenance, which is the only thing allowed to compute it.
+  origin            ContentOrigin
   kind              AnalysisElementKind
   /// The short heading a listed section has and a paragraph section does not —
   /// a theme's name, a character's name, the point of view, the tense.
@@ -570,17 +613,37 @@ model AnalysisElement {
   evidence          String?
 
   sectionRevision AnalysisSectionRevision @relation(fields: [sectionRevisionId], references: [id], onDelete: Cascade)
-  annotations     AnalysisAnnotation[]
 
   @@unique([sectionRevisionId, position])
+  // One lineage appears at most once per revision. It is what carryProvenance
+  // guarantees and what this refuses to take on trust: a form posting the same
+  // hidden lineage twice collides here instead of splitting one element's
+  // history in two.
+  @@unique([sectionRevisionId, lineageId])
   @@map("analysis_elements")
 }
 
 /// A free note the author attaches to one element. Mutable, unlike everything
 /// above it, so it carries its own timestamps.
+///
+/// **It hangs off the analysis and a lineage, not off an element row** — the
+/// change CAL-073 made to it. A section revision is append-only, so editing a
+/// section replaces every AnalysisElement row under it; an annotation keyed on
+/// one of those rows cascaded away with it, and the author's notes died at the
+/// first edit of the section they were about. The lineage survives the rewrite
+/// (AnalysisElement.lineageId), so the note does too — which is also what makes
+/// CAL-077's *regenerating a section leaves the annotations alone* possible at
+/// all.
+///
+/// The cost is that no foreign key checks the lineage exists. The repository
+/// resolves it against the analysis before writing, and the pair is meaningless
+/// outside an analysis the owner already holds a scope on.
 model AnalysisAnnotation {
   id          String   @id @default(cuid())
-  elementId   String
+  analysisId  String
+  /// AnalysisElement.lineageId — the element this note is about, across every
+  /// revision of its section.
+  lineageId   String
   authorId    String
   body        String
   createdAt   DateTime @default(now())
@@ -589,10 +652,10 @@ model AnalysisAnnotation {
   version     Int      @default(1)
   updatedBy   User     @relation("AnalysisAnnotationUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
 
-  element AnalysisElement @relation(fields: [elementId], references: [id], onDelete: Cascade)
-  author  User            @relation("AnalysisAnnotationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  author   User     @relation("AnalysisAnnotationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
 
-  @@index([elementId])
+  @@index([analysisId, lineageId])
   @@map("analysis_annotations")
 }
 

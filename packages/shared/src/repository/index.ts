@@ -16,10 +16,22 @@ export {
   withProjectAggregates,
 } from "./aggregates";
 export {
+  addAnalysisAnnotation,
+  type AddAnalysisAnnotationInput,
+  ANALYSIS_ANNOTATION_CHAR_CEILING,
+  type AnalysisAnnotationSnapshot,
+  type AnalysisAnnotationWritten,
   type AnalysisElementSnapshot,
+  type AnalysisElementSubmission,
+  type AnalysisSectionEdit,
   type AnalysisSectionSnapshot,
   type AnalysisSnapshot,
+  deleteAnalysisAnnotation,
+  editAnalysisSection,
+  type EditAnalysisSectionInput,
   getAnalysis,
+  updateAnalysisAnnotation,
+  type UpdateAnalysisAnnotationInput,
 } from "./analysis";
 export {
   type DuplicatedProject,

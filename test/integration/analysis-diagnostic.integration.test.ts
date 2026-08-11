@@ -106,6 +106,7 @@ describe("the narrative diagnostic read (CAL-072)", () => {
         sectionRevisionId: first.id,
         position: 1,
         kind: "FACTUAL",
+        origin: "GENERATED",
         label: "old",
         statement: "stale",
       },
@@ -126,6 +127,7 @@ describe("the narrative diagnostic read (CAL-072)", () => {
         sectionRevisionId: second.id,
         position: 1,
         kind: "INTERPRETATION",
+        origin: "GENERATED",
         label: "new",
         statement: "current",
       },
@@ -137,7 +139,20 @@ describe("the narrative diagnostic read (CAL-072)", () => {
       {
         section: "THEMES",
         revisionNumber: 2,
-        elements: [{ kind: "INTERPRETATION", label: "new", statement: "current", evidence: null }],
+        origin: "GENERATED",
+        elements: [
+          {
+            lineageId: expect.any(String),
+            kind: "INTERPRETATION",
+            label: "new",
+            statement: "current",
+            evidence: null,
+            origin: "GENERATED",
+            // A generated revision the author has not passed over.
+            provenance: "proposed",
+            annotations: [],
+          },
+        ],
       },
     ]);
   });
@@ -164,6 +179,7 @@ describe("the narrative diagnostic read (CAL-072)", () => {
           sectionRevisionId: revision.id,
           position,
           kind: "FACTUAL",
+          origin: "GENERATED",
           label: `label-${position}`,
           statement: `statement-${position}`,
         },

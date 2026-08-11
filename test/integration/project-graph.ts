@@ -72,11 +72,19 @@ export async function createProjectGraph(
       sectionRevisionId: sectionRevision.id,
       position: 1,
       kind: "FACTUAL",
+      origin: "GENERATED",
       statement: "fixture",
     },
   });
+  // Keyed on the analysis and the element's lineage since CAL-073, which is
+  // what lets it outlive the revision the element sits in.
   const annotation = await prisma.analysisAnnotation.create({
-    data: { elementId: element.id, authorId: user.id, body: "fixture" },
+    data: {
+      analysisId: analysis.id,
+      lineageId: element.lineageId,
+      authorId: user.id,
+      body: "fixture",
+    },
   });
 
   const direction = await prisma.creativeDirection.create({

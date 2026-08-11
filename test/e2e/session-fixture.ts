@@ -319,6 +319,7 @@ export async function seedProjectWithAnalysis(
         sectionRevisionId: summary.id,
         position: 1,
         kind: "FACTUAL",
+        origin: "GENERATED",
         statement: "Louise s'arrête au milieu d'un pont et observe la rivière.",
       },
     });
@@ -338,6 +339,7 @@ export async function seedProjectWithAnalysis(
         sectionRevisionId: themes.id,
         position: 1,
         kind: "FACTUAL",
+        origin: "GENERATED",
         label: "Le pont",
         statement: "Le texte insiste sur l'état vétuste du pont.",
         evidence: "Le vieux pont craquait sous chaque pas.",
@@ -348,6 +350,7 @@ export async function seedProjectWithAnalysis(
         sectionRevisionId: themes.id,
         position: 2,
         kind: "INTERPRETATION",
+        origin: "GENERATED",
         label: "La contemplation",
         statement: "Le passage suggère un moment de pause réflexive plutôt qu'une action.",
       },

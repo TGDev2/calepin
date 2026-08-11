@@ -76,6 +76,10 @@
       "types": "./src/project-status/index.ts",
       "default": "./src/project-status/index.ts"
     },
+    "./provenance": {
+      "types": "./src/provenance/index.ts",
+      "default": "./src/provenance/index.ts"
+    },
     "./queue": {
       "types": "./src/queue/index.ts",
       "default": "./src/queue/index.ts"

@@ -116,9 +116,13 @@ export const DUPLICATION_PLAN = [
     },
   },
   { model: "AnalysisElement", references: { sectionRevisionId: "AnalysisSectionRevision" } },
+  // `lineageId` is not a reference and is copied verbatim, which is what keeps
+  // a duplicated project's notes attached to its duplicated elements: both
+  // sides of the pair are copied, and the pair is only ever compared inside one
+  // analysis (CAL-073).
   {
     model: "AnalysisAnnotation",
-    references: { elementId: "AnalysisElement", authorId: "User" },
+    references: { analysisId: "Analysis", authorId: "User" },
   },
 
   { model: "CreativeDirection", references: { projectId: "Project" } },

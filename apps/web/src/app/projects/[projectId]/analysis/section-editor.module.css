@@ -1,0 +1,106 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place.
+ */
+
+.form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.guidance {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.row {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.rowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.rowOrigin {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.fieldLabel {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-1);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cancel {
+  font-size: 0.9rem;
+}

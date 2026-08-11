@@ -306,6 +306,48 @@ describe("prisma schema", () => {
       expect(enumMembers("AnalysisRevisionOrigin")).toEqual(["GENERATED", "EDITED"]);
     });
 
+    // CAL-073's traceability pattern. The enum is @calepin/shared's, not this
+    // domain's, because the bible, the outline and the chapters need the same
+    // three members — so it is pinned against the shared list the way
+    // AnalysisSection is pinned against the domain's.
+    it("mirrors the content origins of the traceability pattern", () => {
+      expect(enumMembers("ContentOrigin")).toEqual(
+        workspaceStringUnion("packages/shared/src/provenance/origins.ts", "CONTENT_ORIGINS"),
+      );
+      expect(enumMembers("ContentOrigin")).toEqual(["GENERATED", "EDITED", "USER_WRITTEN"]);
+    });
+
+    // Being validated is derived from the element's origin and the revision's
+    // (resolveProvenanceState), never stored. A column here would be a second
+    // answer able to disagree with the two that already hold the first one.
+    it("stores an element's author and never its acceptance", () => {
+      const element = modelBlock("AnalysisElement");
+
+      expect(element).toMatch(/origin\s+ContentOrigin(?!\?)/);
+      expect(element).not.toMatch(/^\s*(acceptedAt|acceptedById|validatedAt|isAccepted)\s/m);
+    });
+
+    // The identity that outlives the revision holding it. Without it an edit
+    // would rewrite the section's rows and lose both the origin of every
+    // element it kept and every note attached to them.
+    it("gives each element a lineage, unique within its revision", () => {
+      const element = modelBlock("AnalysisElement");
+
+      expect(element).toMatch(/lineageId\s+String\s+@default\(cuid\(\)\)/);
+      expect(element).toMatch(/@@unique\(\[sectionRevisionId, lineageId\]\)/);
+    });
+
+    // The change that makes an annotation survive the edit it comments on: it
+    // names the analysis and a lineage, never a revision-scoped element row.
+    it("keys an annotation on a lineage rather than on an element row", () => {
+      const annotation = modelBlock("AnalysisAnnotation");
+
+      expect(annotation).toMatch(/analysisId\s+String(?!\?)/);
+      expect(annotation).toMatch(/lineageId\s+String(?!\?)/);
+      expect(annotation).not.toMatch(/^\s*elementId\s/m);
+      expect(annotation).toMatch(/@@index\(\[analysisId, lineageId\]\)/);
+    });
+
     // §4.2's carve-out, pinned the way PROJECT_STATUSES and FREEDOM_LEVELS
     // are: `@calepin/analysis` mirrors both enums so the mission's output
     // schema speaks the column's spelling, and neither list can move alone

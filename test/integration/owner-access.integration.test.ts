@@ -22,6 +22,7 @@ import { runWithActor } from "@calepin/shared/audit";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import { fail, NotFoundError, succeed } from "@calepin/shared/errors";
 import {
+  addAnalysisAnnotation,
   cancelGeneration,
   claimGenerationAttempt,
   completeGenerationAttempt,
@@ -29,8 +30,10 @@ import {
   createProject,
   createProjectWithSourceText,
   delegateName,
+  deleteAnalysisAnnotation,
   deleteProject,
   duplicateProject,
+  editAnalysisSection,
   getAnalysis,
   getGenerationContextForProject,
   getProjectForOwner,
@@ -56,6 +59,7 @@ import {
   requireOwnedRow,
   reserveGeneration,
   scopedWhere,
+  updateAnalysisAnnotation,
   updateGenerationProgress,
   updateProject,
   type UpdateProjectInput,
@@ -79,6 +83,7 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * fail.
  */
 const ENTRY_POINTS = [
+  "addAnalysisAnnotation",
   "archiveProject",
   "cancelGeneration",
   "claimGenerationAttempt",
@@ -86,8 +91,10 @@ const ENTRY_POINTS = [
   "computeProjectAggregates",
   "createProject",
   "createProjectWithSourceText",
+  "deleteAnalysisAnnotation",
   "deleteProject",
   "duplicateProject",
+  "editAnalysisSection",
   "getAnalysis",
   "getGenerationContextForProject",
   "getProjectForOwner",
@@ -112,6 +119,7 @@ const ENTRY_POINTS = [
   "requireOwnedRow",
   "reserveGeneration",
   "restoreProject",
+  "updateAnalysisAnnotation",
   "updateGenerationProgress",
   "updateProject",
   "updateSourceText",
@@ -962,13 +970,95 @@ describe("owner access policy", () => {
           {
             section: "FACTUAL_SUMMARY",
             revisionNumber: 1,
-            elements: [{ kind: "FACTUAL", label: null, statement: "fixture", evidence: null }],
+            origin: "GENERATED",
+            elements: [
+              {
+                lineageId: expect.any(String),
+                kind: "FACTUAL",
+                label: null,
+                statement: "fixture",
+                evidence: null,
+                origin: "GENERATED",
+                provenance: "proposed",
+                annotations: [
+                  {
+                    id: expect.any(String),
+                    body: "fixture",
+                    createdAt: expect.any(Date),
+                    updatedAt: expect.any(Date),
+                  },
+                ],
+              },
+            ],
           },
         ],
       });
 
       const theirs = await getAnalysis(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs).toBeNull();
+    });
+
+    // CAL-073's three write paths. Each is refused the same way and for the
+    // same reason: the scope names the owner, and the statement that touches
+    // the row carries the filter.
+    it("editAnalysisSection refuses another owner's project", async () => {
+      const seized = await runWithActor(bob.ownerId, async () =>
+        editAnalysisSection(forgedScope(bob.ownerId, alice.projectId), {
+          section: "FACTUAL_SUMMARY",
+          elements: [
+            {
+              lineageId: null,
+              kind: "FACTUAL",
+              label: null,
+              statement: "seized",
+              evidence: null,
+            },
+          ],
+        }),
+      );
+
+      expect(seized.ok).toBe(false);
+      if (!seized.ok) expect(seized.error.code).toBe("NOT_FOUND");
+
+      // Not merely refused: no revision was appended on the way to refusing it.
+      const after = await getAnalysis(aliceScope);
+      expect(after?.sections[0]?.revisionNumber).toBe(1);
+    });
+
+    it("addAnalysisAnnotation refuses another owner's project", async () => {
+      const mineFirst = await getAnalysis(aliceScope);
+      const lineageId = mineFirst?.sections[0]?.elements[0]?.lineageId ?? "";
+
+      const seized = await runWithActor(bob.ownerId, async () =>
+        addAnalysisAnnotation(forgedScope(bob.ownerId, alice.projectId), {
+          lineageId,
+          body: "seized",
+        }),
+      );
+
+      expect(seized.ok).toBe(false);
+      if (!seized.ok) expect(seized.error.code).toBe("NOT_FOUND");
+    });
+
+    it("updateAnalysisAnnotation and deleteAnalysisAnnotation refuse another owner's note", async () => {
+      const rewritten = await runWithActor(bob.ownerId, async () =>
+        updateAnalysisAnnotation(bobScope, {
+          annotationId: alice.rows.AnalysisAnnotation,
+          body: "seized",
+        }),
+      );
+      const removed = await runWithActor(bob.ownerId, async () =>
+        deleteAnalysisAnnotation(bobScope, alice.rows.AnalysisAnnotation),
+      );
+
+      expect(rewritten.ok).toBe(false);
+      expect(removed.ok).toBe(false);
+      if (!rewritten.ok) expect(rewritten.error.code).toBe("NOT_FOUND");
+      if (!removed.ok) expect(removed.error.code).toBe("NOT_FOUND");
+
+      // And the owner's own note is untouched by the attempt.
+      const stillThere = await getAnalysis(aliceScope);
+      expect(stillThere?.sections[0]?.elements[0]?.annotations[0]?.body).toBe("fixture");
     });
 
     it("requireOwnedRow refuses a row from another owner's project", async () => {

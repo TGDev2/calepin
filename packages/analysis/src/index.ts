@@ -33,3 +33,9 @@ export {
   type SourceTextAnalysis,
   sourceTextAnalysisSchema,
 } from "./schema";
+export {
+  type AnalysisElementDraft,
+  analysisSectionElementLimit,
+  isListedAnalysisSection,
+  parseAnalysisSectionEdit,
+} from "./section-edit";

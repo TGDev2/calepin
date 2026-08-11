@@ -43,6 +43,37 @@
   border-radius: var(--radius-1);
 }
 
+.locked {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-left-width: 3px;
+  border-radius: var(--radius-1);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/*
+ * The anchor every link and every post-save redirect lands on, offset so the
+ * section heading is not flush against the top of the viewport.
+ */
+.section {
+  scroll-margin-top: var(--space-2);
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.edit {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
 .sectionTitle {
   margin: 0;
   font-size: 1.1rem;
@@ -103,4 +134,44 @@
   color: var(--color-text-muted);
   font-size: 0.9rem;
   font-style: italic;
+}
+
+/* The author's free notes on one element (CAL-073). */
+.notes {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.note {
+  padding: var(--space-1);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.noteBody {
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.noteActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.noteAction {
+  font-size: 0.8rem;
+}
+
+.annotate {
+  display: inline-block;
+  margin-top: var(--space-1);
+  font-size: 0.85rem;
 }

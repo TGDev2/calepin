@@ -521,7 +521,11 @@ async function seedAnalysisContent(
         label: element.label ?? null,
         statement: element.statement,
         evidence: element.evidence ?? null,
-      };
+        // Revision 1 is the model's answer, so every element is its proposal
+        // (CAL-073). The edited revision below is what puts the other origins
+        // on screen.
+        origin: "GENERATED",
+      } as const;
 
       await prisma.analysisElement.upsert({
         where: { sectionRevisionId_position: { sectionRevisionId: revision.id, position } },
@@ -531,7 +535,123 @@ async function seedAnalysisContent(
     }
   }
 
+  await seedEditedThemes(analysis.id, demoUserId, sourceTextVersionId);
+
   console.log("Analysis: 17 sections seeded for proj_writing_demo");
+}
+
+/**
+ * A second revision of `THEMES`, written by the demo author.
+ *
+ * It exists so the traceability pattern is visible in the demo rather than only
+ * in a test: the three elements of revision 1 come through as a proposal kept
+ * as is, a proposal reworded, and one the author added — which is every
+ * `ProvenanceState` but the one revision 1 already shows on the other sixteen
+ * sections. Two annotations hang off it, one of them on the element the author
+ * left untouched, so the notes are visibly independent of who wrote what.
+ */
+async function seedEditedThemes(
+  analysisId: string,
+  demoUserId: string,
+  sourceTextVersionId: string,
+) {
+  const existing = await prisma.analysisSectionRevision.findUnique({
+    where: {
+      analysisId_section_revisionNumber: { analysisId, section: "THEMES", revisionNumber: 2 },
+    },
+    select: { id: true },
+  });
+
+  if (existing !== null) return;
+
+  const first = await prisma.analysisSectionRevision.findUniqueOrThrow({
+    where: {
+      analysisId_section_revisionNumber: { analysisId, section: "THEMES", revisionNumber: 1 },
+    },
+    select: {
+      elements: {
+        orderBy: { position: "asc" },
+        select: { lineageId: true, kind: true, label: true, statement: true, evidence: true },
+      },
+    },
+  });
+
+  const [kept, reworded] = first.elements;
+  if (kept === undefined || reworded === undefined) return;
+
+  const revision = await prisma.analysisSectionRevision.create({
+    data: {
+      analysisId,
+      section: "THEMES",
+      revisionNumber: 2,
+      origin: "EDITED",
+      sourceTextVersionId,
+      createdById: demoUserId,
+    },
+    select: { id: true },
+  });
+
+  await prisma.analysisElement.createMany({
+    data: [
+      // Untouched: still the model's wording, and read as validated because the
+      // revision holding it is one the author wrote.
+      { sectionRevisionId: revision.id, position: 1, origin: "GENERATED", ...content(kept) },
+      {
+        sectionRevisionId: revision.id,
+        position: 2,
+        origin: "EDITED",
+        ...content(reworded),
+        statement: `${reworded.statement} L'auteur a précisé ce thème.`,
+      },
+      {
+        sectionRevisionId: revision.id,
+        position: 3,
+        origin: "USER_WRITTEN",
+        kind: "INTERPRETATION",
+        label: "La ritournelle",
+        statement: "Un thème que l'auteur a ajouté lui-même après lecture du diagnostic.",
+        evidence: null,
+      },
+    ],
+  });
+
+  await prisma.analysisAnnotation.createMany({
+    data: [
+      {
+        analysisId,
+        lineageId: kept.lineageId,
+        authorId: demoUserId,
+        body: "À garder tel quel : c'est le fil que je veux tenir sur tout le roman.",
+      },
+      {
+        analysisId,
+        lineageId: reworded.lineageId,
+        authorId: demoUserId,
+        body: "Reformulé, la version d'origine était trop générale.",
+      },
+    ],
+  });
+}
+
+/**
+ * An element carried into the next revision — **lineage included**. That is the
+ * whole mechanism: the row is new, the identity is not, so the origin comes
+ * across and the notes attached to it stay attached.
+ */
+function content(element: {
+  lineageId: string;
+  kind: "FACTUAL" | "INTERPRETATION";
+  label: string | null;
+  statement: string;
+  evidence: string | null;
+}) {
+  return {
+    lineageId: element.lineageId,
+    kind: element.kind,
+    label: element.label,
+    statement: element.statement,
+    evidence: element.evidence,
+  };
 }
 
 /**
