@@ -24,5 +24,12 @@ What exists today:
   fewer than `NARRATIVE_ENGINE_DIVERGENCE_MINIMUM` axes are one engine;
   `checkDirectionDivergence` reports collisions, the retained directions and
   the slots a targeted relaunch re-asks.
+- `evaluation.ts` (CAL-081) — the `evaluate-direction` contract:
+  `directionEvaluationSchema` (four argued lists — promises, shortfalls,
+  conventions, comparative weaknesses — no synthesis field, no numeric field
+  anywhere), the element anchor pinned to the proposal schema's own keys,
+  and `verifyDirectionEvaluationEvidence`, which reads every quotation
+  against the source text and the direction's own prose and brands what it
+  returns.
 
 Backlog: E08 — CAL-079 to CAL-087. Schema: CAL-015.

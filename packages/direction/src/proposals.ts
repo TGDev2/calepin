@@ -92,7 +92,12 @@ const CHARS_PER_WORD = 7;
  */
 const OVERRUN_FACTOR = 2;
 
-function ceilingFor(wordTarget: number): number {
+/**
+ * Package-internal, never on `index.ts` — `evaluation.ts` derives its ceilings
+ * from the same rule, so "a ceiling is twice the target in characters" is one
+ * statement with two users, the `@calepin/analysis` schema.ts arrangement.
+ */
+export function ceilingFor(wordTarget: number): number {
   return Math.ceil(wordTarget * CHARS_PER_WORD * OVERRUN_FACTOR);
 }
 
