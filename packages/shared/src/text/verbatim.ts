@@ -140,3 +140,24 @@ export function createVerbatimMatcher(text: string): VerbatimMatcher {
     return words.length > 0 && haystack.includes(sequenceOf(words));
   };
 }
+
+/**
+ * Whether two texts are the same words — each verbatim in the other, which is
+ * mutual containment of word sequences and therefore equality of them
+ * (CAL-090, moved here by CAL-091).
+ *
+ * It is the closure of `createVerbatimMatcher` rather than a second reduction,
+ * which is the whole point: name equality, quotation equality and statement
+ * equality can never drift apart, because there is one place that decides what
+ * a word is. Typography is what a model retypes wrong — the curly apostrophe,
+ * the non-breaking space, an accent decomposed — so raw equality would refuse
+ * a name copied faithfully by eye.
+ *
+ * Here rather than in a domain for `createVerbatimMatcher`'s own reason: the
+ * character sheet asks it of a name and of a knowledge statement, the
+ * relationship graph asks it of both ends of an edge, and a domain may not
+ * import a domain (§3.2).
+ */
+export function sameWords(a: string, b: string): boolean {
+  return createVerbatimMatcher(a)(b) && createVerbatimMatcher(b)(a);
+}

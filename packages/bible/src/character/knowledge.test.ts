@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CHARACTER_KNOWLEDGE_STANCE_LABELS,
   CHARACTER_KNOWLEDGE_STANCE_PREFIXES,
+  CHARACTER_KNOWLEDGE_STANCE_VERBS,
   CHARACTER_KNOWLEDGE_STANCES,
   knowledgeStanceToBelief,
 } from "./knowledge";
@@ -59,5 +60,29 @@ describe("the stance copy", () => {
     );
 
     expect(new Set(prefixes).size).toBe(prefixes.length);
+  });
+
+  it("gives every stance a verb, and keeps the four distinct", () => {
+    const verbs = CHARACTER_KNOWLEDGE_STANCES.map(
+      (stance) => CHARACTER_KNOWLEDGE_STANCE_VERBS[stance],
+    );
+
+    for (const verb of verbs) {
+      expect(verb).toMatch(/\S/);
+    }
+
+    expect(new Set(verbs).size).toBe(verbs.length);
+  });
+
+  it("spells each prefix as its own verb, capitalised — one wording, not two", () => {
+    // The pin the prefixes' doc comment names: written out rather than
+    // computed, so no locale-dependent `toUpperCase` sits between the author
+    // and the words they read — and so the two tables can never drift.
+    for (const stance of CHARACTER_KNOWLEDGE_STANCES) {
+      const verb = CHARACTER_KNOWLEDGE_STANCE_VERBS[stance];
+      const capitalised = `${verb.slice(0, 1).toUpperCase()}${verb.slice(1)}`;
+
+      expect(CHARACTER_KNOWLEDGE_STANCE_PREFIXES[stance]).toBe(`${capitalised} :`);
+    }
   });
 });

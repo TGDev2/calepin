@@ -63,10 +63,29 @@ export const CHARACTER_KNOWLEDGE_STANCE_LABELS: Readonly<Record<CharacterKnowled
   };
 
 /**
+ * The French verb, third person singular, that says how a character stands —
+ * « Blanche sait ; Corentin ignore ». CAL-091 renders an asymmetry with it,
+ * where the subject of the sentence is a name rather than the sheet's implicit
+ * owner.
+ */
+export const CHARACTER_KNOWLEDGE_STANCE_VERBS: Readonly<Record<CharacterKnowledgeStance, string>> =
+  {
+    knows: "sait",
+    "believes-wrongly": "croit à tort",
+    unaware: "ignore",
+    denies: "nie",
+  };
+
+/**
  * The French prefix `resolveCharacterSheet` writes before the statement in
  * the stored `heldKnowledge` text — flattening without erasing, the
  * `STYLE_VIOLATION_CONNECTOR` doctrine: the stance stays visible in the text
  * the author reviews.
+ *
+ * It is the verb above, capitalised, with the connector — written out rather
+ * than computed, and `knowledge.test.ts` pins the pair. A derivation would put
+ * a locale-dependent `toUpperCase` between the author and the words they read;
+ * a test costs nothing and cannot mis-capitalise anything.
  */
 export const CHARACTER_KNOWLEDGE_STANCE_PREFIXES: Readonly<
   Record<CharacterKnowledgeStance, string>
