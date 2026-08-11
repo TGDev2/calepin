@@ -41,7 +41,7 @@ import {
   resolveProvenanceState,
 } from "../provenance";
 import { withProjectStatus } from "./project-status";
-import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
+import { assertProjectScope, type ProjectScope, requireOwnedRow, scopedWhere } from "./scope";
 import { withProjectTransaction } from "./transaction";
 
 /** A free note the author attached to one element, across its revisions. */
@@ -317,6 +317,190 @@ export async function editAnalysisSection(
     await tx.analysis.update({ where: { id: analysis.id }, data: {} });
 
     return succeed({ created: true, revisionNumber, elementCount: elements.length });
+  });
+}
+
+/**
+ * One element of a regenerated section, as the mission answered it.
+ *
+ * No `lineageId`: a regeneration proposes elements, it does not claim to
+ * continue the ones that were there. §6 forbids trusting a model with an
+ * identifier and matching by position would be worse than not matching at all
+ * — it would move the author's note about one theme onto a different theme,
+ * which is the loudest side effect a feature judged on having none could have.
+ */
+export interface RegeneratedAnalysisElement {
+  readonly kind: $Enums.AnalysisElementKind;
+  readonly label: string | null;
+  readonly statement: string;
+  readonly evidence: string | null;
+}
+
+export interface RegenerateAnalysisSectionInput {
+  readonly section: $Enums.AnalysisSection;
+  readonly elements: readonly RegeneratedAnalysisElement[];
+  /**
+   * The generation this answer came from — the ADR-001 link a successful
+   * generation appends with. Null only for a write with no generation behind
+   * it: a fixture, a seed, an import.
+   */
+  readonly generationId: string | null;
+}
+
+export interface AnalysisSectionRegeneration {
+  readonly revisionNumber: number;
+  readonly elementCount: number;
+  /**
+   * Notes that were attached to an element this revision replaced.
+   *
+   * They are not touched, and this is not a deletion count: an annotation
+   * names `(analysisId, lineageId)` precisely so it survives the rewrite of
+   * its section, and `getAnalysis` keeps showing every note whose lineage is
+   * still in the current revision. What the number says is how many of the
+   * author's notes stopped bearing on what is now on screen — a fact a screen
+   * has to be able to tell them, and one nothing else can compute afterwards
+   * without re-reading the revision that was replaced. A count, so it is safe
+   * to log (§9).
+   */
+  readonly orphanedAnnotationCount: number;
+}
+
+/**
+ * Regenerates one section, by appending a revision to it (CAL-077).
+ *
+ * `editAnalysisSection`'s twin, and every difference between the two is the
+ * point of this one:
+ *
+ * - **The origin is `GENERATED` and the revision names its generation.** That
+ *   is the ADR-001 link — *a successful generation appends a `Revision` linked
+ *   to its `Generation`* — and it is what makes the new elements read as
+ *   proposals in the editor rather than as the author's own work.
+ * - **No lineage is carried, so no provenance is carried.** See
+ *   `RegeneratedAnalysisElement`. The consequence is reported rather than
+ *   hidden, in `orphanedAnnotationCount`.
+ * - **There is no identical-answer short circuit.** An edit that changes
+ *   nothing is a form posted back and writing a revision for it would pad the
+ *   history with versions nobody made; an answer that happens to match is
+ *   still an answer somebody paid for, and the revision is the only thing that
+ *   links the generation to what it produced.
+ *
+ * What it shares with its twin is the whole of the acceptance criterion. The
+ * statement below names one `(analysisId, section)` pair: the sixteen other
+ * sections, every earlier revision of this one, and every annotation row are
+ * outside everything it touches — not preserved by care, but never addressed.
+ * A validated analysis is refused here too, for the same reason: the lock is
+ * true for every writer or it is true for none.
+ *
+ * The caller must be inside `runWithActor` — the `Analysis` update at the end
+ * carries the audit block, exactly as in an edit.
+ */
+export async function regenerateAnalysisSection(
+  scope: ProjectScope,
+  input: RegenerateAnalysisSectionInput,
+): Promise<Result<AnalysisSectionRegeneration>> {
+  assertProjectScope(scope);
+
+  if (input.elements.length === 0) {
+    return fail(
+      new ValidationError({
+        message: "a regenerated section holds no element",
+        userMessage: "La régénération n'a produit aucun élément pour cette section.",
+        fieldPath: "elements",
+      }),
+    );
+  }
+
+  // Resolved before the transaction, and through the scope: the foreign key
+  // proves the generation exists and nothing else proves it belongs to this
+  // project (§3.5). A generation's project never moves, so reading it outside
+  // the statement below costs nothing.
+  if (input.generationId !== null) {
+    const owned = await requireOwnedRow("Generation", input.generationId, scope);
+    if (!owned.ok) return owned;
+  }
+
+  return withProjectTransaction<AnalysisSectionRegeneration>(scope, async (tx) => {
+    const analysis = await tx.analysis.findFirst({
+      where: scopedWhere("Analysis", scope),
+      select: { id: true, validatedAt: true },
+    });
+
+    if (analysis === null) {
+      return fail(new NotFoundError({ message: "this project holds no analysis" }));
+    }
+
+    if (analysis.validatedAt !== null) {
+      return fail(
+        new ConflictError({
+          message: "the analysis is validated and no longer regenerable",
+          userMessage: "Cette analyse est validée : ses sections ne peuvent plus être régénérées.",
+        }),
+      );
+    }
+
+    const currentVersion = await tx.sourceTextVersion.findFirst({
+      where: scopedWhere("SourceTextVersion", scope),
+      orderBy: { versionNumber: "desc" },
+      select: { id: true },
+    });
+
+    if (currentVersion === null) {
+      return fail(new NotFoundError({ message: "this project holds no source text" }));
+    }
+
+    const previousRevision = await tx.analysisSectionRevision.findFirst({
+      where: { analysisId: analysis.id, section: input.section },
+      orderBy: { revisionNumber: "desc" },
+      select: { revisionNumber: true, elements: { select: { lineageId: true } } },
+    });
+
+    const replacedLineages = (previousRevision?.elements ?? []).map((row) => row.lineageId);
+
+    // The notes that were bearing on the section as it stood. Counted before
+    // the append and never modified by it — a `count`, not an `updateMany`.
+    const orphanedAnnotationCount =
+      replacedLineages.length === 0
+        ? 0
+        : await tx.analysisAnnotation.count({
+            where: { analysisId: analysis.id, lineageId: { in: replacedLineages } },
+          });
+
+    const revisionNumber = (previousRevision?.revisionNumber ?? 0) + 1;
+
+    const revision = await tx.analysisSectionRevision.create({
+      data: {
+        analysisId: analysis.id,
+        section: input.section,
+        revisionNumber,
+        origin: "GENERATED",
+        sourceTextVersionId: currentVersion.id,
+        generationId: input.generationId,
+        createdById: scope.ownerId,
+      },
+      select: { id: true },
+    });
+
+    await tx.analysisElement.createMany({
+      data: input.elements.map((element, index) => ({
+        sectionRevisionId: revision.id,
+        position: index + 1,
+        origin: "GENERATED" as const,
+        kind: element.kind,
+        label: element.label,
+        statement: element.statement,
+        evidence: element.evidence,
+      })),
+    });
+
+    // Empty data on purpose, as in an edit: `@updatedAt` and the CAL-022
+    // extension are the whole point of the statement.
+    await tx.analysis.update({ where: { id: analysis.id }, data: {} });
+
+    return succeed({
+      revisionNumber,
+      elementCount: input.elements.length,
+      orphanedAnnotationCount,
+    });
   });
 }
 

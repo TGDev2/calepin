@@ -81,7 +81,9 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * `project-status.integration.test.ts` rather than here: they are all one
  * mechanism, they need a project seeded up a stage to refuse anything
  * meaningful, and the assertion below is what makes leaving one of them untested
- * fail.
+ * fail. `regenerateAnalysisSection` is isolated in
+ * `analysis-regeneration.integration.test.ts` for the same reason — it needs an
+ * analysis with sections, elements and notes before it can refuse anything.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -115,6 +117,7 @@ const ENTRY_POINTS = [
   "reconcileProjectAggregates",
   "reconcileProjectStatus",
   "refreshProjectStatus",
+  "regenerateAnalysisSection",
   "renewGenerationAttemptLease",
   "replayGeneration",
   "requireOwnedRow",
