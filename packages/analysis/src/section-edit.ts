@@ -86,7 +86,7 @@ export function parseAnalysisSectionEdit(
   section: AnalysisSection,
   submitted: unknown,
 ): Result<readonly AnalysisElementDraft[]> {
-  const parsed = sectionElementsSchema(section).safeParse(submitted);
+  const parsed = analysisSectionElementsSchema(section).safeParse(submitted);
 
   if (!parsed.success) {
     return fail(
@@ -109,8 +109,14 @@ function sectionShape(section: AnalysisSection) {
  * A listed section already is one and is reused untouched — bounds, ceilings,
  * fixed kind and all. A paragraph section becomes an array of exactly one with
  * `label: null` required.
+ *
+ * Exported since CAL-077, because the editor is no longer the only caller: a
+ * targeted regeneration asks a model for one section and the answer is parsed
+ * before anything else happens (§6). The two write paths therefore hold the
+ * *same schema object* rather than two derivations of one table — which is the
+ * strongest form of this module's opening claim.
  */
-function sectionElementsSchema(section: AnalysisSection): z.ZodType {
+export function analysisSectionElementsSchema(section: AnalysisSection): z.ZodType {
   const shape = sectionShape(section);
 
   return shape instanceof z.ZodArray ? shape : z.array(shape.extend({ label: z.null() })).length(1);

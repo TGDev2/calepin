@@ -73,6 +73,15 @@ export {
 export {
   type AnalysisElementDraft,
   analysisSectionElementLimit,
+  analysisSectionElementsSchema,
   isListedAnalysisSection,
   parseAnalysisSectionEdit,
 } from "./section-edit";
+export {
+  ANALYSIS_REGENERATION_INSTRUCTION_CHAR_CEILING,
+  type AnalysisSectionEvidenceCheck,
+  type AnalysisSectionRegenerationInput,
+  analysisSectionRegenerationInputSchema,
+  parseAnalysisRegenerationInstruction,
+  verifyAnalysisSectionEvidence,
+} from "./section-regeneration";

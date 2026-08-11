@@ -125,11 +125,11 @@ export interface AnalysisEvidenceCheck {
  * check reads the same three fields everywhere, and writing it against the
  * seventeen concrete field types would be seventeen copies of one rule.
  */
-interface CheckedElement {
+export interface CheckedElement {
   readonly kind: AnalysisElementKind;
   readonly statement: string;
   readonly evidence: string | null;
-  readonly label?: string;
+  readonly label?: string | null;
 }
 
 /**
@@ -164,7 +164,7 @@ export function verifyAnalysisEvidence(
         quoted += 1;
       }
 
-      const outcome = checkElement(element, section, index, quotesTheText);
+      const outcome = checkElementEvidence(element, section, index, quotesTheText);
 
       if (outcome.correction !== undefined) {
         corrections.push(outcome.correction);
@@ -191,7 +191,16 @@ export function verifyAnalysisEvidence(
   };
 }
 
-function checkElement(
+/**
+ * The rule itself, for one element — package-internal (not on `index.ts`), like
+ * `ceilingFor`.
+ *
+ * `section-regeneration.ts` runs the *same function* over a single section
+ * (CAL-077) instead of a second copy of these fifteen lines. A rule stated
+ * twice is a rule that will be relaxed once, and this one is the
+ * specification's own acceptance criterion.
+ */
+export function checkElementEvidence(
   element: CheckedElement,
   section: AnalysisSection,
   index: number,
