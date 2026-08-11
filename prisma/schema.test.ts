@@ -1507,11 +1507,12 @@ describe("prisma schema", () => {
       // The thirteen of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the thirteen missions of the registry, and only those", () => {
+      it("declares the fourteen missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
           "ASSESS_NOVEL_POTENTIAL", // CAL-076
+          "REGENERATE_ANALYSIS_SECTION", // CAL-077
           "PROPOSE_DIRECTIONS",
           "EVALUATE_DIRECTION",
           "CREATE_CHARACTER_SHEET",

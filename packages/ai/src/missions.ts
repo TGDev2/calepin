@@ -1,10 +1,10 @@
 /**
- * The thirteen mission identifiers (CLAUDE.md §4.2).
+ * The fourteen mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same thirteen in SCREAMING_SNAKE because the column follows the schema's
+ * same fourteen in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
  * can drift.
  *
@@ -19,13 +19,19 @@
  * double argument per finding. `assess-novel-potential` (CAL-076) is the
  * third analysis-stage mission: it reads the validated analysis and appraises
  * what the text can sustain at the target length — a per-element judgement
- * against a word count, not a diagnosis.
+ * against a word count, not a diagnosis. `regenerate-analysis-section`
+ * (CAL-077) is the fourth, and the clearest case §5.4 has: it redoes **one**
+ * section the author was not satisfied with, reading what that section
+ * currently says and the word they added about what to do differently — an
+ * instruction the seventeen-section diagnostic has no hole for and no reason
+ * to grow one.
  */
 
 export const MISSION_IDS = [
   "analyze-source-text",
   "detect-cliche-risks",
   "assess-novel-potential",
+  "regenerate-analysis-section",
   "propose-directions",
   "evaluate-direction",
   "create-character-sheet",

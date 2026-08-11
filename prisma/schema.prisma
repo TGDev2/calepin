@@ -2181,6 +2181,7 @@ enum GenerationMission {
   ANALYZE_SOURCE_TEXT // analyser le texte source
   DETECT_CLICHE_RISKS // détecter les risques de clichés
   ASSESS_NOVEL_POTENTIAL // évaluer le potentiel romanesque
+  REGENERATE_ANALYSIS_SECTION // régénérer une section de l'analyse
   PROPOSE_DIRECTIONS // proposer des directions
   EVALUATE_DIRECTION // évaluer une direction
   CREATE_CHARACTER_SHEET // créer une fiche personnage

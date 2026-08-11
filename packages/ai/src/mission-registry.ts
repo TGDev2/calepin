@@ -185,6 +185,30 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 120_000,
   },
 
+  /**
+   * One section redone, not seventeen (CAL-077).
+   *
+   * The output cap is a section's worth rather than a diagnostic's, and the
+   * expected usage is dominated by the source text the mission still has to
+   * read in full — which is also why the context budget stays large while the
+   * answer stays small: reading everything to write one paragraph is exactly
+   * the shape of this mission. It stays on Opus at `high` because the author
+   * relaunches a section precisely when the first answer disappointed them,
+   * and the cheaper model is not the remedy for that.
+   */
+  "regenerate-analysis-section": {
+    id: "regenerate-analysis-section",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 4_000,
+    timeoutMs: 180_000,
+    output: { kind: "structured", schemaOwner: "analysis" },
+    contextBudgetTokens: 120_000,
+    expectedUsage: { inputTokens: 20_000, outputTokens: 800 },
+    expectedDurationMs: 60_000,
+  },
+
   /** Divergence: several genuinely different novels out of one text. */
   "propose-directions": {
     id: "propose-directions",

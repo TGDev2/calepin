@@ -76,12 +76,17 @@ export type GenerationWriteTargetKind = (typeof GENERATION_WRITE_TARGET_KINDS)[n
  * chapter and writes a `ChapterSummaryRevision` under it.
  */
 export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWriteTargetKind>> = {
-  // All three write the project's one analysis — the diagnostic's sections,
-  // the cliché findings and the potential assessment land in the same
-  // document, so they exclude each other.
+  // All four write the project's one analysis — the diagnostic's sections,
+  // the cliché findings, the potential assessment and the redo of a single
+  // section land in the same document, so they exclude each other. The fourth
+  // is the one that makes the exclusion earn its keep: a regeneration appends
+  // a revision to a section the whole-analysis mission is about to rewrite,
+  // and whichever of the two landed second would be the answer nobody asked
+  // for.
   ANALYZE_SOURCE_TEXT: "analysis",
   DETECT_CLICHE_RISKS: "analysis",
   ASSESS_NOVEL_POTENTIAL: "analysis",
+  REGENERATE_ANALYSIS_SECTION: "analysis",
 
   PROPOSE_DIRECTIONS: "directions",
   EVALUATE_DIRECTION: "direction",
