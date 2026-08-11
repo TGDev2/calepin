@@ -159,6 +159,20 @@ export {
   withProjectStatus,
 } from "./project-status";
 export {
+  type BibleCastMember,
+  type BibleRelationship,
+  type BibleRelationshipGraph,
+  deleteRelationship,
+  editRelationship,
+  type EditRelationshipInput,
+  getRelationshipGraph,
+  type RelationshipDeleted,
+  type RelationshipEdited,
+  type RelationshipWritten,
+  writeRelationship,
+  type WriteRelationshipInput,
+} from "./relationship";
+export {
   assertProjectScope,
   isProjectScope,
   openProjectScope,

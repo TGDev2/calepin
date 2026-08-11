@@ -5,6 +5,11 @@
  */
 
 export {
+  parseRelationshipContent,
+  type RelationshipContent,
+  relationshipContentSchema,
+} from "./edit";
+export {
   type DescribableEdge,
   describeEdge,
   describeRelationshipGraph,

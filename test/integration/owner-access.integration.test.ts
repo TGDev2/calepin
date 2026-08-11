@@ -97,6 +97,11 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * isolated in `direction-canonical.integration.test.ts`, which seeds the
  * validated analysis a choice requires and the downstream work a change has to
  * warn about — neither of which the shared graph is arranged to hold.
+ * `getRelationshipGraph`, `writeRelationship`, `editRelationship` and
+ * `deleteRelationship` are isolated in
+ * `relationship-graph.integration.test.ts`: they need a cast of three and both
+ * directions of a pair before a one-sided tie can be told from an absent one,
+ * which the shared graph's single relationship cannot show.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -108,16 +113,19 @@ const ENTRY_POINTS = [
   "createProject",
   "createProjectWithSourceText",
   "deleteAnalysisAnnotation",
+  "deleteRelationship",
   "deleteProject",
   "discardDirection",
   "duplicateProject",
   "editAnalysisSection",
   "editDirection",
+  "editRelationship",
   "getAnalysis",
   "getDirectionsForComparison",
   "getGenerationContextForProject",
   "getProjectForOwner",
   "getProjectTargetLength",
+  "getRelationshipGraph",
   "getSourceText",
   "listProjectDashboardRows",
   "listProjectsForOwner",
@@ -149,6 +157,7 @@ const ENTRY_POINTS = [
   "withProjectAggregates",
   "withProjectStatus",
   "withProjectTransaction",
+  "writeRelationship",
   "writeUserDirection",
 ];
 
