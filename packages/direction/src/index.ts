@@ -8,6 +8,34 @@
  */
 
 export {
+  checkDirectionDivergence,
+  checkDirectionProposalDivergence,
+  compareNarrativeEngines,
+  type DirectionDivergenceReport,
+  type DirectionEngineComparison,
+  NARRATIVE_ENGINE_DIVERGENCE_MINIMUM,
+  type NarrativeEngineComparison,
+} from "./divergence";
+export {
+  CONFLICT_NATURES,
+  type ConflictNature,
+  describeNarrativeEngine,
+  describeNarrativeEngineAxes,
+  NARRATIVE_ENGINE_AXES,
+  NARRATIVE_ENGINE_COPY,
+  type NarrativeEngine,
+  type NarrativeEngineAxis,
+  narrativeEngineSchema,
+  PROTAGONIST_STAKES,
+  type ProtagonistStake,
+  RESOLUTION_NATURES,
+  type ResolutionNature,
+  SHIFT_TRIGGERS,
+  type ShiftTrigger,
+  TENSION_SOURCES,
+  type TensionSource,
+} from "./narrative-engine";
+export {
   checkDirectionProposalCompliance,
   DIRECTION_CHAR_CEILINGS,
   DIRECTION_LABEL_CHAR_CEILING,

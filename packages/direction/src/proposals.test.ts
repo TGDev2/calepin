@@ -17,6 +17,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { NARRATIVE_ENGINE_AXES, type NarrativeEngine } from "./narrative-engine";
 import {
   checkDirectionProposalCompliance,
   DIRECTION_CHAR_CEILINGS,
@@ -52,6 +53,18 @@ function treatments(
   };
 }
 
+/** A complete engine declaration, the divergence gate's input (CAL-080). */
+function narrativeEngine(overrides: Partial<NarrativeEngine> = {}): NarrativeEngine {
+  return {
+    conflictNature: "internal",
+    tensionSource: "concealment",
+    protagonistStake: "belonging",
+    shiftTrigger: "revelation",
+    resolutionNature: "sacrifice",
+    ...overrides,
+  };
+}
+
 function proposal(overrides: Partial<DirectionProposal> = {}): DirectionProposal {
   return proposalSchema.parse({
     workingTitle: "Le registre des absents",
@@ -80,6 +93,7 @@ function proposal(overrides: Partial<DirectionProposal> = {}): DirectionProposal
     novelPotentialAssessment:
       "La direction tient la longueur par l'élargissement progressif du cercle des habitants touchés ; sa promesse repose sur la tension entre ordre et mémoire, déjà présente dans le texte.",
     dimensionTreatments: treatments(),
+    narrativeEngine: narrativeEngine(),
     ...overrides,
   });
 }
@@ -114,8 +128,9 @@ describe("directionProposalsSchema", () => {
   });
 
   // The twelve attributes under their CreativeDirection spellings, plus the
-  // declaration the direction stage rule demands — nothing else.
-  it("pins the field set to the twelve stored attributes and the declaration", () => {
+  // two declarations — the stage rule's treatments (CAL-079) and the
+  // narrative engine the divergence gate compares (CAL-080) — nothing else.
+  it("pins the field set to the twelve stored attributes and the declarations", () => {
     expect(Object.keys(proposalSchema.shape)).toEqual([
       "workingTitle",
       "developedPremise",
@@ -130,7 +145,18 @@ describe("directionProposalsSchema", () => {
       "elementsTransformed",
       "novelPotentialAssessment",
       "dimensionTreatments",
+      "narrativeEngine",
     ]);
+  });
+
+  // A direction that declares no engine cannot be compared to the others,
+  // and an unverifiable divergence order would be decoration (CAL-080).
+  it("refuses a direction without its engine declaration", () => {
+    const missing = Object.fromEntries(
+      Object.entries(proposal()).filter(([key]) => key !== "narrativeEngine"),
+    );
+
+    expect(proposalSchema.safeParse(missing).success).toBe(false);
   });
 
   // Cahier des charges: no number presented as a measure of quality or
@@ -158,6 +184,10 @@ describe("directionProposalsSchema", () => {
     }
 
     for (const [name, field] of Object.entries(proposalSchema.shape.dimensionTreatments.shape)) {
+      expect(field instanceof z.ZodEnum, name).toBe(true);
+    }
+
+    for (const [name, field] of Object.entries(proposalSchema.shape.narrativeEngine.shape)) {
       expect(field instanceof z.ZodEnum, name).toBe(true);
     }
   });
@@ -260,6 +290,25 @@ describe("dimensionTreatments", () => {
       proposalSchema.safeParse({
         ...proposal(),
         dimensionTreatments: { ...treatments(), atmosphere: "preserve" },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("narrativeEngine", () => {
+  // The proposal's declaration is the divergence gate's own vocabulary: the
+  // field and the axes cannot drift apart without failing here.
+  it("declares exactly the five engine axes, in their order", () => {
+    expect(Object.keys(proposalSchema.shape.narrativeEngine.shape)).toEqual([
+      ...NARRATIVE_ENGINE_AXES,
+    ]);
+  });
+
+  it("refuses an invented member on any axis", () => {
+    expect(
+      proposalSchema.safeParse({
+        ...proposal(),
+        narrativeEngine: { ...narrativeEngine(), conflictNature: "cosmic" },
       }).success,
     ).toBe(false);
   });

@@ -51,6 +51,8 @@ import {
 } from "@calepin/shared/freedom-level";
 import { z } from "zod";
 
+import { narrativeEngineSchema } from "./narrative-engine";
+
 /** The specification's own number of directions to propose (§5.5). */
 export const DIRECTION_PROPOSAL_COUNT = 3;
 
@@ -155,7 +157,10 @@ const dimensionTreatmentsSchema = z.strictObject({
 
 /**
  * One direction: the specification's twelve attributes, in its order and
- * under the `CreativeDirection` spellings, then the declaration.
+ * under the `CreativeDirection` spellings, then the two declarations — what
+ * the direction does to each source dimension (the freedom gate's input,
+ * CAL-079) and what its narrative engine is (the divergence gate's input,
+ * CAL-080).
  */
 const directionProposalSchema = z.strictObject({
   workingTitle: label,
@@ -171,6 +176,7 @@ const directionProposalSchema = z.strictObject({
   elementsTransformed: listOf(DIRECTION_LIST_COUNTS.elementsTransformed),
   novelPotentialAssessment: prose(DIRECTION_CHAR_CEILINGS.novelPotentialAssessment),
   dimensionTreatments: dimensionTreatmentsSchema,
+  narrativeEngine: narrativeEngineSchema,
 });
 
 /** The answer to `propose-directions`. */
