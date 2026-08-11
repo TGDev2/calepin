@@ -13,7 +13,7 @@ import {
   toMissionMeasurements,
 } from "./costly-operation";
 
-/** The twelve the Prisma enum declares, in its own spelling. */
+/** The thirteen the Prisma enum declares, in its own spelling. */
 const GENERATION_MISSIONS = Object.keys(MISSION_ID_BY_GENERATION_MISSION);
 
 function acknowledgementForm(fields: Record<string, string>): FormData {

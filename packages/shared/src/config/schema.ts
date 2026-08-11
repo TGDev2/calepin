@@ -71,7 +71,7 @@ export const envSchema = z.object({
    * without much cost or rate-limit exposure; `generation-slow`'s seven are
    * expensive and long (Opus, medium-to-high effort, up to 600s), so the
    * ceiling is kept low to bound simultaneous spend; `generation-audit`'s one
-   * mission is the single most demanding call of the twelve (`xhigh` effort)
+   * mission is the single most demanding call of the thirteen (`xhigh` effort)
    * and is isolated with its own modest ceiling so an audit backlog never
    * competes with authoring generations for the same slots.
    */

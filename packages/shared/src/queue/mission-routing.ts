@@ -39,6 +39,7 @@ export const MISSION_QUEUE: Readonly<Record<Mission, GenerationQueueName>> = {
 
   ANALYZE_SOURCE_TEXT: "generation-slow",
   DETECT_CLICHE_RISKS: "generation-slow",
+  ASSESS_NOVEL_POTENTIAL: "generation-slow",
   PROPOSE_DIRECTIONS: "generation-slow",
   EVALUATE_DIRECTION: "generation-slow",
   CREATE_CHARACTER_SHEET: "generation-slow",
@@ -59,6 +60,7 @@ export const MISSION_QUEUE: Readonly<Record<Mission, GenerationQueueName>> = {
 const MISSION_STAGE: Partial<Record<Mission, DownstreamStage>> = {
   ANALYZE_SOURCE_TEXT: "analysis",
   DETECT_CLICHE_RISKS: "analysis",
+  ASSESS_NOVEL_POTENTIAL: "analysis",
   PROPOSE_DIRECTIONS: "direction",
   EVALUATE_DIRECTION: "direction",
   CREATE_CHARACTER_SHEET: "bible",
@@ -72,7 +74,7 @@ const MISSION_STAGE: Partial<Record<Mission, DownstreamStage>> = {
  * *waiting on the same queue*: it has no cross-queue effect, so it changes
  * nothing about `generation-fast` never sitting behind `generation-slow` —
  * the queue split itself already guarantees that. What it does do is order
- * `generation-slow`'s eight missions against each other when more than one
+ * `generation-slow`'s nine missions against each other when more than one
  * is waiting on that queue's own limited concurrency, from
  * `downstreamStageRank` (a job upstream in the chain outranks one that
  * depends on it). `generation-fast`'s three and `generation-audit`'s one get

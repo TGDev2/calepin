@@ -28,6 +28,7 @@ import { BENCH_COMPARE_OUTPUTS_PROMPTS } from "./bench/judge-comparison";
 import { BENCH_REVIEW_OUTPUT_PROMPTS } from "./bench/judge-review";
 import { BENCH_SYNTHESIZE_COMPARISON_PROMPTS } from "./bench/judge-synthesis";
 import { ANALYZE_SOURCE_TEXT_PROMPTS } from "./missions/analyze-source-text";
+import { ASSESS_NOVEL_POTENTIAL_PROMPTS } from "./missions/assess-novel-potential";
 import { BUILD_CHAPTER_OUTLINE_PROMPTS } from "./missions/build-chapter-outline";
 import { CHECK_COHERENCE_PROMPTS } from "./missions/check-coherence";
 import { CREATE_CHARACTER_SHEET_PROMPTS } from "./missions/create-character-sheet";
@@ -50,6 +51,7 @@ export type PromptRegistry = Readonly<Record<PromptId, PromptVersions>>;
 export const PROMPT_REGISTRY = {
   "analyze-source-text": ANALYZE_SOURCE_TEXT_PROMPTS,
   "detect-cliche-risks": DETECT_CLICHE_RISKS_PROMPTS,
+  "assess-novel-potential": ASSESS_NOVEL_POTENTIAL_PROMPTS,
   "propose-directions": PROPOSE_DIRECTIONS_PROMPTS,
   "evaluate-direction": EVALUATE_DIRECTION_PROMPTS,
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,

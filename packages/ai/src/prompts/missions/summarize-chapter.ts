@@ -1,5 +1,5 @@
 /**
- * `summarize-chapter` — two summaries, and the cheapest mission of the twelve.
+ * `summarize-chapter` — two summaries, and the cheapest mission of the thirteen.
  *
  * What every later chapter's context is built on (§5.8): a summary that drops
  * what carries consequence is how a novel written from summaries loses its own

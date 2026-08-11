@@ -10,10 +10,11 @@
  * `mission-registry.test.ts` proves that claim by walking the workspace: no
  * file outside this one and the capability sheet names a model at all.
  *
- * **Never one general-purpose prompt** (CLAUDE.md §5.4). The twelve missions
- * ask twelve different things of a model — a diagnosis, a hunt for the
- * déjà-lu, a set of proposals, a judgement, a character sheet, a chapter
- * plan, a scene, a list of atomic facts, a contradiction hunt, a targeted
+ * **Never one general-purpose prompt** (CLAUDE.md §5.4). The thirteen
+ * missions ask thirteen different things of a model — a diagnosis, a hunt for
+ * the déjà-lu, an appraisal of reach, a set of proposals, a judgement, a
+ * character sheet, a chapter plan, a scene, a list of atomic facts, a
+ * contradiction hunt, a targeted
  * correction, a summary — and merging them behind one treatment would mean
  * tuning none of them. The registry is total over `MissionId` (`satisfies`
  * below), so a mission cannot exist without its own declaration.
@@ -125,7 +126,7 @@ export const MISSION_REGISTRY = {
   /**
    * The whole source text, read once, in depth — the one mission whose input
    * legitimately is the entire starting text, hence the largest budget of the
-   * twelve. Everything downstream is built on its answer, so it stays on the
+   * thirteen. Everything downstream is built on its answer, so it stays on the
    * strongest model.
    */
   "analyze-source-text": {
@@ -159,6 +160,28 @@ export const MISSION_REGISTRY = {
     output: { kind: "structured", schemaOwner: "analysis" },
     contextBudgetTokens: 60_000,
     expectedUsage: { inputTokens: 20_000, outputTokens: 3_000 },
+    expectedDurationMs: 120_000,
+  },
+
+  /**
+   * The potential assessment (CAL-076): the validated analysis and the source
+   * text in, an argued appraisal of what the text can sustain at the target
+   * length out. Open editorial judgement with no verifiable answer — the case
+   * where the model's depth shows directly in the product's perceived value —
+   * so it stays on the strongest model at `high`; the input carries the
+   * analysis on top of the source text, hence a little more than the cliché
+   * pass expects.
+   */
+  "assess-novel-potential": {
+    id: "assess-novel-potential",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "analysis" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 25_000, outputTokens: 3_000 },
     expectedDurationMs: 120_000,
   },
 
@@ -225,7 +248,7 @@ export const MISSION_REGISTRY = {
   /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
-   * the twelve, on the strongest model — this is not where a cost saving is
+   * the thirteen, on the strongest model — this is not where a cost saving is
    * made.
    */
   "write-scene": {
@@ -264,7 +287,7 @@ export const MISSION_REGISTRY = {
   /**
    * The mission the product is judged on: a contradiction between a chapter
    * and everything established before it. The most demanding reasoning of the
-   * twelve over the widest context, so it is the one raised to `xhigh` and
+   * thirteen over the widest context, so it is the one raised to `xhigh` and
    * given the second-largest budget.
    */
   "check-coherence": {
@@ -299,7 +322,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the twelve and the most frequent after `extract-facts`: one
+   * The cheapest of the thirteen and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */

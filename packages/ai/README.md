@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (twelve since CAL-075), pinned
+- `missions.ts` — the mission identifiers (thirteen since CAL-076), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -72,6 +72,7 @@ narrative rule, and never restates a domain schema.
   | ------------------------ | -------- | ------ | ------- | ------- | ---------- | ------ | --------------- |
   | `analyze-source-text`    | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
   | `detect-cliche-risks`    | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 20 k / 3 k      |
+  | `assess-novel-potential` | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 25 k / 3 k      |
   | `propose-directions`     | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
   | `evaluate-direction`     | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
   | `create-character-sheet` | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
@@ -310,6 +311,25 @@ measured tokens at today's tariff, never replayed from a recorded price.
   displaces. Word targets and the findings ceiling arrive as variables owned
   by `@calepin/analysis` (the CAL-055 discipline). Exercised before shipping
   on conventional and singular trial texts (tasks/todo.md).
+
+## What exists (CAL-076)
+
+- **A thirteenth mission**, `assess-novel-potential` — the argued appraisal of
+  what the source text can sustain at the project's target length, read off
+  the validated analysis. Four axes plus a synthesis: elements that carry
+  expansion (at least three), elements that would run dry, gaps the length
+  will expose, fragilities to treat (at least two). Its schema is
+  `novelPotentialAssessmentSchema` in `@calepin/analysis`, which also owns
+  `verifyNovelPotentialEvidence` — evidence is nullable there, so an unfound
+  quotation is cleared rather than costing the appraisal.
+- `prompts/missions/assess-novel-potential.ts` **V1** — appraise, never rate:
+  the same numeric-verdict prohibition as CAL-075; the minimums are stated as
+  a prioritisation demand, not an invention licence (the appraisal says how
+  far each element carries, which may be "not far"); the text that is there,
+  not the novel one could dream onto it; gaps cite nothing, being absences.
+  Word targets, minimums, the per-axis ceiling and the target word count
+  arrive as variables (`@calepin/analysis`, `resolveNovelTargetWordCount`).
+  Exercised before shipping on dense and thin trial texts (tasks/todo.md).
 
 ## What arrives in its own task
 

@@ -1,7 +1,7 @@
 /**
  * `fix-issue` — a correction to one identified passage, and nothing else.
  *
- * The narrowest mission of the twelve by construction: the prompt is written to
+ * The narrowest mission of the thirteen by construction: the prompt is written to
  * stop a model rewriting a chapter it was asked to mend. A correction that
  * changes the surrounding prose is a new draft, and a new draft is what the
  * author did not ask for.

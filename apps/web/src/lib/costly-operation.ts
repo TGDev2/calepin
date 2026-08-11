@@ -42,6 +42,7 @@ import type {
 export const MISSION_ID_BY_GENERATION_MISSION = {
   ANALYZE_SOURCE_TEXT: "analyze-source-text",
   DETECT_CLICHE_RISKS: "detect-cliche-risks",
+  ASSESS_NOVEL_POTENTIAL: "assess-novel-potential",
   PROPOSE_DIRECTIONS: "propose-directions",
   EVALUATE_DIRECTION: "evaluate-direction",
   CREATE_CHARACTER_SHEET: "create-character-sheet",
