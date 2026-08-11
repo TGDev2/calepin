@@ -48,4 +48,24 @@ bad edge drops with a report) and brands what survives.
 `resolveCharacterSheet` flattens the pairs and prefixes each knowledge entry
 with its stance, connectors visible, so persistence stays a copy.
 
+The relationship graph is the fourth (CAL-091), and it is a separate mission
+rather than more of the sheet for one structural reason: a sheet is asked of
+one character, so no prompt could make it declare that **A holds something
+about B that B does not**. The asymmetry is a property of the pair.
+`characterRelationsSchema` carries directed edges over a closed cast, each one
+able to declare `asymmetries` — an affirmative, atomic statement plus the two
+characters' stances on it, drawn from the sheet's own stance vocabulary. Two
+checks make a fake one unfillable: the stances must decide the same world, and
+their beliefs must differ. `resolveRelationshipAsymmetries` projects each
+through `knowledgeStanceToBelief` into the `CanonFact` + `CanonFactBelief`
+shape CAL-094 writes and CAL-099 reads, which is what makes *exploitable par le
+contrôle de cohérence* a committed mapping rather than a promise.
+
+The mirror edge is never implied — CAL-016's decision on CAL-099's behalf, so
+a missing symmetric relation stays detectable. `resolveRelationshipGraph`
+therefore *classifies* what was declared (`mutual` / `one-sided` / `divergent`)
+without ever adding to it, over a shape database rows and model answers both
+satisfy, and `describeRelationshipGraph` phrases it in the French the writing
+context and the coherence prompt quote.
+
 Backlog: E09 — CAL-088 to CAL-100. Schemas: CAL-016, CAL-017, CAL-018.
