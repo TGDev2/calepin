@@ -29,8 +29,8 @@ import { MISSION_IDS, type MissionId } from "../missions";
 /**
  * Every prompt this layer holds.
  *
- * The ten mission prompts are named after the mission they serve, because today
- * each mission has exactly one prompt. The identifier is still its own
+ * The eighteen mission prompts are named after the mission they serve, because
+ * today each mission has exactly one prompt. The identifier is still its own
  * vocabulary rather than an alias of the mission: `scope` is what says which
  * mission a prompt serves, so a second prompt for one mission — an experiment,
  * a variant — arrives as a new id and changes nothing about how the pipeline
