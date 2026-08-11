@@ -15,7 +15,12 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { analysisPath, readAnalysisSection } from "@/lib/analysis-edit";
+import { SubmitButton } from "@/components/submit-button";
+import {
+  analysisPath,
+  analysisValidationErrorMessage,
+  readAnalysisSection,
+} from "@/lib/analysis-edit";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
@@ -24,6 +29,7 @@ import {
   deleteAnalysisAnnotationAction,
   editAnalysisSectionAction,
   updateAnalysisAnnotationAction,
+  validateAnalysisAction,
 } from "./actions";
 import { AnnotationDeleteForm } from "./annotation-delete-form";
 import { AnnotationForm } from "./annotation-form";
@@ -78,6 +84,7 @@ export default async function AnalysisPage({
   const editable = analysis !== null && analysis.validatedAt === null;
   const editing = editable ? readAnalysisSection(first(query.edit)) : null;
   const note = first(query.note);
+  const validationError = analysisValidationErrorMessage(query.error);
 
   return (
     <main className={styles.main}>
@@ -106,7 +113,28 @@ export default async function AnalysisPage({
             <ProvenanceBadge provenance="user-written" />
           </p>
 
-          {analysis.validatedAt === null ? null : (
+          {validationError === null ? null : (
+            <p className={styles.error} role="alert">
+              <span className={styles.errorIcon} aria-hidden="true">
+                ⚠
+              </span>
+              <span>
+                <strong>Erreur&nbsp;: </strong>
+                {validationError}
+              </span>
+            </p>
+          )}
+
+          {analysis.validatedAt === null ? (
+            <form action={validateAnalysisAction} className={styles.validate}>
+              <input type="hidden" name="projectId" value={projectId} />
+              <p className={styles.validateNote}>
+                Valider l&apos;analyse verrouille les dix-sept sections et ouvre l&apos;étape
+                suivante&nbsp;: l&apos;exploration des directions romanesques.
+              </p>
+              <SubmitButton pendingLabel="Validation…">Valider l&apos;analyse</SubmitButton>
+            </form>
+          ) : (
             <p className={styles.locked}>
               Analyse validée le {DATE_FORMAT.format(analysis.validatedAt)} : elle n&apos;est plus
               modifiable.

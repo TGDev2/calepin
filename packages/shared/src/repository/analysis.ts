@@ -40,6 +40,7 @@ import {
   type ProvenanceState,
   resolveProvenanceState,
 } from "../provenance";
+import { withProjectStatus } from "./project-status";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
 import { withProjectTransaction } from "./transaction";
 
@@ -316,6 +317,74 @@ export async function editAnalysisSection(
     await tx.analysis.update({ where: { id: analysis.id }, data: {} });
 
     return succeed({ created: true, revisionNumber, elementCount: elements.length });
+  });
+}
+
+/** What validating the analysis produces (CAL-074). */
+export interface AnalysisValidation {
+  readonly validatedAt: Date;
+}
+
+/**
+ * Validates the analysis: the explicit action that locks the diagnostic and
+ * moves the project on to choosing a direction (CAL-074).
+ *
+ * **There is no separate "validated version" to create.** `getAnalysis` already
+ * reads each section's current (highest `revisionNumber`) row as the analysis
+ * as it stands; stamping `validatedAt`/`validatedById` on the `Analysis` row
+ * *is* creating the validated version, in this schema's own vocabulary — the
+ * same shape `Bible.validatedAt` takes. This writes no new revision.
+ *
+ * **The lock this produces already existed.** `editAnalysisSection` has
+ * refused to write past a validated analysis since CAL-073; this function is
+ * the only thing that was missing to ever reach that state.
+ *
+ * **The status transition is the existing machine's, not a decision made
+ * here.** `withProjectStatus` locks the project row, runs the write below, and
+ * recomputes `Project.status` from the rows in the same transaction —
+ * `DIRECTION_TO_CHOOSE` follows the moment `isAnalysisValidated` is true
+ * (`PROJECT_STAGE_CONDITIONS`), which is also what keeps every step downstream
+ * of it unreachable until this write happens: nothing else produces that fact.
+ *
+ * No completeness check runs here. The specification asks that the analysis be
+ * validated before the next step, not that every section be filled in first,
+ * and inventing that rule would refuse the very fixtures this module's own
+ * tests build on.
+ *
+ * The caller must be inside `runWithActor`, same contract as
+ * `editAnalysisSection`: the update below is empty of `updatedById` on
+ * purpose, and the audit extension is what fills it.
+ */
+export async function validateAnalysis(scope: ProjectScope): Promise<Result<AnalysisValidation>> {
+  assertProjectScope(scope);
+
+  return withProjectStatus(scope, async (tx) => {
+    const analysis = await tx.analysis.findFirst({
+      where: scopedWhere("Analysis", scope),
+      select: { id: true, validatedAt: true },
+    });
+
+    if (analysis === null) {
+      return fail(new NotFoundError({ message: "this project holds no analysis" }));
+    }
+
+    if (analysis.validatedAt !== null) {
+      return fail(
+        new ConflictError({
+          message: "the analysis is already validated",
+          userMessage: "Cette analyse est déjà validée.",
+        }),
+      );
+    }
+
+    const validatedAt = new Date();
+
+    await tx.analysis.update({
+      where: { id: analysis.id },
+      data: { validatedAt, validatedById: scope.ownerId },
+    });
+
+    return succeed({ validatedAt });
   });
 }
 

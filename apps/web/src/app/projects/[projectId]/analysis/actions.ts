@@ -38,6 +38,7 @@ import {
   openProjectScope,
   type ProjectScope,
   updateAnalysisAnnotation,
+  validateAnalysis,
 } from "@calepin/shared/repository";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -47,6 +48,7 @@ import {
   ANALYSIS_MISSING_MESSAGE,
   type AnalysisEditState,
   analysisPath,
+  type AnalysisValidationError,
   ANNOTATION_UNAVAILABLE_MESSAGE,
   readAnalysisSection,
   readPostedElements,
@@ -161,6 +163,72 @@ export async function editAnalysisSectionAction(
   if (outcome.status === "idle") redirect(sectionAnchor(projectId, section));
 
   return outcome;
+}
+
+/**
+ * Validates the analysis (CAL-074): a single confirm, no field to preserve on
+ * a refusal, so this follows the parent project page's `?error=` redirect
+ * shape rather than `editAnalysisSectionAction`'s `useActionState` one.
+ */
+export async function validateAnalysisAction(formData: FormData): Promise<void> {
+  const projectId = readText(formData.get("projectId"));
+  if (projectId === null) redirect(DASHBOARD_PATH);
+
+  const user = await getCurrentUser();
+  if (!user) redirect(signInDestination(analysisPath(projectId)));
+
+  const outcome = await withRequestLogContext(
+    async (): Promise<
+      { readonly ok: true } | { readonly ok: false; readonly reason: AnalysisValidationError }
+    > => {
+      try {
+        const scope = await openProjectScope({ ownerId: user.id, projectId });
+        if (!scope.ok) return refusedValidation("missing", user.id, projectId, scope.error);
+
+        const validated = await runWithActor(user.id, async () => validateAnalysis(scope.value));
+
+        if (!validated.ok) {
+          const reason: AnalysisValidationError =
+            validated.error.code === "CONFLICT"
+              ? "already-validated"
+              : validated.error.code === "NOT_FOUND"
+                ? "missing"
+                : "unavailable";
+
+          return refusedValidation(reason, user.id, projectId, validated.error);
+        }
+
+        logger.info("analysis.validated", { userId: user.id, projectId });
+
+        return { ok: true };
+      } catch (error: unknown) {
+        logger.error("analysis.validation-failed", {
+          userId: user.id,
+          projectId,
+          ...errorLogFields(error),
+        });
+
+        return { ok: false, reason: "unavailable" };
+      }
+    },
+  );
+
+  if (outcome.ok) revalidateAnalysis(projectId);
+
+  redirect(
+    outcome.ok ? analysisPath(projectId) : `${analysisPath(projectId)}?error=${outcome.reason}`,
+  );
+}
+
+function refusedValidation(
+  reason: AnalysisValidationError,
+  userId: string,
+  projectId: string,
+  error: unknown,
+): { readonly ok: false; readonly reason: AnalysisValidationError } {
+  logger.warn("analysis.validation-refused", { userId, projectId, ...errorLogFields(error) });
+
+  return { ok: false, reason };
 }
 
 export async function addAnalysisAnnotationAction(

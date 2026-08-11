@@ -53,6 +53,37 @@
   font-size: 0.9rem;
 }
 
+.validate {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.validateNote {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.error {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  color: var(--color-danger);
+}
+
+.errorIcon {
+  flex-shrink: 0;
+}
+
 /*
  * The anchor every link and every post-save redirect lands on, offset so the
  * section heading is not flush against the top of the viewport.

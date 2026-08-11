@@ -31,6 +31,31 @@ export const ANALYSIS_EDIT_UNAVAILABLE_MESSAGE =
 export const ANNOTATION_UNAVAILABLE_MESSAGE =
   "L'annotation n'a pas pu être enregistrée. Réessayez dans un instant.";
 
+/** Why validating the analysis did not happen (CAL-074), for the `?error=` banner. */
+export const ANALYSIS_VALIDATION_ERRORS = ["missing", "already-validated", "unavailable"] as const;
+export type AnalysisValidationError = (typeof ANALYSIS_VALIDATION_ERRORS)[number];
+
+const ANALYSIS_VALIDATION_MESSAGES: Record<AnalysisValidationError, string> = {
+  missing: ANALYSIS_MISSING_MESSAGE,
+  "already-validated": "Cette analyse est déjà validée.",
+  unavailable: "La validation n'a pas pu être enregistrée. Réessayez dans un instant.",
+};
+
+/** `null` for no code at all — the caller renders no banner in that case. */
+export function analysisValidationErrorMessage(code: string | string[] | undefined): string | null {
+  const value = Array.isArray(code) ? code[0] : code;
+
+  if (value === undefined) return null;
+
+  return isAnalysisValidationError(value)
+    ? ANALYSIS_VALIDATION_MESSAGES[value]
+    : ANALYSIS_VALIDATION_MESSAGES.unavailable;
+}
+
+function isAnalysisValidationError(value: string): value is AnalysisValidationError {
+  return (ANALYSIS_VALIDATION_ERRORS as readonly string[]).includes(value);
+}
+
 /**
  * How each provenance state is named on screen — the three the task asks for,
  * plus the one they are read against.

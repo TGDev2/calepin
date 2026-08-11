@@ -26,12 +26,14 @@ export {
   type AnalysisSectionEdit,
   type AnalysisSectionSnapshot,
   type AnalysisSnapshot,
+  type AnalysisValidation,
   deleteAnalysisAnnotation,
   editAnalysisSection,
   type EditAnalysisSectionInput,
   getAnalysis,
   updateAnalysisAnnotation,
   type UpdateAnalysisAnnotationInput,
+  validateAnalysis,
 } from "./analysis";
 export {
   type DuplicatedProject,

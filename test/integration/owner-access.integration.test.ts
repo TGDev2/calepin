@@ -64,6 +64,7 @@ import {
   updateProject,
   type UpdateProjectInput,
   updateSourceText,
+  validateAnalysis,
   withProjectAggregates,
   withProjectTransaction,
 } from "@calepin/shared/repository";
@@ -123,6 +124,7 @@ const ENTRY_POINTS = [
   "updateGenerationProgress",
   "updateProject",
   "updateSourceText",
+  "validateAnalysis",
   "withProjectAggregates",
   "withProjectStatus",
   "withProjectTransaction",
@@ -1059,6 +1061,22 @@ describe("owner access policy", () => {
       // And the owner's own note is untouched by the attempt.
       const stillThere = await getAnalysis(aliceScope);
       expect(stillThere?.sections[0]?.elements[0]?.annotations[0]?.body).toBe("fixture");
+    });
+
+    // CAL-074's write. Isolated here rather than proved only by its own
+    // happy-path suite, for the reason every other analysis entry point is:
+    // the scope's owner is what the statement underneath actually checks.
+    it("validateAnalysis refuses another owner's project", async () => {
+      const seized = await runWithActor(bob.ownerId, async () =>
+        validateAnalysis(forgedScope(bob.ownerId, alice.projectId)),
+      );
+
+      expect(seized.ok).toBe(false);
+      if (!seized.ok) expect(seized.error.code).toBe("NOT_FOUND");
+
+      // Not merely refused: Alice's analysis is still unvalidated.
+      const stillUnvalidated = await getAnalysis(aliceScope);
+      expect(stillUnvalidated?.validatedAt).toBeNull();
     });
 
     it("requireOwnedRow refuses a row from another owner's project", async () => {

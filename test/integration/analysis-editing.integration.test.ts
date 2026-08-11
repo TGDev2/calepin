@@ -24,8 +24,10 @@ import {
   getAnalysis,
   openProjectScope,
   type ProjectScope,
+  refreshProjectStatus,
   updateAnalysisAnnotation,
   updateSourceText,
+  validateAnalysis,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -557,6 +559,99 @@ describe("editing and annotating the diagnostic (CAL-073)", () => {
         deleteAnalysisAnnotation(fixture.scope, written.value.annotationId),
       );
       expect(again.ok).toBe(false);
+    });
+  });
+
+  describe("validating the analysis (CAL-074)", () => {
+    const validate = (scope: ProjectScope) =>
+      runWithActor(ownerId, async () => validateAnalysis(scope));
+
+    it("stamps validatedAt/validatedById and moves the project to DIRECTION_TO_CHOOSE", async () => {
+      const fixture = await seedAnalysed("validate-happy-path");
+      // `createProjectWithSourceText` does not itself push the stored status
+      // forward — the same convention `project-status.integration.test.ts`'s
+      // `SEQUENCE` follows, one write at a time.
+      expect((await refreshProjectStatus(fixture.scope)).ok).toBe(true);
+
+      const validated = await validate(fixture.scope);
+
+      expect(validated.ok).toBe(true);
+      if (!validated.ok) return;
+      expect(validated.value.validatedAt).toBeInstanceOf(Date);
+
+      const analysis = await prisma.analysis.findUniqueOrThrow({
+        where: { id: fixture.analysisId },
+        select: { validatedAt: true, validatedById: true },
+      });
+      expect(analysis.validatedAt).toEqual(validated.value.validatedAt);
+      expect(analysis.validatedById).toBe(ownerId);
+
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: fixture.projectId },
+        select: { status: true },
+      });
+      expect(project.status).toBe("DIRECTION_TO_CHOOSE");
+    });
+
+    it("refuses a second validation, and leaves the first untouched", async () => {
+      const fixture = await seedAnalysed("validate-twice");
+      await refreshProjectStatus(fixture.scope);
+
+      const first = await validate(fixture.scope);
+      if (!first.ok) throw new Error("the fixture could not validate its own analysis");
+
+      const second = await validate(fixture.scope);
+
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.error.category).toBe("conflict");
+
+      const analysis = await prisma.analysis.findUniqueOrThrow({
+        where: { id: fixture.analysisId },
+        select: { validatedAt: true },
+      });
+      expect(analysis.validatedAt).toEqual(first.value.validatedAt);
+    });
+
+    it("refuses a project with no analysis at all", async () => {
+      setActor(ownerId);
+
+      const project = await runWithActor(ownerId, async () =>
+        createProjectWithSourceText({
+          ownerId,
+          title: "validate-no-analysis",
+          sourceText: { content: "fixture" },
+        }),
+      );
+      const opened = await openProjectScope({ ownerId, projectId: project.id });
+      if (!opened.ok) throw new Error("the fixture could not open a scope");
+
+      const validated = await validate(opened.value);
+
+      expect(validated.ok).toBe(false);
+      if (!validated.ok) expect(validated.error.code).toBe("NOT_FOUND");
+    });
+
+    it("locks the analysis against further edits, end to end", async () => {
+      const fixture = await seedAnalysed("validate-then-locked");
+      await refreshProjectStatus(fixture.scope);
+
+      const validated = await validate(fixture.scope);
+      expect(validated.ok).toBe(true);
+
+      const before = await currentThemes(fixture.scope);
+      const saved = await edit(
+        fixture.scope,
+        submit([
+          {
+            lineageId: before.elements[0]?.lineageId ?? null,
+            label: "Premier",
+            statement: "Réécrit.",
+          },
+        ]),
+      );
+
+      expect(saved.ok).toBe(false);
+      if (!saved.ok) expect(saved.error.category).toBe("conflict");
     });
   });
 });
