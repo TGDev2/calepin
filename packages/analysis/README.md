@@ -37,3 +37,14 @@ originality score. `verifyClicheRiskEvidence` reads every quotation back
 against the source text and drops whole any finding whose passage is not
 there; its result is branded (`VerifiedClicheRiskDetection`), like the
 diagnostic's.
+
+CAL-076 added the potential assessment. `novelPotentialAssessmentSchema` is
+the output contract of `assess-novel-potential`: an overall appraisal of what
+the text can sustain at the target length, at least three elements able to
+carry expansion, the elements that would run dry, the gaps the length will
+expose (absences, so they cite nothing) and at least two fragilities to treat
+— the backlog's minimums as the arrays' own, and no numeric field anywhere.
+`verifyNovelPotentialEvidence` reads every quotation back and **clears** an
+unfound one to null rather than dropping the appraisal — its standing is its
+argument, and a drop could break the minimums. Result branded
+(`VerifiedNovelPotentialAssessment`), report in counts and positions only.

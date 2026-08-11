@@ -36,6 +36,26 @@ export {
   verifyAnalysisEvidence,
 } from "./evidence";
 export {
+  isVerifiedNovelPotentialAssessment,
+  NOVEL_POTENTIAL_CHAR_CEILINGS,
+  NOVEL_POTENTIAL_COUNTS,
+  NOVEL_POTENTIAL_EVIDENCED_LISTS,
+  NOVEL_POTENTIAL_WORD_TARGETS,
+  type NovelPotentialAssessment,
+  novelPotentialAssessmentSchema,
+  type NovelPotentialEvidenceCheck,
+  type NovelPotentialEvidenceCorrection,
+  type NovelPotentialEvidencedList,
+  type NovelPotentialEvidenceReport,
+  type NovelPotentialExhaustion,
+  type NovelPotentialExpansion,
+  type NovelPotentialFragility,
+  type NovelPotentialGap,
+  VERIFIED_NOVEL_POTENTIAL_BRAND,
+  type VerifiedNovelPotentialAssessment,
+  verifyNovelPotentialEvidence,
+} from "./potential";
+export {
   ANALYSIS_CHAR_CEILINGS,
   ANALYSIS_ELEMENT_COUNTS,
   ANALYSIS_ELEMENT_KINDS,
