@@ -312,3 +312,32 @@
 .discardSubmit:hover {
   background: var(--color-danger-surface);
 }
+
+/*
+ * Retenir is an affirmative act, so it wears the text colour rather than the
+ * danger red `discardSubmit` wears — the two controls sit in the same card and
+ * the difference between them has to be visible before either is read.
+ */
+.retainSubmit {
+  justify-self: start;
+  padding: 0.35rem var(--space-1);
+  border: 1px solid var(--color-text);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.retainSubmit:hover {
+  background: var(--color-background);
+}
+
+.acknowledgeLabel {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}

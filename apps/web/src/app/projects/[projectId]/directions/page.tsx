@@ -17,10 +17,15 @@ import {
   getDirectionsForComparison,
   getProjectForOwner,
   openProjectScope,
+  readCanonicalDirectionObsolescence,
 } from "@calepin/shared/repository";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import {
+  DirectionChangeWarning,
+  DirectionObsolescenceNotice,
+} from "@/components/obsolescence-notice";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
@@ -90,7 +95,15 @@ export default async function DirectionsPage({
   ]);
   if (!found.ok || !scope.ok) notFound();
 
-  const directions = await getDirectionsForComparison(scope.value);
+  const [directions, obsolescence] = await Promise.all([
+    getDirectionsForComparison(scope.value),
+    readCanonicalDirectionObsolescence(scope.value),
+  ]);
+
+  // What a change would leave behind, read once and shown twice: as the
+  // standing report for the direction already retained, and inside every
+  // *Retenir* form as the warning the repository refuses a change without.
+  const impact = obsolescence.ok ? obsolescence.value : null;
 
   const withEngines = directions.map((direction) => ({
     direction,
@@ -113,6 +126,8 @@ export default async function DirectionsPage({
 
       <h1 className={styles.title}>Comparaison des directions romanesques</h1>
 
+      {impact === null ? null : <DirectionObsolescenceNotice report={impact.current} />}
+
       {cards.length === 0 ? (
         <p className={styles.empty}>
           {discarded.length === 0
@@ -133,6 +148,10 @@ export default async function DirectionsPage({
             cards={cards}
             projectId={projectId}
             reasonCharCeiling={DIRECTION_DISCARD_REASON_CHAR_CEILING}
+            hasDownstreamWork={impact?.onChange.hasObsoleteStages ?? false}
+            changeWarning={
+              impact === null ? null : <DirectionChangeWarning report={impact.onChange} />
+            }
           />
         </>
       )}

@@ -22,14 +22,23 @@
  */
 
 import type { NarrativeEngine } from "@calepin/direction";
-import { useActionState, useRef, useState } from "react";
+import { type ReactNode, useActionState, useRef, useState } from "react";
 
+import {
+  ACKNOWLEDGE_FIELD,
+  type DirectionCanonicalState,
+  INITIAL_DIRECTION_CANONICAL_STATE,
+} from "@/lib/direction-canonical";
 import {
   type DirectionDiscardState,
   INITIAL_DIRECTION_DISCARD_STATE,
 } from "@/lib/direction-discard";
 
-import { discardDirectionAction, editDirectionAction } from "./actions";
+import {
+  discardDirectionAction,
+  editDirectionAction,
+  selectCanonicalDirectionAction,
+} from "./actions";
 import styles from "./direction-comparison-grid.module.css";
 import { DirectionForm, type DirectionFormValues } from "./direction-form";
 
@@ -80,6 +89,20 @@ export interface DirectionComparisonGridProps {
   readonly projectId: string;
   /** The character ceiling the domain puts on a reason — never restated here. */
   readonly reasonCharCeiling: number;
+  /**
+   * Whether the project already holds work built on the direction it retains
+   * (CAL-086). The repository refuses an unacknowledged change when it does, so
+   * this is what decides whether the confirmation checkbox is required — never
+   * whether the warning is *worth* showing, which is not a screen's call.
+   */
+  readonly hasDownstreamWork?: boolean;
+  /**
+   * What a change would leave behind, rendered by the server component that
+   * read it. Passed as a node rather than as data so the French copy and the
+   * stage labels stay in one place (`components/obsolescence-notice.tsx`)
+   * instead of being restated inside a client component.
+   */
+  readonly changeWarning?: ReactNode;
 }
 
 const ARROW_NEXT = new Set(["ArrowRight", "ArrowDown"]);
@@ -89,6 +112,8 @@ export function DirectionComparisonGrid({
   cards,
   projectId,
   reasonCharCeiling,
+  hasDownstreamWork = false,
+  changeWarning,
 }: DirectionComparisonGridProps) {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const cardRefs = useRef<Array<HTMLLIElement | null>>([]);
@@ -237,12 +262,94 @@ export function DirectionComparisonGrid({
             )}
           </section>
 
+          <RetainForm
+            card={card}
+            projectId={projectId}
+            hasDownstreamWork={hasDownstreamWork}
+            changeWarning={changeWarning}
+          />
+
           <EditForm card={card} projectId={projectId} />
 
           <DiscardForm card={card} projectId={projectId} reasonCharCeiling={reasonCharCeiling} />
         </li>
       ))}
     </ul>
+  );
+}
+
+interface RetainFormProps {
+  readonly card: DirectionCard;
+  readonly projectId: string;
+  readonly hasDownstreamWork: boolean;
+  readonly changeWarning: ReactNode;
+}
+
+/**
+ * Retenir cette direction (CAL-086) — the project's one canonical choice.
+ *
+ * **The retained direction carries no form**, `DiscardForm`'s rule: the
+ * repository refuses a second choice of the same direction, and offering the
+ * control anyway would be an invitation to be told no. The card already says
+ * which one it is, with its own badge.
+ *
+ * **The checkbox is `required` exactly when the repository requires it.** A
+ * project holding nothing built on its direction has nothing to acknowledge,
+ * and a checkbox demanding confirmation of an empty warning would teach the
+ * author to tick without reading. When there *is* work downstream, the panel
+ * naming it sits above the checkbox — so what is confirmed is something that
+ * was read, not a sentence in the abstract.
+ */
+function RetainForm({ card, projectId, hasDownstreamWork, changeWarning }: RetainFormProps) {
+  const [state, formAction] = useActionState<DirectionCanonicalState, FormData>(
+    selectCanonicalDirectionAction,
+    INITIAL_DIRECTION_CANONICAL_STATE,
+  );
+
+  if (card.isCanonical) return null;
+
+  return (
+    <details className={styles.discard}>
+      <summary className={styles.discardSummary}>Retenir cette direction</summary>
+
+      <form action={formAction} className={styles.discardForm}>
+        <input type="hidden" name="projectId" value={projectId} />
+        <input type="hidden" name="directionId" value={card.id} />
+
+        <p className={styles.discardHint}>
+          C&apos;est sur cette direction que la bible narrative, le plan et les chapitres seront
+          construits. Une seule direction est retenue à la fois&nbsp;; les autres restent
+          consultables.
+        </p>
+
+        {hasDownstreamWork ? (
+          <>
+            {changeWarning}
+
+            <label className={styles.acknowledgeLabel} htmlFor={`${card.id}-acknowledge`}>
+              <input
+                id={`${card.id}-acknowledge`}
+                type="checkbox"
+                name={ACKNOWLEDGE_FIELD}
+                value="yes"
+                required
+              />
+              J&apos;ai lu ce qui sera à revoir et je change quand même de direction.
+            </label>
+          </>
+        ) : null}
+
+        {state.status === "error" ? (
+          <p className={styles.discardError} role="alert">
+            {state.message}
+          </p>
+        ) : null}
+
+        <button type="submit" className={styles.retainSubmit}>
+          Retenir « {card.workingTitle} »
+        </button>
+      </form>
+    </details>
   );
 }
 

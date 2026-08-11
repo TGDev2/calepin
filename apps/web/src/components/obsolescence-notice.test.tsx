@@ -1,5 +1,8 @@
 import {
+  assessCanonicalDirectionObsolescence,
   assessSourceTextObsolescence,
+  type CanonicalDirectionObsolescence,
+  type DirectionDependentStage,
   type DownstreamStage,
   type DownstreamStageState,
   type SourceTextObsolescence,
@@ -7,7 +10,11 @@ import {
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ObsolescenceNotice } from "./obsolescence-notice";
+import {
+  DirectionChangeWarning,
+  DirectionObsolescenceNotice,
+  ObsolescenceNotice,
+} from "./obsolescence-notice";
 
 /**
  * `renderToStaticMarkup`, no jsdom — the pattern `source-text-counter.test.tsx`
@@ -117,5 +124,120 @@ describe("ObsolescenceNotice", () => {
 
     expect(html).toContain('role="status"');
     expect(html).not.toContain('role="alert"');
+  });
+});
+
+/** The direction's own report, built by the real rule for the same reason. */
+function directionReportOf(
+  stages: Partial<Record<DirectionDependentStage, DownstreamStageState>>,
+  hasCanonicalDirection = true,
+): CanonicalDirectionObsolescence {
+  return assessCanonicalDirectionObsolescence({
+    hasCanonicalDirection,
+    stages: { bible: ABSENT, outline: ABSENT, chapters: ABSENT, ...stages },
+  });
+}
+
+describe("DirectionObsolescenceNotice", () => {
+  it("renders nothing while nothing descends from a replaced direction", () => {
+    const html = renderToStaticMarkup(
+      <DirectionObsolescenceNotice report={directionReportOf({}).current} />,
+    );
+
+    expect(html).toBe("");
+  });
+
+  it("names the stages built on the direction that was replaced", () => {
+    const html = renderToStaticMarkup(
+      <DirectionObsolescenceNotice
+        report={
+          directionReportOf({
+            bible: { presentCount: 1, precedingCount: 1 },
+            chapters: { presentCount: 8, precedingCount: 8 },
+          }).current
+        }
+      />,
+    );
+
+    expect(html).toContain('data-stage="bible"');
+    expect(html).toContain('data-stage="chapters"');
+    expect(html).toContain("8 chapitres sur 8");
+    expect(html).toContain("autre direction romanesque");
+  });
+
+  it("states that nothing was deleted and nothing will be regenerated", () => {
+    const html = renderToStaticMarkup(
+      <DirectionObsolescenceNotice
+        report={directionReportOf({ bible: { presentCount: 1, precedingCount: 1 } }).current}
+      />,
+    );
+
+    expect(html).toContain("intactes");
+    expect(html).toContain("rien n&#x27;a été supprimé");
+    expect(html).toContain("rien ne sera régénéré sans vous");
+  });
+
+  it("offers no way to delete or regenerate anything", () => {
+    const html = renderToStaticMarkup(
+      <DirectionObsolescenceNotice
+        report={directionReportOf({ outline: { presentCount: 1, precedingCount: 1 } }).current}
+      />,
+    );
+
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("<form");
+  });
+});
+
+describe("DirectionChangeWarning", () => {
+  it("renders nothing when the project holds nothing built on its direction", () => {
+    const html = renderToStaticMarkup(
+      <DirectionChangeWarning report={directionReportOf({}).onChange} />,
+    );
+
+    expect(html).toBe("");
+  });
+
+  // It sits inside a form, once per direction card, so a heading id would be
+  // in the document three times over.
+  it("carries no id and no heading of its own", () => {
+    const html = renderToStaticMarkup(
+      <DirectionChangeWarning
+        report={directionReportOf({ bible: { presentCount: 1, precedingCount: 0 } }).onChange}
+      />,
+    );
+
+    expect(html).not.toContain("id=");
+    expect(html).not.toContain("aria-labelledby");
+    expect(html).not.toContain("<h3");
+  });
+
+  // The whole point of the second answer: a bible produced *after* the current
+  // direction was retained still descends from it, and replacing it puts that
+  // bible in doubt.
+  it("warns about work that is perfectly current today", () => {
+    const report = directionReportOf({
+      bible: { presentCount: 1, precedingCount: 0 },
+      outline: { presentCount: 1, precedingCount: 0 },
+    });
+
+    expect(renderToStaticMarkup(<DirectionObsolescenceNotice report={report.current} />)).toBe("");
+
+    const html = renderToStaticMarkup(<DirectionChangeWarning report={report.onChange} />);
+
+    expect(html).toContain('data-stage="bible"');
+    expect(html).toContain('data-stage="outline"');
+  });
+
+  it("promises no deletion and no regeneration either", () => {
+    const html = renderToStaticMarkup(
+      <DirectionChangeWarning
+        report={directionReportOf({ chapters: { presentCount: 3, precedingCount: 3 } }).onChange}
+      />,
+    );
+
+    expect(html).toContain("ne supprimera");
+    expect(html).toContain("ne régénérera");
+    expect(html).not.toContain("<button");
   });
 });

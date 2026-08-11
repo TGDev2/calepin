@@ -40,6 +40,7 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type CanonicalDirectionSelected,
   type DirectionContentInput,
   type DirectionDiscarded,
   type DirectionEdited,
@@ -50,6 +51,9 @@ export {
   editDirection,
   type EditDirectionInput,
   getDirectionsForComparison,
+  readCanonicalDirectionObsolescence,
+  selectCanonicalDirection,
+  type SelectCanonicalDirectionInput,
   type UserDirectionWritten,
   writeUserDirection,
   type WriteUserDirectionInput,

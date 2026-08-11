@@ -80,6 +80,25 @@ export const ERROR_CODES = [
    * correct a field.
    */
   "OPERATION_NOT_CONFIRMED",
+  /**
+   * The retained novelistic direction was changed without acknowledging what
+   * the change leaves behind downstream (CAL-086). `conflict` rather than
+   * `validation`, `OPERATION_NOT_CONFIRMED`'s reasoning one epic later: the
+   * form is well formed and nothing about it needs correcting — the project
+   * simply holds work built on the direction being replaced, and the remedy is
+   * to read what that work is and decide. Its own code rather than a bare
+   * `CONFLICT` because the interface layer answers it by *showing the report*,
+   * which is a different screen from every other refusal here.
+   */
+  "OBSOLESCENCE_NOT_ACKNOWLEDGED",
+  /**
+   * A direction was retained before the analysis it descends from was
+   * validated (CAL-086). `conflict` for `CHAPTER_NOT_VALIDATED`'s reason: the
+   * request is well formed and the project is simply not yet at the stage where
+   * choosing means anything — `DIRECTION_TO_CHOOSE` is the status a validated
+   * analysis produces, and the remedy is an action the author takes.
+   */
+  "ANALYSIS_NOT_VALIDATED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -257,6 +276,8 @@ export const CATEGORY_BY_CODE = {
   ILLEGAL_STATUS_TRANSITION: "conflict",
   CHAPTER_NOT_VALIDATED: "conflict",
   OPERATION_NOT_CONFIRMED: "conflict",
+  OBSOLESCENCE_NOT_ACKNOWLEDGED: "conflict",
+  ANALYSIS_NOT_VALIDATED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  assessSourceTextObsolescence,
-  type DownstreamStageState,
-  OBSOLESCENCE_REASONS,
-  type SourceTextDependencyState,
-} from "./assess";
+import { assessSourceTextObsolescence, type SourceTextDependencyState } from "./assess";
+import { type DownstreamStageState, OBSOLESCENCE_REASONS } from "./chain";
 import { DOWNSTREAM_STAGES, type DownstreamStage, downstreamStageRank } from "./stages";
 
 /** A stage the project does not hold. */

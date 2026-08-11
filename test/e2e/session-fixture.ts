@@ -385,6 +385,14 @@ export async function seedProjectWithAnalysis(
  * screen's divergence highlight has exactly one axis to flag and at least one
  * to leave unflagged — deterministic, rather than left to chance.
  *
+ * **It also seeds the source text and the validated analysis the directions
+ * descend from** (CAL-086). Three proposals exist in the product only after an
+ * analysis has been validated — that is what `DIRECTION_TO_CHOOSE` means — and
+ * `selectCanonicalDirection` refuses a choice before it, so a fixture without
+ * them would be describing a state the product cannot reach. The status is set
+ * here rather than reconciled: these rows are written directly, and the column
+ * is what a fixture is entitled to state.
+ *
  * No matching teardown, for the reason `seedProjectWithChapters` gives:
  * `Project.user` cascades, so `closeSignedInSession` already removes it.
  */
@@ -395,7 +403,32 @@ export async function seedProjectWithDirections(
   const prisma = new PrismaClient();
 
   try {
-    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+    const project = await prisma.project.create({
+      data: { userId, title, updatedById: userId, status: "DIRECTION_TO_CHOOSE" },
+    });
+
+    const sourceText = await prisma.sourceText.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    await prisma.sourceTextVersion.create({
+      data: {
+        sourceTextId: sourceText.id,
+        versionNumber: 1,
+        content: "Le vieux pont craquait sous chaque pas.",
+        wordCount: 7,
+        editedById: userId,
+      },
+    });
+    // `analyses_validation_check` demands the two validation columns move
+    // together — a validation with no author is not one.
+    await prisma.analysis.create({
+      data: {
+        projectId: project.id,
+        validatedAt: new Date(),
+        validatedById: userId,
+        updatedById: userId,
+      },
+    });
 
     const sharedEngine = {
       tensionSource: "pursuit",

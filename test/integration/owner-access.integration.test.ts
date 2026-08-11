@@ -93,6 +93,10 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * direction with a chosen origin (proposed, edited, user-written, discarded,
  * canonical) to prove the transition and refusal rules, which the shared
  * graph's one always-`PROPOSED` direction cannot do on its own.
+ * `selectCanonicalDirection` and `readCanonicalDirectionObsolescence` are
+ * isolated in `direction-canonical.integration.test.ts`, which seeds the
+ * validated analysis a choice requires and the downstream work a change has to
+ * warn about — neither of which the shared graph is arranged to hold.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -122,6 +126,7 @@ const ENTRY_POINTS = [
   "listRunningGenerations",
   "listSourceTextVersions",
   "openProjectScope",
+  "readCanonicalDirectionObsolescence",
   "readMissionMeasurements",
   "readProjectCostSummary",
   "readProjectProgress",
@@ -135,6 +140,7 @@ const ENTRY_POINTS = [
   "requireOwnedRow",
   "reserveGeneration",
   "restoreProject",
+  "selectCanonicalDirection",
   "updateAnalysisAnnotation",
   "updateGenerationProgress",
   "updateProject",

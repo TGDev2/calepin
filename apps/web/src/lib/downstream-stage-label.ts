@@ -36,6 +36,7 @@ export const DOWNSTREAM_STAGE_LABELS: Record<DownstreamStage, string> = {
 /** Why a stage is in doubt, as a clause that follows its label. */
 export const OBSOLESCENCE_REASON_LABELS: Record<ObsolescenceReason, string> = {
   "source-text-changed": "produit à partir d'une version antérieure du texte source",
+  "canonical-direction-changed": "produit à partir d'une autre direction romanesque",
   "upstream-obsolete": "construit sur une étape que cette modification touche déjà",
 };
 

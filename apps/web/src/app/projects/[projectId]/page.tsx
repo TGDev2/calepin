@@ -5,6 +5,7 @@ import {
   listRunningGenerations,
   openProjectScope,
   type ProjectScope,
+  readCanonicalDirectionObsolescence,
   readProjectProgress,
   readSourceTextObsolescence,
 } from "@calepin/shared/repository";
@@ -15,7 +16,7 @@ import { Suspense } from "react";
 import { ArchiveProjectSection } from "@/components/archive-project-section";
 import { GenerationFailureList } from "@/components/generation-failure-list";
 import { GenerationIndicator } from "@/components/generation-indicator";
-import { ObsolescenceNotice } from "@/components/obsolescence-notice";
+import { DirectionObsolescenceNotice, ObsolescenceNotice } from "@/components/obsolescence-notice";
 import { ProjectOverview } from "@/components/project-overview";
 import { SkeletonBlock } from "@/components/skeleton";
 import { SubmitButton } from "@/components/submit-button";
@@ -114,14 +115,21 @@ interface ProjectDetailsProps {
  * that component's doc comment for why.
  */
 async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
-  const [progress, runningGenerations, failedGenerations, sourceText, obsolescence] =
-    await Promise.all([
-      readProjectProgress(scope),
-      listRunningGenerations(scope),
-      listFailedGenerations(scope),
-      getSourceText(scope),
-      readSourceTextObsolescence(scope),
-    ]);
+  const [
+    progress,
+    runningGenerations,
+    failedGenerations,
+    sourceText,
+    obsolescence,
+    directionObsolescence,
+  ] = await Promise.all([
+    readProjectProgress(scope),
+    listRunningGenerations(scope),
+    listFailedGenerations(scope),
+    getSourceText(scope),
+    readSourceTextObsolescence(scope),
+    readCanonicalDirectionObsolescence(scope),
+  ]);
   if (!progress.ok) notFound();
 
   const isArchived = project.archivedAt !== null;
@@ -174,6 +182,17 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
        * where it was caused is a consequence nobody sees again.
        */}
       {obsolescence.ok ? <ObsolescenceNotice report={obsolescence.value} /> : null}
+
+      {/*
+       * The same reasoning one rung down the chain (CAL-086): the bible, the
+       * plan and the chapters built on a direction the author has since
+       * replaced. Two panels rather than one merged report, because the two
+       * changes have different remedies and a single list would leave the
+       * author unable to tell which one put a stage in doubt.
+       */}
+      {directionObsolescence.ok ? (
+        <DirectionObsolescenceNotice report={directionObsolescence.value.current} />
+      ) : null}
 
       <section className={styles.action} aria-labelledby="source-text-heading">
         <h3 className={styles.actionTitle} id="source-text-heading">

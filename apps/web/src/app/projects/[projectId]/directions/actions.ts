@@ -2,7 +2,8 @@
 
 /**
  * Writing one proposed direction off, optionally saying why (CAL-083);
- * rewriting a direction by hand, or writing one from scratch (CAL-085).
+ * rewriting a direction by hand, or writing one from scratch (CAL-085);
+ * retaining one as the project's own (CAL-086).
  *
  * It composes and nothing more, which is what the interface layer is for
  * (§3.3): the session says who is asking, `openProjectScope` turns the project
@@ -31,12 +32,19 @@ import {
   discardDirection,
   editDirection,
   openProjectScope,
+  selectCanonicalDirection,
   writeUserDirection,
 } from "@calepin/shared/repository";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
+import {
+  ACKNOWLEDGE_FIELD,
+  DIRECTION_CANONICAL_UNAVAILABLE_MESSAGE,
+  type DirectionCanonicalState,
+  readAcknowledgement,
+} from "@/lib/direction-canonical";
 import {
   DIRECTION_DISCARD_UNAVAILABLE_MESSAGE,
   DIRECTION_MISSING_MESSAGE,
@@ -204,6 +212,98 @@ function refuseEdit(
   message: string,
 ): DirectionEditState {
   logger.warn("direction.edit-refused", { userId, projectId, ...errorLogFields(error) });
+
+  return { status: "error", message };
+}
+
+/**
+ * Retaining one direction as the project's own (CAL-086).
+ *
+ * **Every conflict answers with its own sentence.** Three of the four refusals
+ * this write has are conflicts — already retained, écartée, analysis not yet
+ * validated, downstream work not acknowledged — and each carries a French
+ * `userMessage` naming what to do next. Collapsing them into one generic
+ * message would throw away the only part the author can act on, which is why
+ * the branch below reads the category rather than the code.
+ *
+ * The success redirects, `discardDirectionAction`'s convention: the screen
+ * behind the form already reflects the new choice, the status the project just
+ * moved to, and whatever the change left in doubt.
+ */
+export async function selectCanonicalDirectionAction(
+  _previous: DirectionCanonicalState,
+  formData: FormData,
+): Promise<DirectionCanonicalState> {
+  const projectId = readText(formData.get("projectId"));
+  const directionId = readText(formData.get("directionId"));
+
+  if (projectId === null || directionId === null) redirect(DASHBOARD_PATH);
+
+  const user = await getCurrentUser();
+  if (!user) redirect(signInDestination(directionsPath(projectId)));
+
+  const acknowledgeObsolescence = readAcknowledgement(formData.get(ACKNOWLEDGE_FIELD));
+
+  const outcome = await withRequestLogContext(async (): Promise<DirectionCanonicalState> => {
+    try {
+      const scope = await openProjectScope({ ownerId: user.id, projectId });
+      if (!scope.ok) {
+        return refuseCanonical(user.id, projectId, scope.error, DIRECTION_MISSING_MESSAGE);
+      }
+
+      const retained = await runWithActor(user.id, async () =>
+        selectCanonicalDirection(scope.value, { directionId, acknowledgeObsolescence }),
+      );
+
+      if (!retained.ok) {
+        const message =
+          retained.error.category === "conflict"
+            ? retained.error.userMessage
+            : retained.error.code === "NOT_FOUND"
+              ? DIRECTION_MISSING_MESSAGE
+              : DIRECTION_CANONICAL_UNAVAILABLE_MESSAGE;
+
+        return refuseCanonical(user.id, projectId, retained.error, message);
+      }
+
+      revalidatePath(DASHBOARD_PATH);
+      revalidatePath(`/projects/${projectId}`);
+      revalidatePath(directionsPath(projectId));
+
+      // A count, never a title and never a premise (§9). `itemCount` is the
+      // allowlist's own generic counter; here it is the number of downstream
+      // stages the change left in doubt, which is the one fact an operator
+      // would want off this line.
+      logger.info("direction.retained", {
+        userId: user.id,
+        projectId,
+        itemCount: retained.value.obsolescence.obsoleteStages.length,
+      });
+
+      return { status: "idle" };
+    } catch (error: unknown) {
+      logger.error("direction.retain-failed", {
+        userId: user.id,
+        projectId,
+        ...errorLogFields(error),
+      });
+
+      return { status: "error", message: DIRECTION_CANONICAL_UNAVAILABLE_MESSAGE };
+    }
+  });
+
+  if (outcome.status === "idle") redirect(directionsPath(projectId));
+
+  return outcome;
+}
+
+function refuseCanonical(
+  userId: string,
+  projectId: string,
+  error: unknown,
+  message: string,
+): DirectionCanonicalState {
+  logger.warn("direction.retain-refused", { userId, projectId, ...errorLogFields(error) });
 
   return { status: "error", message };
 }

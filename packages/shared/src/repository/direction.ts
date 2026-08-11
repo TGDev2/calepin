@@ -1,7 +1,7 @@
 /**
  * The proposed novelistic directions, read back for comparison (CAL-082),
  * written off one at a time (CAL-083), rewritten by hand or written from
- * scratch (CAL-085).
+ * scratch (CAL-085), and finally retained — one per project (CAL-086).
  *
  * `getDirectionsForComparison` reads as a bare array rather than a `Result`,
  * `getAnalysis`'s convention: a project with no directions yet is a legitimate,
@@ -34,13 +34,31 @@
  * instead of importing `@prisma/client`'s (CAL-043). The rule itself is
  * unchanged: an edit never reverts a direction to `PROPOSED`, and once a
  * direction is the author's (`USER_WRITTEN`) it stays theirs.
+ *
+ * **Retaining one is a status write, so it goes through `withProjectStatus`.**
+ * `isCanonical` is the evidence `deriveProjectStatus` reads for
+ * `BIBLE_TO_VALIDATE` (CAL-034), and the wrapper is what recomputes the column
+ * inside the same transaction as the flag — the one arrangement that cannot
+ * leave the two disagreeing. Everything the change puts in doubt downstream is
+ * *derived* from the same rows afterwards (`@calepin/shared/obsolescence`), so
+ * no bible, plan or chapter is touched by the statement, let alone deleted.
  */
 
 import type { $Enums, Prisma } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
-import { ConflictError, NotFoundError } from "../errors/app-error";
+import { ConflictError, InternalError, NotFoundError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
+import {
+  assessCanonicalDirectionObsolescence,
+  type CanonicalDirectionObsolescence,
+  DIRECTION_DEPENDENT_STAGES,
+  type DirectionDependentStage,
+  type DownstreamStageState,
+  type StageChainAssessment,
+} from "../obsolescence";
+import { projectNotFound, type TransactionClient } from "./project-lock";
+import { withProjectStatus } from "./project-status";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
 import { withProjectTransaction } from "./transaction";
 
@@ -462,4 +480,327 @@ export async function writeUserDirection(
 
     return succeed(created);
   });
+}
+
+/**
+ * What one statement says about the work built on the retained direction.
+ *
+ * **The reference instant is the canonical direction's own `updatedAt`**, and
+ * it is the right one because it is the only thing that moves when the
+ * direction the novel is built on moves: a row becomes canonical through an
+ * update, ceases to be canonical through another, and its wording changes
+ * through `editDirection` — three writes, all of them a reason for the bible to
+ * be looked at again, all of them recorded in that one column. A dedicated
+ * `canonicalSince` beside it would be a second answer able to disagree with it,
+ * which is the shape `Project.status` and `AnalysisSectionRevision` both refuse.
+ *
+ * The three counts are judged by time for the reason `readSourceTextObsolescence`
+ * gives: nothing downstream of the direction records which direction it was
+ * produced from, and inventing three columns for write paths that do not exist
+ * yet (E09 to E12) would be guessing at their shape.
+ *
+ * With no canonical direction, the cross join yields no row and every preceding
+ * count is zero — nothing can descend from a direction that was never chosen.
+ * Counts and one boolean; nothing readable as part of the novel (CLAUDE.md §9).
+ */
+async function selectDirectionDependencyState(
+  client: TransactionClient,
+  scope: ProjectScope,
+): Promise<CanonicalDirectionDependencyRow | undefined> {
+  const rows = await client.$queryRaw`
+    WITH "canonical" AS (
+      SELECT d."updatedAt"
+      FROM "creative_directions" d
+      WHERE d."projectId" = ${scope.projectId} AND d."isCanonical"
+      LIMIT 1
+    )
+    SELECT
+      EXISTS (SELECT 1 FROM "canonical") AS "hasCanonicalDirection",
+      (
+        SELECT COUNT(*) FROM "bibles" b
+        WHERE b."projectId" = ${scope.projectId}
+      )::int AS "biblePresentCount",
+      (
+        SELECT COUNT(*) FROM "bibles" b CROSS JOIN "canonical" c
+        WHERE b."projectId" = ${scope.projectId} AND b."updatedAt" < c."updatedAt"
+      )::int AS "biblePrecedingCount",
+      (
+        SELECT COUNT(*) FROM "outlines" o
+        WHERE o."projectId" = ${scope.projectId}
+      )::int AS "outlinePresentCount",
+      (
+        SELECT COUNT(*) FROM "outlines" o CROSS JOIN "canonical" c
+        WHERE o."projectId" = ${scope.projectId} AND o."updatedAt" < c."updatedAt"
+      )::int AS "outlinePrecedingCount",
+      (
+        SELECT COUNT(*) FROM "outlines" o
+        JOIN "chapters" ch ON ch."outlineId" = o."id"
+        WHERE o."projectId" = ${scope.projectId}
+      )::int AS "chaptersPresentCount",
+      (
+        SELECT COUNT(*) FROM "outlines" o
+        JOIN "chapters" ch ON ch."outlineId" = o."id"
+        CROSS JOIN "canonical" c
+        WHERE o."projectId" = ${scope.projectId} AND ch."updatedAt" < c."updatedAt"
+      )::int AS "chaptersPrecedingCount"
+    FROM "projects" p
+    WHERE p."id" = ${scope.projectId} AND p."userId" = ${scope.ownerId}
+  `;
+
+  return toDependencyRow(rows);
+}
+
+interface CanonicalDirectionDependencyRow {
+  readonly hasCanonicalDirection: boolean;
+  readonly stages: Readonly<Record<DirectionDependentStage, DownstreamStageState>>;
+}
+
+/**
+ * A raw result is untrusted input like any other (CLAUDE.md §6). A cast here
+ * would turn a renamed column into a project reported permanently up to date —
+ * the one failure mode this whole feature exists to prevent.
+ */
+function toDependencyRow(rows: unknown): CanonicalDirectionDependencyRow | undefined {
+  if (!Array.isArray(rows) || rows.length === 0) return undefined;
+
+  const row: unknown = rows[0];
+  if (typeof row !== "object" || row === null) throw unexpectedShape();
+
+  const record: Record<string, unknown> = { ...row };
+
+  const stages = Object.fromEntries(
+    DIRECTION_DEPENDENT_STAGES.map((stage): [DirectionDependentStage, DownstreamStageState] => [
+      stage,
+      {
+        presentCount: readCount(record, `${stage}PresentCount`),
+        precedingCount: readCount(record, `${stage}PrecedingCount`),
+      },
+    ]),
+  ) as Record<DirectionDependentStage, DownstreamStageState>;
+
+  return { hasCanonicalDirection: readBoolean(record, "hasCanonicalDirection"), stages };
+}
+
+function unexpectedShape(fieldPath?: string): InternalError {
+  return new InternalError({
+    message: "the direction dependency query returned a row of an unexpected shape",
+    ...(fieldPath === undefined ? {} : { fieldPath }),
+  });
+}
+
+function readCount(row: Record<string, unknown>, field: string): number {
+  const value: unknown = row[field];
+  if (typeof value !== "number" || !Number.isInteger(value)) throw unexpectedShape(field);
+
+  return value;
+}
+
+function readBoolean(row: Record<string, unknown>, field: string): boolean {
+  const value: unknown = row[field];
+  if (typeof value !== "boolean") throw unexpectedShape(field);
+
+  return value;
+}
+
+/**
+ * What the retained direction has already left behind, and what changing it now
+ * would leave behind (CAL-086).
+ *
+ * A read, and nothing but a read — the twin of `readSourceTextObsolescence` one
+ * rung down the chain. It names stages; it never deletes, regenerates or
+ * enqueues anything, which is the backlog's own requirement stated of this
+ * change in the same words it used of a source-text edit.
+ */
+export async function readCanonicalDirectionObsolescence(
+  scope: ProjectScope,
+): Promise<Result<CanonicalDirectionObsolescence>> {
+  assertProjectScope(scope);
+
+  const state = await selectDirectionDependencyState(getDatabaseClient(), scope);
+
+  return state === undefined
+    ? fail(projectNotFound())
+    : succeed(assessCanonicalDirectionObsolescence(state));
+}
+
+export interface SelectCanonicalDirectionInput {
+  readonly directionId: string;
+  /**
+   * The author has read what the change leaves behind and is going ahead.
+   * Required only when the project already holds work built on the direction
+   * being replaced — see the refusal below.
+   */
+  readonly acknowledgeObsolescence?: boolean;
+}
+
+export interface CanonicalDirectionSelected {
+  /** `false` when this direction was already the retained one; nothing was written. */
+  readonly changed: boolean;
+  /** The direction that was retained until now, or null on a first choice. */
+  readonly previousDirectionId: string | null;
+  /**
+   * What the change put in doubt downstream — empty on a first choice, and on
+   * a project holding nothing below the direction. Intact, every row of it.
+   */
+  readonly obsolescence: StageChainAssessment;
+}
+
+/**
+ * Retains one direction as the project's own (CAL-086).
+ *
+ * **One per project, and the database is what says so.** Two statements —
+ * clear whichever row held the flag, set it on the named one — inside the
+ * transaction `withProjectStatus` opens, under the project's row lock. The
+ * partial unique index `creative_directions_canonical_per_project_key` is the
+ * backstop rather than the mechanism: it turns a lost race into a write error
+ * instead of a project with two canonical directions, which is the same
+ * division of labour `updateSourceText` gives `versionNumber`.
+ *
+ * **The status follows the evidence, it is not asserted.** `isCanonical` is
+ * what `deriveProjectStatus` reads for `BIBLE_TO_VALIDATE`, so retaining a
+ * direction moves the project there by recomputation inside the same
+ * transaction (CAL-034) — no caller ever names a status, here or anywhere.
+ *
+ * **Four refusals, and each has its own remedy.**
+ *
+ *   - A direction that is not there, or not theirs: `NOT_FOUND` (§3.5).
+ *   - A discarded one: `CONFLICT`. CAL-083's doctrine read one step further —
+ *     nothing un-discards a direction, and building the novel on one written
+ *     off would be exactly that.
+ *   - Before the analysis is validated: `ANALYSIS_NOT_VALIDATED`. The status
+ *     machine already holds this rule — `DIRECTION_TO_CHOOSE` is the stage a
+ *     validated analysis produces — and without naming it here the recomputation
+ *     would refuse the write anyway, with `ILLEGAL_STATUS_TRANSITION` and a
+ *     sentence about a status the author never asked about.
+ *   - A *change* that would leave downstream work behind, unacknowledged:
+ *     `OBSOLESCENCE_NOT_ACKNOWLEDGED`, carrying nothing but the answer to look
+ *     at the report. That is what makes *avertir explicitement* a property of
+ *     the statement rather than of a screen: a caller that never shows the
+ *     warning cannot get the write through.
+ *
+ * **Choosing the same direction again is a success, not a conflict.** A second
+ * click is the same decision — `cancelGeneration`'s reading — and nothing is
+ * written, so no timestamp moves and no downstream stage is put in doubt by an
+ * act that changed nothing.
+ *
+ * The caller must be inside `runWithActor`: neither update names an
+ * `updatedById`, and the CAL-022 extension is what records who chose.
+ */
+export async function selectCanonicalDirection(
+  scope: ProjectScope,
+  input: SelectCanonicalDirectionInput,
+): Promise<Result<CanonicalDirectionSelected>> {
+  assertProjectScope(scope);
+
+  return withProjectStatus<CanonicalDirectionSelected>(scope, async (tx) => {
+    const direction = await tx.creativeDirection.findFirst({
+      where: scopedWhere("CreativeDirection", scope, { id: input.directionId }),
+      select: { id: true, isCanonical: true, discardedAt: true },
+    });
+
+    if (direction === null) {
+      return fail(new NotFoundError({ message: "no such direction in this project" }));
+    }
+
+    if (direction.isCanonical) {
+      return fail(
+        new ConflictError({
+          code: "CONFLICT",
+          message: "this direction is already the retained one",
+          userMessage: "Cette direction est déjà celle que vous avez retenue.",
+        }),
+      );
+    }
+
+    if (direction.discardedAt !== null) {
+      return fail(
+        new ConflictError({
+          message: "a discarded direction cannot be retained",
+          userMessage: "Cette direction a été écartée : elle ne peut pas être retenue.",
+        }),
+      );
+    }
+
+    const analysis = await tx.analysis.findFirst({
+      where: scopedWhere("Analysis", scope),
+      select: { validatedAt: true },
+    });
+
+    if (analysis === null || analysis.validatedAt === null) {
+      return fail(
+        new ConflictError({
+          code: "ANALYSIS_NOT_VALIDATED",
+          message: "a direction cannot be retained before the analysis is validated",
+          userMessage:
+            "Validez d'abord l'analyse du texte source : la direction se retient ensuite.",
+        }),
+      );
+    }
+
+    const previous = await tx.creativeDirection.findFirst({
+      where: scopedWhere("CreativeDirection", scope, { isCanonical: true }),
+      select: { id: true },
+    });
+
+    const state = await selectDirectionDependencyState(tx, scope);
+    // Unreachable behind the lock, which already refused a project the scope
+    // does not own — but the alternative to a check here is a cast (§6).
+    if (state === undefined) return fail(projectNotFound());
+
+    const { onChange } = assessCanonicalDirectionObsolescence(state);
+
+    if (previous !== null && onChange.hasObsoleteStages && input.acknowledgeObsolescence !== true) {
+      return fail(
+        new ConflictError({
+          code: "OBSOLESCENCE_NOT_ACKNOWLEDGED",
+          message: "changing the retained direction leaves downstream work behind",
+          userMessage:
+            "Changer de direction laisse en arrière ce qui a été construit sur la précédente. " +
+            "Rien ne sera supprimé ni régénéré : confirmez pour continuer.",
+        }),
+      );
+    }
+
+    // Cleared first, set second. The partial unique index admits one `true` per
+    // project at a time, and PostgreSQL checks it as each statement lands.
+    if (previous !== null) {
+      await tx.creativeDirection.update({
+        where: { id: previous.id },
+        data: { isCanonical: false },
+      });
+    }
+
+    await tx.creativeDirection.update({
+      where: { id: direction.id },
+      data: { isCanonical: true },
+    });
+
+    return succeed({
+      changed: true,
+      previousDirectionId: previous?.id ?? null,
+      // What the write just put in doubt is what `onChange` named a moment ago:
+      // every downstream stage now predates the direction the novel follows.
+      obsolescence: previous === null ? emptyAssessment() : onChange,
+    });
+  });
+}
+
+/**
+ * A first choice puts nothing in doubt. Not `onChange` with the counts zeroed:
+ * a project that somehow holds a bible before any direction was retained did
+ * not build it on the one being chosen now, and saying otherwise would be the
+ * report claiming a provenance it cannot know.
+ */
+function emptyAssessment(): StageChainAssessment {
+  return {
+    stages: DIRECTION_DEPENDENT_STAGES.map((stage) => ({
+      stage,
+      presentCount: 0,
+      precedingCount: 0,
+      isObsolete: false,
+      reason: null,
+    })),
+    obsoleteStages: [],
+    hasObsoleteStages: false,
+  };
 }
