@@ -61,7 +61,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-051)
 
-- `mission-registry.ts` — ten entries, one per mission, each carrying its
+- `mission-registry.ts` — eighteen entries, one per mission, each carrying its
   model, its parameters, the kind of answer it produces and who owns that
   schema, its context budget and its expected cost. Business code names a
   mission and nothing else, so retuning one is an edit here and no caller
@@ -79,7 +79,8 @@ narrative rule, and never restates a domain schema.
   | `evaluate-direction`          | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
   | `combine-directions`          | Opus 5   | xhigh  | 8 k     | 300 s   | direction  | 60 k   | 24 k / 3 k      |
   | `define-novel-identity`       | Opus 5   | high   | 6 k     | 240 s   | bible      | 40 k   | 16 k / 2.5 k    |
-  | `create-character-sheet`      | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
+  | `define-style`                | Opus 5   | high   | 6 k     | 240 s   | bible      | 40 k   | 16 k / 2 k      |
+  | `create-character-sheet`      | Opus 5   | high   | 8 k     | 240 s   | bible      | 40 k   | 12 k / 4 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -384,7 +385,7 @@ measured tokens at today's tariff, never replayed from a recorded price.
   Its answer is `tracedNovelIdentitySchema` in `@calepin/bible`: the nine
   fields `BibleIdentity` stores, each carrying a **required** basis — a source
   key from the ask, a verbatim quotation and the argument for it. The other
-  two of the specification's eleven, *public* and *longueur cible*, are absent
+  two of the specification's eleven, _public_ and _longueur cible_, are absent
   by design: they are `Project` columns the author already set, and
   `resolveNovelIdentity` puts them back.
 - Its ask is `novelIdentityInputSchema`, and the ask is what closes the
@@ -428,6 +429,34 @@ measured tokens at today's tariff, never replayed from a recorded price.
   specification's recurring defects of generated prose quoted as candidates
   kept only where they threaten this text; word targets and list bounds as
   variables (CAL-055).
+
+## What exists (CAL-090)
+
+- **The character-sheet mission filled in** — `create-character-sheet`
+  existed as an id, a thin V1 prompt and a registry stub since CAL-051; its
+  contract is now `conflictedCharacterSheetSchema` in `@calepin/bible`: the
+  fifteen sheet columns `Character` stores plus `relationships`, the
+  specification's seventeenth field. The four quality requirements are
+  shapes — `deepNeed`, `contradiction` and `speechStyle` are pairs whose
+  second half (divergence, dilemma, breach) cannot be filled when the first
+  is fake, and each `heldKnowledge` entry types its statement with a stance
+  the domain maps onto the canon model's two axes
+  (`knowledgeStanceToBelief`), so CAL-094's derivation is a copy.
+- Its ask is `characterSheetInputSchema` — content-addressed, with the name
+  required-but-nullable (imposed, or proposed by the model), the importance
+  the author's, the established cast as the closed vocabulary the answer's
+  edges may name, and four source kinds (`style` added: the voice must live
+  under the register the bible just legislated). `verifyCharacterSheet`
+  reads the answer back: the name refuses whole, a bad edge drops with a
+  report, and what survives is branded.
+- `prompts/missions/create-character-sheet.ts` **V2** (V1 stays, append-only)
+  — each second half defined as the test of the first, three times; the
+  _personnage uniquement fonctionnel_ named as the enemy; the cast closed by
+  exact names; the stance and relationship-type vocabularies rendered from
+  the domain's own glosses; word targets and list bounds as variables
+  (CAL-055). Registry retune: `high`, 240 s, alongside the other bible
+  sections — the backlog's Fable/xhigh line describes the design session
+  (the CAL-089 reading).
 
 ## What arrives in its own task
 

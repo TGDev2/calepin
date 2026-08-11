@@ -677,6 +677,14 @@ describe("prisma schema", () => {
         expect(modelBlock("Character")).toMatch(/^\s*role\s+String\?/m);
       });
 
+      // CAL-090's ask mirrors the enum — the §4.2 carve-out, pinned so the
+      // sheet contract and the column cannot drift apart.
+      it("is mirrored by the character ask's importance union", () => {
+        expect(enumMembers("CharacterImportance")).toEqual(
+          workspaceStringUnion("packages/bible/src/character/schema.ts", "CHARACTER_IMPORTANCES"),
+        );
+      });
+
       // The age is numeric so CAL-093 can reject an impossible chronology and
       // CAL-017 can compute an age at an event.
       it("holds the age as a nullable integer", () => {
@@ -757,6 +765,17 @@ describe("prisma schema", () => {
           "OTHER",
         ]);
         expect(modelBlock("Relationship")).toMatch(/type\s+RelationshipType(?!\?)/);
+      });
+
+      // CAL-090's sheet contract mirrors the enum for its declared edges —
+      // the §4.2 carve-out, pinned as CHARACTER_IMPORTANCES is.
+      it("is mirrored by the sheet contract's type union", () => {
+        expect(enumMembers("RelationshipType")).toEqual(
+          workspaceStringUnion(
+            "packages/bible/src/character/schema.ts",
+            "CHARACTER_RELATIONSHIP_TYPES",
+          ),
+        );
       });
 
       // Oriented: one row per direction, and the reverse is another row that may
@@ -1584,7 +1603,7 @@ describe("prisma schema", () => {
           "COMBINE_DIRECTIONS", // CAL-084
           "DEFINE_NOVEL_IDENTITY", // CAL-088
           "DEFINE_STYLE", // CAL-089
-          "CREATE_CHARACTER_SHEET",
+          "CREATE_CHARACTER_SHEET", // CAL-090
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",
           "EXTRACT_FACTS",

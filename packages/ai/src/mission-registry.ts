@@ -341,18 +341,29 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 120_000,
   },
 
-  /** One sheet, from the bible's identity section and the chosen direction. */
+  /**
+   * The bible's third section: one sheet per call, the project-wide write
+   * target serialising the cast so each sheet reads the ones before it. The
+   * backlog rates the ask 3/3 — the desire/need distinction and the active
+   * contradiction are what separate a character from a narrative function,
+   * and a generic sheet is a defect every chapter inherits — so it joins the
+   * other bible sections on the strongest declared model at `high` (the
+   * backlog's Fable/xhigh line describes the design session, the CAL-089
+   * reading). A larger output cap than its siblings: seventeen fields, three
+   * of them pairs, plus typed knowledge and edges — the contract's own
+   * ceilings sum to roughly 1 300 words, well inside 8 000 tokens.
+   */
   "create-character-sheet": {
     id: "create-character-sheet",
     model: "claude-opus-5",
     fallbackModel: "anthropic.claude-opus-5",
-    effort: "medium",
+    effort: "high",
     maxOutputTokens: 8_000,
-    timeoutMs: 180_000,
+    timeoutMs: 240_000,
     output: { kind: "structured", schemaOwner: "bible" },
     contextBudgetTokens: 40_000,
     expectedUsage: { inputTokens: 12_000, outputTokens: 4_000 },
-    expectedDurationMs: 90_000,
+    expectedDurationMs: 120_000,
   },
 
   /** Structural work: what this chapter does to the threads around it. */
