@@ -70,9 +70,13 @@ const EVALUATION_LIST_TITLE: Record<DirectionEvaluationList, string> = {
  * one is out of the grid, out of `checkDirectionDivergence` and out of the
  * highlight — it is no longer one of the proposals being weighed, and leaving
  * its engine in would colour an axis the author can no longer choose on. It is
- * not out of the page: it moves to « Directions écartées » below, whole, with
- * its engine and what they said about it. The dedicated history screen is
- * CAL-087's; this is what *reste consultable* costs today.
+ * not out of the page: every direction the project has ever held, standing or
+ * discarded, is read back in `getDirectionsForComparison`'s own order and
+ * shown whole in « Historique des directions » below, with its origin, its
+ * dates and — for a discarded one — what the author said about it (CAL-087).
+ * There is no column linking a discarded direction to whatever replaced it,
+ * so the history states what happened to each row rather than inventing that
+ * link.
  *
  * **The divergence is computed here, not stored.** `checkDirectionDivergence`
  * is the same function CAL-080's gate uses — this screen is exactly the
@@ -156,25 +160,27 @@ export default async function DirectionsPage({
         </>
       )}
 
-      {discarded.length === 0 ? null : (
-        <section className={styles.history} aria-labelledby="directions-discarded">
-          <h2 className={styles.historyTitle} id="directions-discarded">
-            Directions écartées
+      {directions.length === 0 ? null : (
+        <section className={styles.history} aria-labelledby="directions-history">
+          <h2 className={styles.historyTitle} id="directions-history">
+            Historique des directions
           </h2>
           <p className={styles.historyIntro}>
-            Elles ne sont pas supprimées : leur moteur narratif reste exclu des propositions de
-            remplacement.
+            Aucune direction produite n&apos;est perdue : chacune reste consultable ici,
+            qu&apos;elle soit encore en comparaison, retenue, modifiée ou écartée.
           </p>
 
           <ul className={styles.historyList}>
-            {discarded.map(({ direction, engine }) => (
+            {withEngines.map(({ direction, engine }) => (
               <li key={direction.id} className={styles.historyItem}>
                 <h3 className={styles.historyItemTitle}>{direction.workingTitle}</h3>
                 <p className={styles.historyMeta}>
-                  {direction.dominantGenre} · écartée le {discardedOn(direction.discardedAt)}
+                  {direction.dominantGenre} · {ORIGIN_LABEL[direction.origin]} · créée le{" "}
+                  {formatFrenchDate(direction.createdAt)}
                 </p>
+                <p className={styles.historyMeta}>{historyStatus(direction)}</p>
 
-                {direction.discardReason === null ? (
+                {direction.discardedAt === null ? null : direction.discardReason === null ? (
                   <p className={styles.historyNoReason}>Écartée sans commentaire.</p>
                 ) : (
                   <blockquote className={styles.historyReason}>
@@ -223,15 +229,30 @@ export default async function DirectionsPage({
   );
 }
 
-/** The day it was written off, as a reader reads it — never a timestamp. */
-function discardedOn(discardedAt: Date | null): string {
-  if (discardedAt === null) return "";
-
-  return discardedAt.toLocaleDateString("fr-FR", {
+/** A date the way a reader reads it — never a timestamp. */
+function formatFrenchDate(date: Date): string {
+  return date.toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+}
+
+/**
+ * What stands true of a direction today, for the history's own status line.
+ *
+ * Deliberately not the grid's own "Direction canonique" badge text: two e2e
+ * journeys (`directions-canonical.spec.ts`) count that exact string once on
+ * the page to prove the badge lands on a single card, and this history entry
+ * sits on the same page.
+ */
+function historyStatus(direction: DirectionSnapshot): string {
+  if (direction.isCanonical) return "Direction retenue";
+  if (direction.discardedAt !== null) {
+    return `Écartée le ${formatFrenchDate(direction.discardedAt)}`;
+  }
+
+  return "En comparaison";
 }
 
 /**

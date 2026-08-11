@@ -70,10 +70,12 @@ test("compares three directions, flags the axis that differs, and shows their cr
 
     await page.goto(`/projects/${project.projectId}/directions`);
 
-    // All three cards are present.
-    await expect(page.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "L'orage annoncé" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Le silence du puits" })).toBeVisible();
+    // All three cards are present. Scoped to the grid: CAL-087's history below
+    // lists every direction too, including these three still-standing ones.
+    const grid = page.getByRole("list", { name: "Directions proposées" });
+    await expect(grid.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
+    await expect(grid.getByRole("heading", { name: "L'orage annoncé" })).toBeVisible();
+    await expect(grid.getByRole("heading", { name: "Le silence du puits" })).toBeVisible();
 
     // The axis every direction differs on is flagged, more than once (once
     // per card) — `.first()` is enough to prove the flag renders at all.

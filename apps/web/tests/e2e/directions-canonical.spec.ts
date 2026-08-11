@@ -106,10 +106,13 @@ test("changes the retained direction, and warns about nothing when nothing was b
     const retained = page.getByRole("listitem").filter({ hasText: "Le silence du puits" }).first();
     await expect(retained.getByText("Direction canonique")).toBeVisible();
 
-    // The one it replaced is untouched and still on screen, not in the
-    // « Directions écartées » list: replacing is not discarding.
-    await expect(page.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Directions écartées" })).toHaveCount(0);
+    // The one it replaced is untouched and still on screen, and its history
+    // entry carries no discard marker: replacing is not discarding.
+    const grid = page.getByRole("list", { name: "Directions proposées" });
+    await expect(grid.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
+    const history = page.getByRole("region", { name: "Historique des directions" });
+    const replaced = history.getByRole("listitem").filter({ hasText: "Le fleuve remonté" });
+    await expect(replaced.getByText("Écartée le", { exact: false })).toHaveCount(0);
   } finally {
     await closeSignedInSession(session);
   }

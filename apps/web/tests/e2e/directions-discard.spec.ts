@@ -10,8 +10,8 @@ import {
 
 /**
  * CAL-083 in a browser: the author writes one of the three proposed directions
- * off, says why, and finds it afterwards under « Directions écartées » with
- * what they wrote.
+ * off, says why, and finds it afterwards under « Historique des directions »
+ * with what they wrote.
  *
  * The write itself is proved against a real PostgreSQL by
  * `test/integration/direction-discard.integration.test.ts`. What is proved
@@ -44,8 +44,10 @@ test("writes one direction off with a reason, and keeps it consultable", async (
 
     await page.goto(`/projects/${project.projectId}/directions`);
 
-    await expect(page.getByRole("heading", { name: "L'orage annoncé" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Directions écartées" })).toHaveCount(0);
+    const grid = page.getByRole("list", { name: "Directions proposées" });
+    await expect(grid.getByRole("heading", { name: "L'orage annoncé" })).toBeVisible();
+    const historyBefore = page.getByRole("region", { name: "Historique des directions" });
+    await expect(historyBefore.getByText("Écartée le", { exact: false })).toHaveCount(0);
 
     // The control is behind a disclosure on the card it belongs to.
     const card = page.getByRole("listitem").filter({ hasText: "L'orage annoncé" }).first();
@@ -56,14 +58,14 @@ test("writes one direction off with a reason, and keeps it consultable", async (
     await card.getByRole("button", { name: "Écarter « L'orage annoncé »" }).click();
 
     // It leaves the comparison…
-    await expect(page.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Le silence du puits" })).toBeVisible();
+    await expect(grid.getByRole("heading", { name: "Le fleuve remonté" })).toBeVisible();
+    await expect(grid.getByRole("heading", { name: "Le silence du puits" })).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: "Écarter « L'orage annoncé »" }),
     ).toHaveCount(0);
 
     // …and appears in the history, whole, with what the author wrote.
-    const history = page.getByRole("region", { name: "Directions écartées" });
+    const history = page.getByRole("region", { name: "Historique des directions" });
     await expect(history.getByRole("heading", { name: "L'orage annoncé" })).toBeVisible();
     await expect(history.getByText("Le conflit social recouvre le personnage.")).toBeVisible();
     await expect(history.getByText("un ordre collectif", { exact: false })).toBeVisible();
@@ -85,7 +87,7 @@ test("writes a direction off without a reason, and says so", async ({ page, cont
     await card.getByText("Écarter cette direction").click();
     await card.getByRole("button", { name: "Écarter « Le silence du puits »" }).click();
 
-    const history = page.getByRole("region", { name: "Directions écartées" });
+    const history = page.getByRole("region", { name: "Historique des directions" });
     await expect(history.getByRole("heading", { name: "Le silence du puits" })).toBeVisible();
     await expect(history.getByText("Écartée sans commentaire.")).toBeVisible();
   } finally {
