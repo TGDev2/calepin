@@ -10,10 +10,11 @@
  * `mission-registry.test.ts` proves that claim by walking the workspace: no
  * file outside this one and the capability sheet names a model at all.
  *
- * **Never one general-purpose prompt** (CLAUDE.md §5.4). The sixteen
- * missions ask sixteen different things of a model — a diagnosis, a hunt for
+ * **Never one general-purpose prompt** (CLAUDE.md §5.4). The seventeen
+ * missions ask seventeen different things of a model — a diagnosis, a hunt for
  * the déjà-lu, an appraisal of reach, one section redone, a set of proposals,
- * one of them replaced, a judgement, a fusion or its argued refusal, a
+ * one of them replaced, a judgement, a fusion or its argued refusal, the
+ * novel's identity transposed, a
  * character sheet, a chapter plan, a scene, a list of atomic facts, a
  * contradiction hunt, a targeted
  * correction, a summary — and merging them behind one treatment would mean
@@ -127,7 +128,7 @@ export const MISSION_REGISTRY = {
   /**
    * The whole source text, read once, in depth — the one mission whose input
    * legitimately is the entire starting text, hence the largest budget of the
-   * sixteen. Everything downstream is built on its answer, so it stays on the
+   * seventeen. Everything downstream is built on its answer, so it stays on the
    * strongest model.
    */
   "analyze-source-text": {
@@ -296,6 +297,28 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 150_000,
   },
 
+  /**
+   * The bible's first section, and the one mission whose whole difficulty is
+   * *not* inventing: eleven fields transposed from a direction already chosen,
+   * each owing a passage. Shorter than proposing a direction — nine short
+   * fields and their bases, not three whole novels — but it is what every
+   * later bible section and every chapter reads first, so it stays on Opus at
+   * `high`: an identity that drifts from its direction is a drift nothing
+   * downstream can detect.
+   */
+  "define-novel-identity": {
+    id: "define-novel-identity",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 6_000,
+    timeoutMs: 240_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 40_000,
+    expectedUsage: { inputTokens: 16_000, outputTokens: 2_500 },
+    expectedDurationMs: 120_000,
+  },
+
   /** One sheet, from the bible's identity section and the chosen direction. */
   "create-character-sheet": {
     id: "create-character-sheet",
@@ -327,7 +350,7 @@ export const MISSION_REGISTRY = {
   /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
-   * the sixteen, on the strongest model — this is not where a cost saving is
+   * the seventeen, on the strongest model — this is not where a cost saving is
    * made.
    */
   "write-scene": {
@@ -366,7 +389,7 @@ export const MISSION_REGISTRY = {
   /**
    * The mission the product is judged on: a contradiction between a chapter
    * and everything established before it. The most demanding reasoning of the
-   * sixteen over the widest context, so it runs at `xhigh` and is given the
+   * seventeen over the widest context, so it runs at `xhigh` and is given the
    * second-largest budget.
    */
   "check-coherence": {
@@ -401,7 +424,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the sixteen and the most frequent after `extract-facts`: one
+   * The cheapest of the seventeen and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */

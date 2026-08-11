@@ -2245,6 +2245,7 @@ enum GenerationMission {
   REPLACE_DIRECTION // remplacer une direction écartée
   EVALUATE_DIRECTION // évaluer une direction
   COMBINE_DIRECTIONS // combiner des éléments de plusieurs directions
+  DEFINE_NOVEL_IDENTITY // définir l'identité du roman
   CREATE_CHARACTER_SHEET // créer une fiche personnage
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène

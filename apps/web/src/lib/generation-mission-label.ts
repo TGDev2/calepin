@@ -2,9 +2,9 @@ import type { GenerationMission } from "@calepin/shared/repository";
 
 /**
  * The French label for a generation mission, same shape as
- * `project-status-label.ts`. Order matches the sixteen mission identifiers
+ * `project-status-label.ts`. Order matches the seventeen mission identifiers
  * CLAUDE.md's glossary lists (CAL-051, CAL-055, CAL-075, CAL-076, CAL-077,
- * CAL-083, CAL-084).
+ * CAL-083, CAL-084, CAL-088).
  *
  * Presentation only: what a mission actually does belongs to the mission
  * registry (`@calepin/ai`, CAL-051), not here.
@@ -18,6 +18,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   REPLACE_DIRECTION: "Remplacement d'une direction",
   EVALUATE_DIRECTION: "Évaluation d'une direction",
   COMBINE_DIRECTIONS: "Combinaison de directions",
+  DEFINE_NOVEL_IDENTITY: "Définition de l'identité du roman",
   CREATE_CHARACTER_SHEET: "Création d'une fiche personnage",
   BUILD_CHAPTER_OUTLINE: "Construction d'un plan de chapitre",
   WRITE_SCENE: "Rédaction d'une scène",

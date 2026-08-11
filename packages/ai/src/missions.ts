@@ -1,10 +1,10 @@
 /**
- * The sixteen mission identifiers (CLAUDE.md §4.2).
+ * The seventeen mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same sixteen in SCREAMING_SNAKE because the column follows the schema's
+ * same seventeen in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
  * can drift.
  *
@@ -37,6 +37,13 @@
  * elements exclude each other — an either/or no proposing prompt has a hole
  * for, judged by gates (`checkDirectionCombinationSelection`,
  * `checkDirectionCombinationAnswer`) that no other mission's answer meets.
+ * `define-novel-identity` (CAL-088) opens the bible stage, and it is not a
+ * first use of `create-character-sheet` for the reason that separates every
+ * pair above: a character sheet invents a person the source text does not
+ * fully contain, while the identity **transposes** — every field it writes
+ * owes a passage of the canonical direction or of the validated analysis, and
+ * its contract carries that basis on each one. One prompt serving both would
+ * be asking for invention and for restraint in the same breath.
  */
 
 export const MISSION_IDS = [
@@ -48,6 +55,7 @@ export const MISSION_IDS = [
   "replace-direction",
   "evaluate-direction",
   "combine-directions",
+  "define-novel-identity",
   "create-character-sheet",
   "build-chapter-outline",
   "write-scene",

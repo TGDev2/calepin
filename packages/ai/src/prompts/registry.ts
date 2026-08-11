@@ -33,6 +33,7 @@ import { BUILD_CHAPTER_OUTLINE_PROMPTS } from "./missions/build-chapter-outline"
 import { CHECK_COHERENCE_PROMPTS } from "./missions/check-coherence";
 import { COMBINE_DIRECTIONS_PROMPTS } from "./missions/combine-directions";
 import { CREATE_CHARACTER_SHEET_PROMPTS } from "./missions/create-character-sheet";
+import { DEFINE_NOVEL_IDENTITY_PROMPTS } from "./missions/define-novel-identity";
 import { DETECT_CLICHE_RISKS_PROMPTS } from "./missions/detect-cliche-risks";
 import { EVALUATE_DIRECTION_PROMPTS } from "./missions/evaluate-direction";
 import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
@@ -60,6 +61,7 @@ export const PROMPT_REGISTRY = {
   "replace-direction": REPLACE_DIRECTION_PROMPTS,
   "evaluate-direction": EVALUATE_DIRECTION_PROMPTS,
   "combine-directions": COMBINE_DIRECTIONS_PROMPTS,
+  "define-novel-identity": DEFINE_NOVEL_IDENTITY_PROMPTS,
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,

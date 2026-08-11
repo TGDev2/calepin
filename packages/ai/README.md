@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (sixteen since CAL-084), pinned
+- `missions.ts` — the mission identifiers (seventeen since CAL-088), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -78,6 +78,7 @@ narrative rule, and never restates a domain schema.
   | `replace-direction`           | Opus 5   | high   | 6 k     | 180 s   | direction  | 60 k   | 22 k / 2.7 k    |
   | `evaluate-direction`          | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
   | `combine-directions`          | Opus 5   | xhigh  | 8 k     | 300 s   | direction  | 60 k   | 24 k / 3 k      |
+  | `define-novel-identity`       | Opus 5   | high   | 6 k     | 240 s   | bible      | 40 k   | 16 k / 2.5 k    |
   | `create-character-sheet`      | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
@@ -300,7 +301,7 @@ measured tokens at today's tariff, never replayed from a recorded price.
 
 - **A twelfth mission**, `detect-cliche-risks` — the dedicated pass over the
   déjà-lu. The diagnostic's `CLICHE_RISKS` section names the slopes in one
-  sentence each among sixteen other concerns; §5.4 is why the deep hunt is a
+  sentence each among sixteen other concerns of the diagnostic; §5.4 is why the deep hunt is a
   mission of its own: four fronts (situation, character, formula, reversal),
   and per finding a required verbatim passage, why it is conventional and what
   it forecloses. Its schema is `clicheRiskDetectionSchema` in
@@ -375,6 +376,34 @@ measured tokens at today's tariff, never replayed from a recorded price.
   framed as a service that may name only selected elements; the two answer
   shapes spelled field by field with the branch the outcome does not own
   written null, never omitted.
+
+## What exists (CAL-088)
+
+- **A seventeenth mission**, `define-novel-identity` — the bible's identity
+  section, transposed from the canonical direction and the validated analysis.
+  Its answer is `tracedNovelIdentitySchema` in `@calepin/bible`: the nine
+  fields `BibleIdentity` stores, each carrying a **required** basis — a source
+  key from the ask, a verbatim quotation and the argument for it. The other
+  two of the specification's eleven, *public* and *longueur cible*, are absent
+  by design: they are `Project` columns the author already set, and
+  `resolveNovelIdentity` puts them back.
+- Its ask is `novelIdentityInputSchema`, and the ask is what closes the
+  citation vocabulary: `sources` carries the direction field by field and the
+  analysis section by section, and `checkNovelIdentityBasis` refuses a key the
+  ask never offered and a quotation that is not in the passage it names. A
+  domain may not import a domain (§3.2), so the corpus travels in the ask
+  rather than as `DIRECTION_ELEMENTS` and `ANALYSIS_SECTIONS` — which is also
+  the stronger rule, since a model can then only cite what it was shown.
+- The check is a **report, never a `Result`, and carries no brand**: nothing
+  is rewritten, and an unverifiable basis refuses the answer whole rather than
+  clearing a field, because a required basis has no nullable to clear.
+- `prompts/missions/define-novel-identity.ts` **V1** — the corpus rendered
+  once, as context and as citation vocabulary at the same time; the two
+  project settings stated as constraints and explicitly not asked for; the
+  mechanical re-read announced with its consequence and its honest way out;
+  themes and counter-themes asked for in pairs. The freedom clauses quoted are
+  the **bible** stage's, whose stage rule is this mission's requirement in the
+  repository's own words.
 
 ## What arrives in its own task
 
