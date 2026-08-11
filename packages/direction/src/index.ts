@@ -8,6 +8,33 @@
  */
 
 export {
+  checkDirectionCombinationAnswer,
+  checkDirectionCombinationSelection,
+  DIRECTION_COMBINABLE_ELEMENTS,
+  DIRECTION_COMBINATION_CHAR_CEILINGS,
+  DIRECTION_COMBINATION_CONFLICT_COUNTS,
+  DIRECTION_COMBINATION_DIRECTION_COUNTS,
+  DIRECTION_COMBINATION_OUTCOMES,
+  DIRECTION_COMBINATION_SLOT_LABELS,
+  DIRECTION_COMBINATION_SLOTS,
+  DIRECTION_COMBINATION_WORD_TARGETS,
+  type DirectionCombinableElement,
+  type DirectionCombination,
+  type DirectionCombinationAnswerReport,
+  type DirectionCombinationElementRef,
+  type DirectionCombinationInput,
+  directionCombinationInputSchema,
+  type DirectionCombinationIrreducibleReport,
+  type DirectionCombinationMergedReport,
+  type DirectionCombinationOutcome,
+  directionCombinationSchema,
+  type DirectionCombinationSelectionConflict,
+  type DirectionCombinationSelectionReport,
+  type DirectionCombinationSlot,
+  type DirectionCombinationUnverifiableElement,
+  type SourceEngineComparison,
+} from "./combination";
+export {
   checkDirectionDivergence,
   checkDirectionProposalDivergence,
   compareNarrativeEngines,

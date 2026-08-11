@@ -2229,10 +2229,10 @@ model ThreadContinuation {
   @@map("thread_continuations")
 }
 
-/// The fifteen missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+/// The sixteen missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
 /// registry owns. An enum rather than free text because every indicator of
 /// specification §17 that touches generation is a group-by on this column: a
-/// typo would open a silent sixteenth category and put a hole in the numbers,
+/// typo would open a silent seventeenth category and put a hole in the numbers,
 /// where an enum makes it a write error. Adding a mission is one member and one
 /// migration, owned by the task that adds the mission — the same trade
 /// CanonFactValidity records.
@@ -2244,6 +2244,7 @@ enum GenerationMission {
   PROPOSE_DIRECTIONS // proposer des directions
   REPLACE_DIRECTION // remplacer une direction écartée
   EVALUATE_DIRECTION // évaluer une direction
+  COMBINE_DIRECTIONS // combiner des éléments de plusieurs directions
   CREATE_CHARACTER_SHEET // créer une fiche personnage
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène

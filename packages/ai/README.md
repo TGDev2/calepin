@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (fifteen since CAL-083), pinned
+- `missions.ts` — the mission identifiers (sixteen since CAL-084), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -68,23 +68,24 @@ narrative rule, and never restates a domain schema.
   moves — and `mission-registry.test.ts` proves it by walking every package's
   sources: no file outside this one and the capability sheet names a model.
 
-  | mission                  | model    | effort | max out | timeout | output     | budget | expected in/out |
-  | ------------------------ | -------- | ------ | ------- | ------- | ---------- | ------ | --------------- |
-  | `analyze-source-text`    | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
-  | `detect-cliche-risks`    | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 20 k / 3 k      |
-  | `assess-novel-potential` | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 25 k / 3 k      |
-  | `regenerate-analysis-section` | Opus 5 | high | 4 k  | 180 s   | analysis   | 120 k  | 20 k / 0.8 k    |
-  | `propose-directions`     | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
-  | `replace-direction`      | Opus 5   | high   | 6 k     | 180 s   | direction  | 60 k   | 22 k / 2.7 k    |
-  | `evaluate-direction`     | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
-  | `create-character-sheet` | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
-  | `build-chapter-outline`  | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
-  | `write-scene`            | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
-  | `extract-facts`          | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
-  | `check-coherence`        | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
-  | `fix-issue`              | Opus 5   | medium | 16 k    | 300 s   | coherence  | 60 k   | 15 k / 6 k      |
-  | `summarize-chapter`      | Sonnet 5 | low    | 4 k     | 120 s   | manuscript | 40 k   | 10 k / 2 k      |
-  | `summarize-part`         | Sonnet 5 | low    | 2 k     | 120 s   | manuscript | 30 k   | 8 k / 1 k       |
+  | mission                       | model    | effort | max out | timeout | output     | budget | expected in/out |
+  | ----------------------------- | -------- | ------ | ------- | ------- | ---------- | ------ | --------------- |
+  | `analyze-source-text`         | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
+  | `detect-cliche-risks`         | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 20 k / 3 k      |
+  | `assess-novel-potential`      | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 25 k / 3 k      |
+  | `regenerate-analysis-section` | Opus 5   | high   | 4 k     | 180 s   | analysis   | 120 k  | 20 k / 0.8 k    |
+  | `propose-directions`          | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
+  | `replace-direction`           | Opus 5   | high   | 6 k     | 180 s   | direction  | 60 k   | 22 k / 2.7 k    |
+  | `evaluate-direction`          | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
+  | `combine-directions`          | Opus 5   | xhigh  | 8 k     | 300 s   | direction  | 60 k   | 24 k / 3 k      |
+  | `create-character-sheet`      | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
+  | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
+  | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
+  | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
+  | `check-coherence`             | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
+  | `fix-issue`                   | Opus 5   | medium | 16 k    | 300 s   | coherence  | 60 k   | 15 k / 6 k      |
+  | `summarize-chapter`           | Sonnet 5 | low    | 4 k     | 120 s   | manuscript | 40 k   | 10 k / 2 k      |
+  | `summarize-part`              | Sonnet 5 | low    | 2 k     | 120 s   | manuscript | 30 k   | 8 k / 1 k       |
 
   The backup is always the same model on Bedrock. Three missions leave Opus:
   `extract-facts`, `summarize-chapter` and `summarize-part` run after every
@@ -347,10 +348,33 @@ measured tokens at today's tariff, never replayed from a recorded price.
   contract quoted rather than restated (`describeNarrativeEngine`,
   `describeNarrativeEngineAxes`, `NARRATIVE_ENGINE_DIVERGENCE_MINIMUM`), the
   discarded direction shown so the answer can differ from it deliberately, and
-  the author's reason given authority over the *angle* and never over the
+  the author's reason given authority over the _angle_ and never over the
   source text — the clause `regenerate-analysis-section` established. The safe
   middle between the two kept directions is refused out loud, because the
   exclusion check cannot see it.
+
+## What exists (CAL-084)
+
+- **A sixteenth mission**, `combine-directions` — elements selected from two
+  or three directions fused into one, or the argued answer that they cannot
+  be. Its answer is `directionCombinationSchema` in `@calepin/direction`: one
+  strict object discriminated by `outcome`, its two branches (`direction`,
+  `conflicts`) required-but-nullable and tied by a check — deliberately not a
+  root union, whose JSON Schema is a `oneOf` the structured-outputs subset
+  does not accept. Its ask is `directionCombinationInputSchema`; its gates
+  are `checkDirectionCombinationSelection` (two selected engines that are
+  distinct are refused before a call is paid for) and
+  `checkDirectionCombinationAnswer` (one dominant source engine, never the
+  blend between two; every named conflict verified against the selection).
+  The one direction-stage mission at `xhigh` — the compromis mou is a
+  judgement failure depth prevents, and the refusal has to be calibrated too.
+- `prompts/missions/combine-directions.ts` **V1** — the selection quoted as
+  the ask, each source direction rendered whole under its slot label; the
+  dominant-engine doctrine and its mechanical re-read said out loud, the
+  compromis mou and the foreign engine both named as refusals; irreducibility
+  framed as a service that may name only selected elements; the two answer
+  shapes spelled field by field with the branch the outcome does not own
+  written null, never omitted.
 
 ## What arrives in its own task
 

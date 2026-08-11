@@ -118,3 +118,54 @@ describe("classifyOutputFailure — an answer that attempted the contract", () =
     expect(classify(schema, { entries: [] })).toBe("off-topic");
   });
 });
+
+describe("classifyOutputFailure — a discriminated contract with nullable branches", () => {
+  // The shape CAL-084's answer contract takes — one strict object whose
+  // `kind` decides which required-but-nullable branch is non-null, tied by a
+  // check with field-located issues — chosen over a root union precisely so
+  // every failure below lands on the repair path. This block pins that.
+  const schema = z
+    .strictObject({
+      kind: z.enum(["done", "declined"]),
+      resultCount: z.number().nullable(),
+      reasonCodes: z.array(z.string()).min(1).nullable(),
+    })
+    .check((ctx) => {
+      if (ctx.value.kind === "done" && ctx.value.resultCount === null) {
+        ctx.issues.push({
+          code: "custom",
+          message: "a done outcome owes its count",
+          path: ["resultCount"],
+          input: ctx.value,
+        });
+      }
+
+      if (ctx.value.kind === "done" && ctx.value.reasonCodes !== null) {
+        ctx.issues.push({
+          code: "custom",
+          message: "a done outcome carries no reasons",
+          path: ["reasonCodes"],
+          input: ctx.value,
+        });
+      }
+    });
+
+  it("calls a discriminator outside the enum a form failure", () => {
+    expect(classify(schema, { kind: "other", resultCount: 1, reasonCodes: null })).toBe(
+      "malformed",
+    );
+  });
+
+  it("calls mixed branches a form failure — the check's issue names the field", () => {
+    expect(classify(schema, { kind: "done", resultCount: 1, reasonCodes: ["a"] })).toBe(
+      "malformed",
+    );
+    expect(classify(schema, { kind: "done", resultCount: null, reasonCodes: null })).toBe(
+      "malformed",
+    );
+  });
+
+  it("still calls an empty object off-topic", () => {
+    expect(classify(schema, {})).toBe("off-topic");
+  });
+});

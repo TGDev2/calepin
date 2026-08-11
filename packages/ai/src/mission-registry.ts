@@ -10,10 +10,10 @@
  * `mission-registry.test.ts` proves that claim by walking the workspace: no
  * file outside this one and the capability sheet names a model at all.
  *
- * **Never one general-purpose prompt** (CLAUDE.md §5.4). The fifteen
- * missions ask fifteen different things of a model — a diagnosis, a hunt for
+ * **Never one general-purpose prompt** (CLAUDE.md §5.4). The sixteen
+ * missions ask sixteen different things of a model — a diagnosis, a hunt for
  * the déjà-lu, an appraisal of reach, one section redone, a set of proposals,
- * one of them replaced, a judgement, a
+ * one of them replaced, a judgement, a fusion or its argued refusal, a
  * character sheet, a chapter plan, a scene, a list of atomic facts, a
  * contradiction hunt, a targeted
  * correction, a summary — and merging them behind one treatment would mean
@@ -127,7 +127,7 @@ export const MISSION_REGISTRY = {
   /**
    * The whole source text, read once, in depth — the one mission whose input
    * legitimately is the entire starting text, hence the largest budget of the
-   * fifteen. Everything downstream is built on its answer, so it stays on the
+   * sixteen. Everything downstream is built on its answer, so it stays on the
    * strongest model.
    */
   "analyze-source-text": {
@@ -235,7 +235,7 @@ export const MISSION_REGISTRY = {
    * one section. It stays on Opus at `high` because a replacement is asked
    * precisely when the first answer disappointed the author, and the cheaper
    * model is not the remedy for that — and because the answer has to clear
-   * three engines it may not reproduce, which is the hardest constraint any
+   * three engines it may not reproduce, which is the hardest exclusion any
    * direction-stage ask carries.
    */
   "replace-direction": {
@@ -269,6 +269,33 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 90_000,
   },
 
+  /**
+   * Elements of two or three directions fused into one, or the argued answer
+   * that they cannot be (CAL-084). The same reading as `replace-direction` —
+   * the validated analysis, the whole source text — plus the source
+   * directions themselves, for one direction's worth of answer or less.
+   *
+   * The one direction-stage mission at `xhigh`, deliberately: its named
+   * failure, *le compromis mou*, is a judgement failure that depth prevents —
+   * an engine split between two sources is caught mechanically afterwards,
+   * but only depth makes the fusion that *clears* the gate worth reading —
+   * and the refusal has to be calibrated too, because a lazy « irréductible »
+   * is as useless as a mushy fusion. The backlog rates the ask 3/3; effort is
+   * the half of that rating the registry can honour.
+   */
+  "combine-directions": {
+    id: "combine-directions",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "direction" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 24_000, outputTokens: 3_000 },
+    expectedDurationMs: 150_000,
+  },
+
   /** One sheet, from the bible's identity section and the chosen direction. */
   "create-character-sheet": {
     id: "create-character-sheet",
@@ -300,7 +327,7 @@ export const MISSION_REGISTRY = {
   /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
-   * the fifteen, on the strongest model — this is not where a cost saving is
+   * the sixteen, on the strongest model — this is not where a cost saving is
    * made.
    */
   "write-scene": {
@@ -339,8 +366,8 @@ export const MISSION_REGISTRY = {
   /**
    * The mission the product is judged on: a contradiction between a chapter
    * and everything established before it. The most demanding reasoning of the
-   * fifteen over the widest context, so it is the one raised to `xhigh` and
-   * given the second-largest budget.
+   * sixteen over the widest context, so it runs at `xhigh` and is given the
+   * second-largest budget.
    */
   "check-coherence": {
     id: "check-coherence",
@@ -374,7 +401,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the fifteen and the most frequent after `extract-facts`: one
+   * The cheapest of the sixteen and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */

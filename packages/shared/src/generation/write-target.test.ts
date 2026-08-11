@@ -143,6 +143,11 @@ describe("missionsWritingTo", () => {
       "WRITE_SCENE",
     ]);
     expect(missionsWritingTo("bible").sort()).toEqual(["CREATE_CHARACTER_SHEET", "EXTRACT_FACTS"]);
+    expect(missionsWritingTo("directions").sort()).toEqual([
+      "COMBINE_DIRECTIONS",
+      "PROPOSE_DIRECTIONS",
+      "REPLACE_DIRECTION",
+    ]);
   });
 
   it("covers every mission exactly once across the kinds", () => {

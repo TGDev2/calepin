@@ -11,8 +11,8 @@
  * the only three on Sonnet at `low` effort with `expectedDurationMs` at or
  * under a minute — the fast lane. `CHECK_COHERENCE` is the one mission the
  * glossary itself names as the audit (*contrôle de cohérence* →
- * `CoherenceAudit`) and the only one at `xhigh` effort, so it gets a lane of
- * its own. Everything else is Opus at medium effort or above, 90 to 600
+ * `CoherenceAudit`), so it gets a lane of its own. Everything else is Opus at
+ * medium effort or above, 90 to 600
  * seconds — including `FIX_ISSUE`, whose own registry comment says it "stays
  * where `write-scene` is" rather than beside `extract-facts`.
  *
@@ -44,6 +44,7 @@ export const MISSION_QUEUE: Readonly<Record<Mission, GenerationQueueName>> = {
   PROPOSE_DIRECTIONS: "generation-slow",
   REPLACE_DIRECTION: "generation-slow",
   EVALUATE_DIRECTION: "generation-slow",
+  COMBINE_DIRECTIONS: "generation-slow",
   CREATE_CHARACTER_SHEET: "generation-slow",
   BUILD_CHAPTER_OUTLINE: "generation-slow",
   WRITE_SCENE: "generation-slow",
@@ -67,6 +68,7 @@ const MISSION_STAGE: Partial<Record<Mission, DownstreamStage>> = {
   PROPOSE_DIRECTIONS: "direction",
   REPLACE_DIRECTION: "direction",
   EVALUATE_DIRECTION: "direction",
+  COMBINE_DIRECTIONS: "direction",
   CREATE_CHARACTER_SHEET: "bible",
   BUILD_CHAPTER_OUTLINE: "outline",
   WRITE_SCENE: "chapters",
@@ -78,7 +80,7 @@ const MISSION_STAGE: Partial<Record<Mission, DownstreamStage>> = {
  * *waiting on the same queue*: it has no cross-queue effect, so it changes
  * nothing about `generation-fast` never sitting behind `generation-slow` —
  * the queue split itself already guarantees that. What it does do is order
- * `generation-slow`'s nine missions against each other when more than one
+ * `generation-slow`'s twelve missions against each other when more than one
  * is waiting on that queue's own limited concurrency, from
  * `downstreamStageRank` (a job upstream in the chain outranks one that
  * depends on it). `generation-fast`'s three and `generation-audit`'s one get

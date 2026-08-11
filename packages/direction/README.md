@@ -4,7 +4,7 @@ Exploration of three **divergent** novel directions derived from the validated
 analysis, twelve attributes each. Divergence is measured on narrative-engine
 axes, not on surface detail. One direction eventually becomes canonical.
 
-Also covers critique of a direction, replacement, merging, author-written
+Also covers critique of a direction, replacement, combination, author-written
 directions and history.
 
 What exists today:
@@ -38,5 +38,18 @@ What exists today:
   shape), and the exclusion gate `checkDirectionReplacement`: a candidate
   reproducing the engine of the discarded direction or of either kept one is
   refused, on `divergence.ts`'s comparison and nothing new.
+- `combination.ts` (CAL-084) — the `combine-directions` contract: the
+  selectable elements (`DIRECTION_COMBINABLE_ELEMENTS` — the proposal's
+  material, never its self-descriptions), the slot vocabulary that names a
+  source direction without a number or an id, the ask
+  (`directionCombinationInputSchema`, canonical so one ask digests once), the
+  answer (`directionCombinationSchema` — one strict object whose `outcome`
+  decides which required-but-nullable branch is non-null: a merged direction
+  of the proposal's own shape, or the conflicts that make the combination
+  irreducible), and two gates: `checkDirectionCombinationSelection` refuses
+  two selected engines that are distinct before anything is generated, and
+  `checkDirectionCombinationAnswer` demands one dominant source engine —
+  never the blend between two — and verifies every named conflict against
+  the ask's own selection.
 
 Backlog: E08 — CAL-079 to CAL-087. Schema: CAL-015.

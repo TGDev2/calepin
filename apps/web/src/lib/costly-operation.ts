@@ -47,6 +47,7 @@ export const MISSION_ID_BY_GENERATION_MISSION = {
   PROPOSE_DIRECTIONS: "propose-directions",
   REPLACE_DIRECTION: "replace-direction",
   EVALUATE_DIRECTION: "evaluate-direction",
+  COMBINE_DIRECTIONS: "combine-directions",
   CREATE_CHARACTER_SHEET: "create-character-sheet",
   BUILD_CHAPTER_OUTLINE: "build-chapter-outline",
   WRITE_SCENE: "write-scene",
