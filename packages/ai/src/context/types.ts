@@ -107,6 +107,17 @@ export interface SceneContextInput {
   readonly freedomConstraints: readonly string[];
   /** The `Character` and `Place` ids the target outline names. */
   readonly outlineEntityIds: readonly string[];
+  /**
+   * The bible's relationship graph, already phrased by the domain
+   * (`describeRelationshipGraph` in `@calepin/bible`) — one line per directed
+   * edge, plus one naming what a pair left unanswered (CAL-091).
+   *
+   * Carried whole and **never degraded**, for `canonFacts`' reason: a tie is
+   * canon, and dropping the line that says B never learned what A knows is
+   * how a scene comes to have B act on it. Lines rather than a block so each
+   * one is bounded on its own by `CONTEXT_ITEM_CEILINGS.characterRelation`.
+   */
+  readonly characterRelations: readonly string[];
   readonly canonFacts: readonly CanonFactCandidate[];
   /** The summaries of the parts entirely behind the target chapter (CAL-055). */
   readonly precedingParts: readonly PartSummary[];
@@ -170,6 +181,12 @@ export interface ContextCompositionReport {
   /** Ladder steps walked before the estimate fit. 0 = nothing degraded. */
   readonly degradationStepsApplied: number;
   readonly facts: { readonly offered: number; readonly selected: number };
+  /**
+   * Relationship lines carried. One number, not a pair: they are not
+   * degradable, so offered and selected are the same by construction —
+   * `partSummaries`' arrangement.
+   */
+  readonly characterRelations: number;
   /**
    * Part summaries carried. There is no `dropped` counterpart: they are not
    * degradable, so offered and selected are the same number by construction —

@@ -198,4 +198,70 @@ const V2 = {
   ].join("\n"),
 } as const satisfies PromptDefinition;
 
-export const WRITE_SCENE_PROMPTS = [V1, V2] as const;
+/**
+ * V3 (CAL-091) adds the relationship graph, and the addition is one section
+ * and one sentence.
+ *
+ * The section carries the graph as `describeRelationshipGraph` phrases it —
+ * directed edges, then the lines naming what a pair left unanswered. The
+ * sentence is what makes it load-bearing: without an instruction saying that a
+ * character may only act on what their own side of a tie holds, a model reads
+ * two directed edges as one relationship and freely has B act on what only A
+ * knows, which is the defect the whole asymmetric model exists to prevent.
+ *
+ * Placed immediately after the canon facts, and for the same reason the part
+ * summaries sit before the chapter summaries: the two sections are of one kind
+ * — what the world already holds and must not be contradicted — and reading
+ * them apart invites treating the ties as decoration.
+ */
+const V3 = {
+  id: "write-scene",
+  version: 3,
+  scope: { kind: "mission", missionId: "write-scene" },
+  variables: [
+    ...V2.variables,
+    {
+      name: "characterRelations",
+      type: "list",
+      description:
+        "The bible's relationship graph, one directed tie per line, plus the lines naming a tie only one side declared.",
+    },
+  ],
+  system: V2.system,
+  instruction: [
+    "Écris le chapitre planifié ci-dessous, d'environ {{targetWordCount}} mots.",
+    "",
+    "Plan du chapitre :",
+    "{{chapterOutline}}",
+    "",
+    "Consignes de l'auteur :",
+    "{{authorInstructions}}",
+    "",
+    "Style à respecter :",
+    "{{bibleStyle}}",
+    "",
+    "Contraintes de fidélité au texte source :",
+    "{{freedomConstraints}}",
+    "",
+    "Faits déjà établis que ce chapitre engage — ne les contredis pas :",
+    "{{canonFacts}}",
+    "",
+    "Liens entre les personnages. Chaque ligne est orientée : elle dit ce que le premier personnage tient du second, et rien de ce que le second tient du premier. Une ligne d'asymétrie signale un lien qu'un seul côté déclare, ou que les deux déclarent différemment :",
+    "{{characterRelations}}",
+    "Un personnage n'agit que sur ce que son propre côté du lien porte. Si l'un sait ce que l'autre ignore, l'autre continue de l'ignorer dans cette scène, quoi que le lecteur en sache — c'est précisément là que la scène a quelque chose à jouer.",
+    "",
+    "Ce que le roman a parcouru jusqu'ici, partie par partie :",
+    "{{partSummaries}}",
+    "",
+    "Résumés des chapitres précédents, du plus ancien au plus récent :",
+    "{{precedingSummaries}}",
+    "",
+    "Extraits antérieurs nécessaires à la continuité :",
+    "{{continuityExcerpts}}",
+    "",
+    "Écris la scène plutôt que de la raconter, et tiens le plan jusqu'au bout : ce qu'il annonce doit être dans le chapitre.",
+    "N'introduis pas de fait nouveau qui contredirait ceux ci-dessus ; si le plan en exige un, écris-le comme un fait nouveau et non comme un rappel.",
+  ].join("\n"),
+} as const satisfies PromptDefinition;
+
+export const WRITE_SCENE_PROMPTS = [V1, V2, V3] as const;

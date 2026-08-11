@@ -61,6 +61,10 @@ function chapterTwelveInput(overrides: Partial<SceneContextInput> = {}): SceneCo
     authorInstructions: ["Consigne pour ce chapitre : marqueur-consigne."],
     freedomConstraints: ["Contrainte de fidélité : marqueur-contrainte."],
     outlineEntityIds: ["char-a", "place-b"],
+    characterRelations: [
+      "Personnage A -> Personnage B (famille) : marqueur-lien.",
+      "Asymetrie du lien : Personnage A -> Personnage B, marqueur-asymetrie.",
+    ],
     canonFacts: [
       {
         id: "fact-named",
@@ -129,6 +133,8 @@ describe("composeSceneContext — the acceptance criterion", () => {
       "marqueur-consigne",
       "marqueur-contrainte",
       "marqueur-fait-nommé",
+      "marqueur-lien",
+      "marqueur-asymetrie",
     ]) {
       expect(rendered).toContain(marker);
     }
@@ -151,6 +157,7 @@ describe("composeSceneContext — the acceptance criterion", () => {
 
     expect(report.summaries).toEqual({ offered: 11, detailed: 2, brief: 9, dropped: 0 });
     expect(report.excerpts).toEqual({ offered: 2, selected: 2 });
+    expect(report.characterRelations).toBe(2);
   });
 });
 
@@ -187,6 +194,16 @@ describe("composeSceneContext — what it refuses", () => {
 
     expect(error.code).toBe("CONTEXT_ITEM_OVERSIZED");
     expect(error.fieldPath).toBe("precedingChapters.chapter-3.detailedSummary");
+  });
+
+  it("refuses a full chapter travelling as a relationship line", () => {
+    const error = unwrapError(
+      composeSceneContext(chapterTwelveInput({ characterRelations: [fullChapterText(4)] })),
+    );
+
+    expect(error.code).toBe("CONTEXT_ITEM_OVERSIZED");
+    // The path names the kind and the position — never the line (§9).
+    expect(error.fieldPath).toBe("characterRelations.0");
   });
 
   it("fails cleanly when the non-degradable material alone exceeds the budget", () => {
@@ -257,6 +274,7 @@ describe("composeSceneContext — the degradation ladder", () => {
       composeSceneContext(
         chapterTwelveInput({
           canonFacts: [],
+          characterRelations: [],
           precedingParts: [],
           precedingChapters: [],
           continuityExcerpts: [],
@@ -270,6 +288,7 @@ describe("composeSceneContext — the degradation ladder", () => {
     expect(report.partSummaries).toBe(0);
     expect(report.summaries).toEqual({ offered: 0, detailed: 0, brief: 0, dropped: 0 });
     expect(report.excerpts).toEqual({ offered: 0, selected: 0 });
+    expect(report.characterRelations).toBe(0);
   });
 });
 
@@ -338,6 +357,36 @@ describe("composeSceneContext — the part summaries", () => {
 
     const failure = unwrapError(
       composeSceneContext(chapterTwelveInput({ precedingParts: manyParts })),
+    );
+
+    expect(failure.code).toBe("CONTEXT_BUDGET_EXCEEDED");
+  });
+
+  // CAL-091, and the same reasoning applied to the ties: the line saying that
+  // one character never learned what another knows is the only thing standing
+  // between the writing and a scene where they act on it. Dropping it to save
+  // tokens would buy room by removing the constraint the room is for.
+  it("carries every relationship line, and fails rather than drop one", () => {
+    const relations = Array.from(
+      { length: 40 },
+      (_, i) => `Personnage ${String(i)} -> Personnage ${String(i + 1)} : lien-${String(i)}.`,
+    );
+
+    const { prompt, report } = unwrap(
+      composeSceneContext(chapterTwelveInput({ characterRelations: relations })),
+    );
+
+    expect(report.characterRelations).toBe(relations.length);
+    for (const line of relations) {
+      expect(prompt.text).toContain(line);
+    }
+
+    const failure = unwrapError(
+      composeSceneContext(
+        chapterTwelveInput({
+          characterRelations: Array.from({ length: 900 }, () => "l".repeat(500)),
+        }),
+      ),
     );
 
     expect(failure.code).toBe("CONTEXT_BUDGET_EXCEEDED");

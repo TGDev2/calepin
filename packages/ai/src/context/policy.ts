@@ -26,6 +26,11 @@ export const CONTEXT_ITEM_CEILINGS = {
   authorInstruction: 1_000,
   freedomConstraint: 200,
   canonFact: 200,
+  // One line of the relationship graph: two names, a typed tie, its label and
+  // what one side holds — or one line naming what a pair left unanswered. The
+  // same order of magnitude as a canon fact, because it is the same kind of
+  // thing: a statement about the world the writing must not contradict.
+  characterRelation: 200,
   briefSummary: 400,
   detailedSummary: 1_200,
   // The same as a detailed chapter summary, because they are asked for at the

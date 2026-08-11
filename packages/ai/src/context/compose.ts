@@ -10,6 +10,12 @@
  * input field carries it, and every field that carries prose has a ceiling an
  * entire chapter cannot pass.
  *
+ * CAL-091 added the bible's relationship graph beside the facts: the
+ * classification of a pair — who declared a tie, and who left it unanswered —
+ * is not derivable from anything else in the context, and it is exactly what a
+ * scene must not contradict when it has one character act on what another
+ * knows. Carried whole, never degraded, for the reason facts are not.
+ *
  * CAL-055 added a second resolution of the fifth: the preceding *parts'*
  * summaries, carried beside the chapters' and never degraded. It is not an
  * eighth ingredient so much as the coarse end of one — and it is what makes
@@ -104,6 +110,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
       targetWordCount: input.targetWordCount,
       authorInstructions: input.authorInstructions,
       freedomConstraints: input.freedomConstraints,
+      characterRelations: input.characterRelations,
       canonFacts: facts.map((fact) => fact.statement),
       partSummaries,
       precedingSummaries: keptSummaries.map((chapter) =>
@@ -127,6 +134,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
           estimatedTokens,
           degradationStepsApplied: step,
           facts: { offered: input.canonFacts.length, selected: facts.length },
+          characterRelations: input.characterRelations.length,
           partSummaries: parts.length,
           summaries: {
             offered: input.precedingChapters.length,
@@ -167,6 +175,11 @@ function findOversizedItem(input: SceneContextInput): string | undefined {
     ...input.freedomConstraints.map((text, index) => ({
       kind: "freedomConstraint" as const,
       path: `freedomConstraints.${index}`,
+      text,
+    })),
+    ...input.characterRelations.map((text, index) => ({
+      kind: "characterRelation" as const,
+      path: `characterRelations.${index}`,
       text,
     })),
     ...input.canonFacts.map((fact) => ({
