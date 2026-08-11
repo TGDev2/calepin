@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (seventeen since CAL-088), pinned
+- `missions.ts` — the mission identifiers (eighteen since CAL-089), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -404,6 +404,30 @@ measured tokens at today's tariff, never replayed from a recorded price.
   themes and counter-themes asked for in pairs. The freedom clauses quoted are
   the **bible** stage's, whose stage rule is this mission's requirement in the
   repository's own words.
+
+## What exists (CAL-089)
+
+- **An eighteenth mission**, `define-style` — the bible's style section,
+  legislated as operational constraints. Its answer is
+  `operationalStyleSchema` in `@calepin/bible`: the nine fields `BibleStyle`
+  stores, every element a `StyleConstraint` — the rule stated of the novel's
+  prose, paired with the observable breach of it, decidable on one passage
+  alone. The pair is the acceptance criterion as a shape: a decorative
+  adjective cannot fill the `violation` half.
+- Its ask is `bibleStyleInputSchema` — content-addressed as the identity's,
+  with the audience in (the register is derived from it, CAL-045) and the
+  target word count deliberately out (no style field reads a length). The
+  corpus adds `identity` to the source kinds: the style is written against
+  the identity the bible opened with. No basis is asked of the answer —
+  CAL-088's citation obligation answered traceability, and a style rule under
+  an `extend` or `reinterpret` treatment has no verbatim antecedent to quote.
+- `prompts/missions/define-style.ts` **V1** — the violation defined as the
+  test of the rule (if the breach cannot be written, the rule is an adjective
+  and must be rewritten); the register declined from the declared readership,
+  never re-decided; the avoid-list asked as concrete patterns, with the
+  specification's recurring defects of generated prose quoted as candidates
+  kept only where they threaten this text; word targets and list bounds as
+  variables (CAL-055).
 
 ## What arrives in its own task
 

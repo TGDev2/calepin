@@ -1569,10 +1569,10 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The seventeen of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The eighteen of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the seventeen missions of the registry, and only those", () => {
+      it("declares the eighteen missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
@@ -1583,6 +1583,7 @@ describe("prisma schema", () => {
           "EVALUATE_DIRECTION",
           "COMBINE_DIRECTIONS", // CAL-084
           "DEFINE_NOVEL_IDENTITY", // CAL-088
+          "DEFINE_STYLE", // CAL-089
           "CREATE_CHARACTER_SHEET",
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",

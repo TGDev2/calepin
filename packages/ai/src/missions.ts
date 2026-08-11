@@ -1,10 +1,10 @@
 /**
- * The seventeen mission identifiers (CLAUDE.md §4.2).
+ * The eighteen mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same seventeen in SCREAMING_SNAKE because the column follows the schema's
+ * same eighteen in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
  * can drift.
  *
@@ -43,7 +43,14 @@
  * fully contain, while the identity **transposes** — every field it writes
  * owes a passage of the canonical direction or of the validated analysis, and
  * its contract carries that basis on each one. One prompt serving both would
- * be asking for invention and for restraint in the same breath.
+ * be asking for invention and for restraint in the same breath. `define-style`
+ * (CAL-089) is the bible's second mission, and it is neither a second
+ * rendering of `define-novel-identity` nor an early `write-scene`: the
+ * identity transposes what the novel *is* under a citation obligation, while
+ * the style section legislates how its prose *behaves* — every element a rule
+ * paired with the observable breach of it, an instruction the identity prompt
+ * has no hole for — and `write-scene` will be *held to* those constraints,
+ * not asked to author them.
  */
 
 export const MISSION_IDS = [
@@ -56,6 +63,7 @@ export const MISSION_IDS = [
   "evaluate-direction",
   "combine-directions",
   "define-novel-identity",
+  "define-style",
   "create-character-sheet",
   "build-chapter-outline",
   "write-scene",

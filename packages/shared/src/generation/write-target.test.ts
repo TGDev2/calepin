@@ -145,6 +145,7 @@ describe("missionsWritingTo", () => {
     expect(missionsWritingTo("bible").sort()).toEqual([
       "CREATE_CHARACTER_SHEET",
       "DEFINE_NOVEL_IDENTITY",
+      "DEFINE_STYLE",
       "EXTRACT_FACTS",
     ]);
     expect(missionsWritingTo("directions").sort()).toEqual([

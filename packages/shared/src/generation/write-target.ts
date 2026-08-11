@@ -103,13 +103,17 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
   COMBINE_DIRECTIONS: "directions",
   EVALUATE_DIRECTION: "direction",
 
-  // All three write the bible: the identity section, a character sheet and a
-  // canon fact are sections of one document, and CAL-138's conflict detection
-  // reads the whole of it. The identity is the one that earns the exclusion
-  // twice over — CAL-090's sheets are written *from* it, so a sheet generated
-  // while the identity is being rewritten would be built on a section nobody
-  // ended up keeping.
+  // All four write the bible: the identity section, the style section, a
+  // character sheet and a canon fact are sections of one document, and
+  // CAL-138's conflict detection reads the whole of it. The identity is the
+  // one that earns the exclusion twice over — CAL-090's sheets are written
+  // *from* it, so a sheet generated while the identity is being rewritten
+  // would be built on a section nobody ended up keeping — and the style is in
+  // the same position one section over: it is written against the identity,
+  // and a style generated while the identity moves would be tuned to a
+  // section nobody kept.
   DEFINE_NOVEL_IDENTITY: "bible",
+  DEFINE_STYLE: "bible",
   CREATE_CHARACTER_SHEET: "bible",
   EXTRACT_FACTS: "bible",
 
