@@ -12,10 +12,23 @@
  * navigable comparison, not an editor — the same shape the stepper's own doc
  * comment describes, applied to letting a keyboard user cycle between
  * directions without tabbing through every paragraph of the one in between.
+ *
+ * CAL-083 puts one form inside each card — écarter cette direction, with an
+ * optional reason — and that is what the `event.target !== event.currentTarget`
+ * guard below exists for: `onKeyDown` on the `<li>` also fires for a key
+ * pressed in a field inside it, so without the guard an arrow key typed in the
+ * textarea would move the focus to the next direction and take the text with
+ * it off screen. The roving tabindex owns the card, not what is in it.
  */
 
-import { useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
+import {
+  type DirectionDiscardState,
+  INITIAL_DIRECTION_DISCARD_STATE,
+} from "@/lib/direction-discard";
+
+import { discardDirectionAction } from "./actions";
 import styles from "./direction-comparison-grid.module.css";
 
 export interface EngineAxisRow {
@@ -60,12 +73,19 @@ export interface DirectionCard {
 
 export interface DirectionComparisonGridProps {
   readonly cards: readonly DirectionCard[];
+  readonly projectId: string;
+  /** The character ceiling the domain puts on a reason — never restated here. */
+  readonly reasonCharCeiling: number;
 }
 
 const ARROW_NEXT = new Set(["ArrowRight", "ArrowDown"]);
 const ARROW_PREVIOUS = new Set(["ArrowLeft", "ArrowUp"]);
 
-export function DirectionComparisonGrid({ cards }: DirectionComparisonGridProps) {
+export function DirectionComparisonGrid({
+  cards,
+  projectId,
+  reasonCharCeiling,
+}: DirectionComparisonGridProps) {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const cardRefs = useRef<Array<HTMLLIElement | null>>([]);
 
@@ -75,6 +95,10 @@ export function DirectionComparisonGrid({ cards }: DirectionComparisonGridProps)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLLIElement>, index: number): void {
+    // The card owns these keys; a field inside it owns its own. Without this,
+    // an arrow typed in the discard textarea would jump to the next direction.
+    if (event.target !== event.currentTarget) return;
+
     if (ARROW_NEXT.has(event.key)) {
       event.preventDefault();
       focusHeader((index + 1) % cards.length);
@@ -208,9 +232,76 @@ export function DirectionComparisonGrid({ cards }: DirectionComparisonGridProps)
               ))
             )}
           </section>
+
+          <DiscardForm card={card} projectId={projectId} reasonCharCeiling={reasonCharCeiling} />
         </li>
       ))}
     </ul>
+  );
+}
+
+interface DiscardFormProps {
+  readonly card: DirectionCard;
+  readonly projectId: string;
+  readonly reasonCharCeiling: number;
+}
+
+/**
+ * Écarter une direction, with the reason the author may or may not want to
+ * give.
+ *
+ * Behind a `<details>`, closed: discarding is a decision, and a bare button on
+ * every card invites the click that is not one. The reason is optional in the
+ * markup as it is in the domain — no `required`, and the label says so — and
+ * `maxLength` is the domain's own ceiling handed down rather than a number
+ * typed here, so the field and the parse cannot disagree about it.
+ *
+ * The canonical direction has no form at all: the repository refuses it, and
+ * offering the control anyway would be an invitation to be told no.
+ */
+function DiscardForm({ card, projectId, reasonCharCeiling }: DiscardFormProps) {
+  const [state, formAction] = useActionState<DirectionDiscardState, FormData>(
+    discardDirectionAction,
+    INITIAL_DIRECTION_DISCARD_STATE,
+  );
+
+  if (card.isCanonical) return null;
+
+  return (
+    <details className={styles.discard}>
+      <summary className={styles.discardSummary}>Écarter cette direction</summary>
+
+      <form action={formAction} className={styles.discardForm}>
+        <input type="hidden" name="projectId" value={projectId} />
+        <input type="hidden" name="directionId" value={card.id} />
+
+        <label className={styles.discardLabel} htmlFor={`${card.id}-reason`}>
+          Pourquoi l&apos;écartez-vous ? (facultatif)
+        </label>
+        <textarea
+          id={`${card.id}-reason`}
+          name="reason"
+          rows={3}
+          maxLength={reasonCharCeiling}
+          className={styles.discardReason}
+          placeholder="Ce que cette direction ne vous donne pas."
+        />
+
+        <p className={styles.discardHint}>
+          Elle restera consultable parmi les directions écartées.
+        </p>
+
+        {state.status === "error" ? (
+          <p className={styles.discardError} role="alert">
+            {state.message}
+          </p>
+        ) : null}
+
+        <button type="submit" className={styles.discardSubmit}>
+          Écarter « {card.workingTitle} »
+        </button>
+      </form>
+    </details>
   );
 }
 

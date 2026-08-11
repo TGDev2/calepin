@@ -40,8 +40,11 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type DirectionDiscarded,
   type DirectionEvaluationSnapshot,
   type DirectionSnapshot,
+  discardDirection,
+  type DiscardDirectionInput,
   getDirectionsForComparison,
 } from "./direction";
 export {

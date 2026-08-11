@@ -72,3 +72,16 @@ export {
   type DirectionProposals,
   directionProposalsSchema,
 } from "./proposals";
+export {
+  checkDirectionReplacement,
+  checkDirectionReplacementAnswer,
+  DIRECTION_DISCARD_REASON_CHAR_CEILING,
+  type DirectionReplacement,
+  type DirectionReplacementInput,
+  directionReplacementInputSchema,
+  type DirectionReplacementReport,
+  directionReplacementSchema,
+  type ExcludedEngineComparison,
+  excludedEnginesForReplacement,
+  parseDirectionDiscardReason,
+} from "./replacement";

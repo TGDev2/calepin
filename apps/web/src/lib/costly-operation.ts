@@ -45,6 +45,7 @@ export const MISSION_ID_BY_GENERATION_MISSION = {
   ASSESS_NOVEL_POTENTIAL: "assess-novel-potential",
   REGENERATE_ANALYSIS_SECTION: "regenerate-analysis-section",
   PROPOSE_DIRECTIONS: "propose-directions",
+  REPLACE_DIRECTION: "replace-direction",
   EVALUATE_DIRECTION: "evaluate-direction",
   CREATE_CHARACTER_SHEET: "create-character-sheet",
   BUILD_CHAPTER_OUTLINE: "build-chapter-outline",

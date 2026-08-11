@@ -31,5 +31,12 @@ What exists today:
   and `verifyDirectionEvaluationEvidence`, which reads every quotation
   against the source text and the direction's own prose and brands what it
   returns.
+- `replacement.ts` (CAL-083) — the `replace-direction` contract: the discard
+  reason and its ceiling (`parseDirectionDiscardReason`), the ask
+  (`directionReplacementInputSchema`, what `Generation.input` stores), the
+  answer (`directionReplacementSchema` — one direction, the proposal's own
+  shape), and the exclusion gate `checkDirectionReplacement`: a candidate
+  reproducing the engine of the discarded direction or of either kept one is
+  refused, on `divergence.ts`'s comparison and nothing new.
 
 Backlog: E08 — CAL-079 to CAL-087. Schema: CAL-015.

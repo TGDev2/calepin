@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (thirteen since CAL-076), pinned
+- `missions.ts` — the mission identifiers (fifteen since CAL-083), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -73,7 +73,9 @@ narrative rule, and never restates a domain schema.
   | `analyze-source-text`    | Opus 5   | high   | 16 k    | 300 s   | analysis   | 200 k  | 60 k / 8 k      |
   | `detect-cliche-risks`    | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 20 k / 3 k      |
   | `assess-novel-potential` | Opus 5   | high   | 8 k     | 300 s   | analysis   | 60 k   | 25 k / 3 k      |
+  | `regenerate-analysis-section` | Opus 5 | high | 4 k  | 180 s   | analysis   | 120 k  | 20 k / 0.8 k    |
   | `propose-directions`     | Opus 5   | high   | 16 k    | 300 s   | direction  | 60 k   | 20 k / 8 k      |
+  | `replace-direction`      | Opus 5   | high   | 6 k     | 180 s   | direction  | 60 k   | 22 k / 2.7 k    |
   | `evaluate-direction`     | Opus 5   | medium | 8 k     | 180 s   | direction  | 40 k   | 12 k / 4 k      |
   | `create-character-sheet` | Opus 5   | medium | 8 k     | 180 s   | bible      | 40 k   | 12 k / 4 k      |
   | `build-chapter-outline`  | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
@@ -330,6 +332,25 @@ measured tokens at today's tariff, never replayed from a recorded price.
   Word targets, minimums, the per-axis ceiling and the target word count
   arrive as variables (`@calepin/analysis`, `resolveNovelTargetWordCount`).
   Exercised before shipping on dense and thin trial texts (tasks/todo.md).
+
+## What exists (CAL-083)
+
+- **A fifteenth mission**, `replace-direction` — one written-off direction
+  replaced by one new one, never three. Its answer is
+  `directionReplacementSchema` in `@calepin/direction` (a single direction, of
+  exactly the shape `propose-directions` returns three of), its ask is
+  `directionReplacementInputSchema`, and its gate is
+  `checkDirectionReplacement`: a candidate reproducing any excluded engine —
+  the discarded direction's or either kept one's — is refused, on CAL-080's
+  own axes and by CAL-080's own comparison.
+- `prompts/missions/replace-direction.ts` **V1** — CAL-080's exclusion
+  contract quoted rather than restated (`describeNarrativeEngine`,
+  `describeNarrativeEngineAxes`, `NARRATIVE_ENGINE_DIVERGENCE_MINIMUM`), the
+  discarded direction shown so the answer can differ from it deliberately, and
+  the author's reason given authority over the *angle* and never over the
+  source text — the clause `regenerate-analysis-section` established. The safe
+  middle between the two kept directions is refused out loud, because the
+  exclusion check cannot see it.
 
 ## What arrives in its own task
 

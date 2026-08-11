@@ -88,7 +88,15 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
   ASSESS_NOVEL_POTENTIAL: "analysis",
   REGENERATE_ANALYSIS_SECTION: "analysis",
 
+  // Both write the project's set of directions, so they exclude each other —
+  // and a replacement excludes a *second* replacement, which is the exclusion
+  // that earns its keep: two of them running at once would each be told to
+  // avoid the engines the other is about to create, and could land on one
+  // engine twice. `EVALUATE_DIRECTION` is the odd one out on purpose: it
+  // writes a critique under one direction, so two directions may be judged at
+  // the same time.
   PROPOSE_DIRECTIONS: "directions",
+  REPLACE_DIRECTION: "directions",
   EVALUATE_DIRECTION: "direction",
 
   // Both write the bible: a character sheet and a canon fact are two sections

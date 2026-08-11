@@ -85,6 +85,9 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * fail. `regenerateAnalysisSection` is isolated in
  * `analysis-regeneration.integration.test.ts` for the same reason — it needs an
  * analysis with sections, elements and notes before it can refuse anything.
+ * `discardDirection` is isolated in `direction-discard.integration.test.ts`,
+ * which seeds the three directions a discard is chosen among — the graph below
+ * holds one, and one direction cannot show that the others do not move.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -97,6 +100,7 @@ const ENTRY_POINTS = [
   "createProjectWithSourceText",
   "deleteAnalysisAnnotation",
   "deleteProject",
+  "discardDirection",
   "duplicateProject",
   "editAnalysisSection",
   "getAnalysis",

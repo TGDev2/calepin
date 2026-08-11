@@ -1,5 +1,6 @@
 import {
   checkDirectionDivergence,
+  DIRECTION_DISCARD_REASON_CHAR_CEILING,
   DIRECTION_ELEMENT_LABELS,
   DIRECTION_EVALUATION_LISTS,
   type DirectionElement,
@@ -46,14 +47,25 @@ const EVALUATION_LIST_TITLE: Record<DirectionEvaluationList, string> = {
 };
 
 /**
- * Side-by-side comparison of the directions proposed for a project (CAL-082).
+ * Side-by-side comparison of the directions proposed for a project (CAL-082),
+ * and the ones the author has written off (CAL-083).
  *
- * **Read-only, and deliberately so.** No mission executor exists yet to
- * produce a direction, a narrative engine or a critique (CLAUDE.md §13), so
- * this screen shows whatever has been written to the three tables — nothing
- * here writes back. `getDirectionsForComparison` reads as a bare array,
- * `analysis/page.tsx`'s convention: no directions yet is a legitimate state,
- * not a failure.
+ * **One write, and only one.** No mission executor exists yet to produce a
+ * direction, a narrative engine or a critique (CLAUDE.md §13), so nothing here
+ * generates anything — there is deliberately no *générer un remplacement*
+ * button, because a button that cannot produce an answer is not a feature.
+ * What CAL-083 does ship end to end is the author's half: écarter a proposal,
+ * with their reason, and find it afterwards. `getDirectionsForComparison`
+ * reads as a bare array, `analysis/page.tsx`'s convention: no directions yet
+ * is a legitimate state, not a failure.
+ *
+ * **The comparison is between the directions that still stand.** A discarded
+ * one is out of the grid, out of `checkDirectionDivergence` and out of the
+ * highlight — it is no longer one of the proposals being weighed, and leaving
+ * its engine in would colour an axis the author can no longer choose on. It is
+ * not out of the page: it moves to « Directions écartées » below, whole, with
+ * its engine and what they said about it. The dedicated history screen is
+ * CAL-087's; this is what *reste consultable* costs today.
  *
  * **The divergence is computed here, not stored.** `checkDirectionDivergence`
  * is the same function CAL-080's gate uses — this screen is exactly the
@@ -82,12 +94,14 @@ export default async function DirectionsPage({
     direction,
     engine: narrativeEngineSchema.parse(direction.narrativeEngine),
   }));
-  const divergence = checkDirectionDivergence(withEngines.map(({ engine }) => engine));
+
+  const standing = withEngines.filter(({ direction }) => direction.discardedAt === null);
+  const discarded = withEngines.filter(({ direction }) => direction.discardedAt !== null);
+
+  const divergence = checkDirectionDivergence(standing.map(({ engine }) => engine));
   const divergentAxes = new Set(divergence.comparisons.flatMap((pair) => pair.differingAxes));
 
-  const cards = withEngines.map(({ direction, engine }) =>
-    toCard(direction, engine, divergentAxes),
-  );
+  const cards = standing.map(({ direction, engine }) => toCard(direction, engine, divergentAxes));
 
   return (
     <main className={styles.main}>
@@ -99,7 +113,9 @@ export default async function DirectionsPage({
 
       {cards.length === 0 ? (
         <p className={styles.empty}>
-          Aucune direction n&apos;a encore été proposée pour ce projet.
+          {discarded.length === 0
+            ? "Aucune direction n'a encore été proposée pour ce projet."
+            : "Toutes les directions proposées ont été écartées."}
         </p>
       ) : (
         <>
@@ -111,11 +127,70 @@ export default async function DirectionsPage({
                 : "Attention : au moins deux directions partagent le même moteur narratif — elles varient surtout par le décor."}
           </p>
 
-          <DirectionComparisonGrid cards={cards} />
+          <DirectionComparisonGrid
+            cards={cards}
+            projectId={projectId}
+            reasonCharCeiling={DIRECTION_DISCARD_REASON_CHAR_CEILING}
+          />
         </>
+      )}
+
+      {discarded.length === 0 ? null : (
+        <section className={styles.history} aria-labelledby="directions-discarded">
+          <h2 className={styles.historyTitle} id="directions-discarded">
+            Directions écartées
+          </h2>
+          <p className={styles.historyIntro}>
+            Elles ne sont pas supprimées : leur moteur narratif reste exclu des propositions de
+            remplacement.
+          </p>
+
+          <ul className={styles.historyList}>
+            {discarded.map(({ direction, engine }) => (
+              <li key={direction.id} className={styles.historyItem}>
+                <h3 className={styles.historyItemTitle}>{direction.workingTitle}</h3>
+                <p className={styles.historyMeta}>
+                  {direction.dominantGenre} · écartée le {discardedOn(direction.discardedAt)}
+                </p>
+
+                {direction.discardReason === null ? (
+                  <p className={styles.historyNoReason}>Écartée sans commentaire.</p>
+                ) : (
+                  <blockquote className={styles.historyReason}>
+                    {direction.discardReason}
+                  </blockquote>
+                )}
+
+                <dl className={styles.historyEngine}>
+                  {NARRATIVE_ENGINE_AXES.map((axis) => {
+                    const row = engineAxisRow(axis, engine, false);
+
+                    return (
+                      <div key={axis} className={styles.historyEngineRow}>
+                        <dt>{row.axisLabel}</dt>
+                        <dd>{row.valueLabel}</dd>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );
+}
+
+/** The day it was written off, as a reader reads it — never a timestamp. */
+function discardedOn(discardedAt: Date | null): string {
+  if (discardedAt === null) return "";
+
+  return discardedAt.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 /**

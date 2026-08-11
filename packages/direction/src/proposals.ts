@@ -166,8 +166,16 @@ const dimensionTreatmentsSchema = z.strictObject({
  * the direction does to each source dimension (the freedom gate's input,
  * CAL-079) and what its narrative engine is (the divergence gate's input,
  * CAL-080).
+ *
+ * Exported package-internally rather than kept private: `replacement.ts`
+ * (CAL-083) asks for exactly one of these, and a replacement that is not a
+ * direction of the same shape is a direction the comparison screen and the
+ * persistence path could not treat as a peer. One object, two missions —
+ * `@calepin/analysis`'s `analysisSectionElementsSchema` arrangement. It stays
+ * off `index.ts`: what leaves the package is the answer to a mission, never a
+ * fragment somebody else could assemble their own contract from.
  */
-const directionProposalSchema = z.strictObject({
+export const directionProposalSchema = z.strictObject({
   workingTitle: label,
   developedPremise: prose(DIRECTION_CHAR_CEILINGS.developedPremise),
   dominantGenre: label,

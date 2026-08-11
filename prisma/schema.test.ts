@@ -469,6 +469,21 @@ describe("prisma schema", () => {
     it("carries the narrative engine declaration as a required Json column", () => {
       expect(modelBlock("CreativeDirection")).toMatch(/narrativeEngine\s+Json(?!\?)/);
     });
+
+    // CAL-083. A timestamp beside the others rather than a status able to
+    // contradict `origin` and `isCanonical` — Project.archivedAt's shape.
+    // Nullable, because a direction that still stands has no such date.
+    it("records a discard as a nullable timestamp, never as a status", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/discardedAt\s+DateTime\?/);
+      expect(enumMembers("DirectionOrigin")).not.toContain("DISCARDED");
+    });
+
+    // The author's own words about their novel: kept because the backlog asks
+    // that a discarded direction stay consultable, nullable because writing
+    // one off without a comment is a complete answer.
+    it("keeps the author's reason beside it, optional", () => {
+      expect(modelBlock("CreativeDirection")).toMatch(/discardReason\s+String\?/);
+    });
   });
 
   describe("direction evaluation", () => {
@@ -1554,16 +1569,17 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The thirteen of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The fifteen of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the fourteen missions of the registry, and only those", () => {
+      it("declares the fifteen missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
           "ASSESS_NOVEL_POTENTIAL", // CAL-076
           "REGENERATE_ANALYSIS_SECTION", // CAL-077
           "PROPOSE_DIRECTIONS",
+          "REPLACE_DIRECTION", // CAL-083
           "EVALUATE_DIRECTION",
           "CREATE_CHARACTER_SHEET",
           "BUILD_CHAPTER_OUTLINE",

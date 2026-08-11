@@ -1,10 +1,10 @@
 /**
- * The fourteen mission identifiers (CLAUDE.md §4.2).
+ * The fifteen mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same fourteen in SCREAMING_SNAKE because the column follows the schema's
+ * same fifteen in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
  * can drift.
  *
@@ -24,7 +24,13 @@
  * section the author was not satisfied with, reading what that section
  * currently says and the word they added about what to do differently — an
  * instruction the seventeen-section diagnostic has no hole for and no reason
- * to grow one.
+ * to grow one. `replace-direction` (CAL-083) is the same case in the direction
+ * stage: `propose-directions` argues three directions against **each other**
+ * and answers with exactly three, while a replacement answers with one and
+ * argues it against three engines it may not reproduce — the discarded one's
+ * and the two kept ones' — with the author's reason for the refusal in hand.
+ * One prompt serving both would be the general-purpose prompt §5.4 refuses,
+ * and would carry the wrong output cap and the wrong cost for either ask.
  */
 
 export const MISSION_IDS = [
@@ -33,6 +39,7 @@ export const MISSION_IDS = [
   "assess-novel-potential",
   "regenerate-analysis-section",
   "propose-directions",
+  "replace-direction",
   "evaluate-direction",
   "create-character-sheet",
   "build-chapter-outline",

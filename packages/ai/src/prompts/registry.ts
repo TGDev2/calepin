@@ -38,6 +38,7 @@ import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
 import { FIX_ISSUE_PROMPTS } from "./missions/fix-issue";
 import { PROPOSE_DIRECTIONS_PROMPTS } from "./missions/propose-directions";
 import { REGENERATE_ANALYSIS_SECTION_PROMPTS } from "./missions/regenerate-analysis-section";
+import { REPLACE_DIRECTION_PROMPTS } from "./missions/replace-direction";
 import { SUMMARIZE_CHAPTER_PROMPTS } from "./missions/summarize-chapter";
 import { SUMMARIZE_PART_PROMPTS } from "./missions/summarize-part";
 import { WRITE_SCENE_PROMPTS } from "./missions/write-scene";
@@ -55,6 +56,7 @@ export const PROMPT_REGISTRY = {
   "assess-novel-potential": ASSESS_NOVEL_POTENTIAL_PROMPTS,
   "regenerate-analysis-section": REGENERATE_ANALYSIS_SECTION_PROMPTS,
   "propose-directions": PROPOSE_DIRECTIONS_PROMPTS,
+  "replace-direction": REPLACE_DIRECTION_PROMPTS,
   "evaluate-direction": EVALUATE_DIRECTION_PROMPTS,
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
