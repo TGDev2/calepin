@@ -195,6 +195,9 @@ importers:
 
   packages/analysis:
     dependencies:
+      '@calepin/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@calepin/shared':
         specifier: workspace:*
         version: link:../shared

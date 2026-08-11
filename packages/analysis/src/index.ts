@@ -7,6 +7,7 @@
  * Backlog: E07 — CAL-070 to CAL-078
  */
 
+export { ANALYSIS_REFERENCE_CORPUS } from "./bench/corpus";
 export {
   CLICHE_RISK_CATEGORIES,
   CLICHE_RISK_CHAR_CEILINGS,

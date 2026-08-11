@@ -26,7 +26,8 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "pnpm --filter @calepin/web test:e2e",
     "db:seed": "prisma db seed",
-    "prompt:diff": "tsx packages/ai/scripts/prompt-diff.ts"
+    "prompt:diff": "tsx packages/ai/scripts/prompt-diff.ts",
+    "eval:analysis": "tsx packages/analysis/scripts/eval-analysis.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
