@@ -1,18 +1,18 @@
 /**
- * `@calepin/outline/repository` — the plan's own server-side half (CAL-105).
+ * `@calepin/outline/repository` — everything of this domain that opens a
+ * transaction.
  *
- * A second entry point, for the reason `@calepin/bible/repository` records one
- * epic earlier. `packages/*` are consumed as source (§3.4), so importing from a
- * package's barrel drags that barrel's whole import graph into whichever chunk
- * asked for it — and `outline-tree.tsx`, the plan screen's tree, is a client
- * component that imports `@calepin/outline`. Re-exporting anything that opens a
- * transaction from the root barrel would therefore pull `@calepin/shared/audit`
- * and `node:async_hooks` behind it into a browser bundle, and the build would
- * fail inside Turbopack naming the *page* rather than this file. `pnpm
- * typecheck` cannot see it; only `pnpm build` can.
- *
- * So the root barrel stays pure — schemas, checks, resolvers, the ordering
- * arithmetic — and everything that reaches the database lives here.
+ * A second entry point, deliberately, and the root barrel stays pure. Packages
+ * are consumed as source (§3.4), so an import from `@calepin/outline` pulls the
+ * whole import graph behind it into whichever chunk asked — and `outline-tree`
+ * is a **client** component that imports this package for a label. Putting a
+ * database write on the root barrel therefore drags `@calepin/shared/audit` and
+ * `node:async_hooks` into a browser bundle, and `pnpm build` fails inside
+ * Turbopack naming a page that has nothing to do with the change
+ * (`tasks/lessons.md`, CAL-099). `@calepin/bible/repository` is the same
+ * layout, one epic earlier.
  */
 
+export { type ChaptersMerged, mergeChapters } from "./chapter-merge";
 export { type ChapterMoved, moveChapter } from "./chapter-move";
+export { type ChapterSplit, splitChapter } from "./chapter-split";
