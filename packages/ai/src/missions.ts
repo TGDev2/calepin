@@ -75,6 +75,20 @@
  * invented under the direction's constraints rather than transposed from it —
  * the same restraint-versus-invention split that already separates the
  * identity from a character sheet, one section further on.
+ *
+ * `build-timeline` (CAL-093) is the sixth, and its separation is the one §5.4
+ * makes easiest to see: it is the only bible mission whose answer can be
+ * **checked by calculation**. The other five produce prose that is judged by
+ * shape — a rule that forbids nothing, a constraint with no consequence, a
+ * basis quoting nothing — while a chronology produces numbers that either can
+ * or cannot all be true at once, and `checkTimelineArithmetic` decides that
+ * without asking a model anything. Folding it into `define-world` would put a
+ * separate output schema, a separate verifier and a separate failure mode
+ * behind one prompt, and would lose the one thing the backlog's acceptance
+ * criterion is about: *la chronologie générée ne contient aucun âge ni aucune
+ * durée incompatible*. It also runs last of the six on purpose — a chronology
+ * needs the cast to place and the era to be dated against, so it is the one
+ * bible mission with two upstream sections inside the same stage.
  */
 
 export const MISSION_IDS = [
@@ -91,6 +105,7 @@ export const MISSION_IDS = [
   "create-character-sheet",
   "relate-characters",
   "define-world",
+  "build-timeline",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

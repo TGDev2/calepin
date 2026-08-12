@@ -143,6 +143,7 @@ describe("missionsWritingTo", () => {
       "WRITE_SCENE",
     ]);
     expect(missionsWritingTo("bible").sort()).toEqual([
+      "BUILD_TIMELINE",
       "CREATE_CHARACTER_SHEET",
       "DEFINE_NOVEL_IDENTITY",
       "DEFINE_STYLE",

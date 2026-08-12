@@ -30,6 +30,7 @@ import { BENCH_SYNTHESIZE_COMPARISON_PROMPTS } from "./bench/judge-synthesis";
 import { ANALYZE_SOURCE_TEXT_PROMPTS } from "./missions/analyze-source-text";
 import { ASSESS_NOVEL_POTENTIAL_PROMPTS } from "./missions/assess-novel-potential";
 import { BUILD_CHAPTER_OUTLINE_PROMPTS } from "./missions/build-chapter-outline";
+import { BUILD_TIMELINE_PROMPTS } from "./missions/build-timeline";
 import { CHECK_COHERENCE_PROMPTS } from "./missions/check-coherence";
 import { COMBINE_DIRECTIONS_PROMPTS } from "./missions/combine-directions";
 import { CREATE_CHARACTER_SHEET_PROMPTS } from "./missions/create-character-sheet";
@@ -69,6 +70,7 @@ export const PROMPT_REGISTRY = {
   "create-character-sheet": CREATE_CHARACTER_SHEET_PROMPTS,
   "relate-characters": RELATE_CHARACTERS_PROMPTS,
   "define-world": DEFINE_WORLD_PROMPTS,
+  "build-timeline": BUILD_TIMELINE_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,
   "extract-facts": EXTRACT_FACTS_PROMPTS,

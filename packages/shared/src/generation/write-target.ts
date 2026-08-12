@@ -117,6 +117,7 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
   CREATE_CHARACTER_SHEET: "bible",
   RELATE_CHARACTERS: "bible",
   DEFINE_WORLD: "bible",
+  BUILD_TIMELINE: "bible",
   EXTRACT_FACTS: "bible",
 
   BUILD_CHAPTER_OUTLINE: "outline",

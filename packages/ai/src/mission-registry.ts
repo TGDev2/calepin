@@ -423,6 +423,26 @@ export const MISSION_REGISTRY = {
     expectedUsage: { inputTokens: 14_000, outputTokens: 4_000 },
     expectedDurationMs: 140_000,
   },
+  /**
+   * `xhigh` where the other five bible missions sit at `high`, and the backlog
+   * says why: this is where a model produces silent arithmetic errors, and the
+   * cross-checking a consistent chronology needs — every age against every
+   * other, every duration against the date beside it — is reasoning rather than
+   * writing. The output cap is the largest of the six because the answer is a
+   * list of events each carrying a placement and a cast, not a page of prose.
+   */
+  "build-timeline": {
+    id: "build-timeline",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 14_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 50_000,
+    expectedUsage: { inputTokens: 18_000, outputTokens: 6_000 },
+    expectedDurationMs: 180_000,
+  },
 
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {

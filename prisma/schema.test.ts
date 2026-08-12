@@ -894,6 +894,34 @@ describe("prisma schema", () => {
       expect(modelBlock("TimelineEvent")).toMatch(/^\s*category\s+TimelineEventCategory(?!\?)/m);
     });
 
+    // CAL-093. The chronology mission carries its own copy of both vocabularies
+    // — it has to, to stay runnable without a generated client — so the two are
+    // pinned against each other here as well as at compile time.
+    it("is mirrored by the chronology contract's own categories", () => {
+      expect(enumMembers("TimelineEventCategory")).toEqual(
+        workspaceStringUnion("packages/bible/src/timeline/schema.ts", "TIMELINE_EVENT_CATEGORIES"),
+      );
+    });
+
+    /**
+     * The initial chronology writes two of the three, and the omission is the
+     * acceptance criterion rather than an oversight: at the moment
+     * `build-timeline` runs no chapter exists, so nothing has been narrated.
+     * CAL-133 writes that member, from chapters.
+     */
+    it("leaves the initial chronology mission the two it can write", () => {
+      const initial = workspaceStringUnion(
+        "packages/bible/src/timeline/schema.ts",
+        "TIMELINE_INITIAL_CATEGORIES",
+      );
+
+      expect(initial).toEqual(["BACKSTORY", "PLANNED"]);
+      expect(initial).not.toContain("NARRATED");
+      for (const category of initial) {
+        expect(enumMembers("TimelineEventCategory")).toContain(category);
+      }
+    });
+
     // The enum that keeps the later detector from crying wolf: "spring 1892"
     // is not a day, and an age computed from it is known to within six months.
     it("records how finely a date and a duration are known", () => {
@@ -904,6 +932,15 @@ describe("prisma schema", () => {
         "YEAR",
         "DECADE",
       ]);
+    });
+
+    // CAL-093 turns each member into a tolerance in days, which is the narrative
+    // rule CAL-017 deliberately left to the detector. The list it keys that
+    // table by must be this column's, or a precision would silently answer zero.
+    it("is mirrored by the vocabulary the tolerance table is keyed by", () => {
+      expect(enumMembers("TimelinePrecision")).toEqual(
+        workspaceStringUnion("packages/bible/src/timeline/schema.ts", "TIMELINE_PRECISIONS"),
+      );
     });
 
     describe("the two placements", () => {
@@ -1623,10 +1660,10 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The twenty of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The twenty-one of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the twenty missions of the registry, and only those", () => {
+      it("declares the twenty-one missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
@@ -1641,6 +1678,7 @@ describe("prisma schema", () => {
           "CREATE_CHARACTER_SHEET", // CAL-090
           "RELATE_CHARACTERS", // CAL-091
           "DEFINE_WORLD", // CAL-092
+          "BUILD_TIMELINE", // CAL-093
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",
           "EXTRACT_FACTS",
