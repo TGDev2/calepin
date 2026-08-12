@@ -87,7 +87,7 @@ narrative rule, and never restates a domain schema.
   | `extract-initial-facts`       | Opus 5   | xhigh  | 16 k    | 300 s   | bible      | 60 k   | 26 k / 8 k      |
   | `detect-bible-contradictions` | Opus 5   | xhigh  | 8 k     | 300 s   | bible      | 60 k   | 24 k / 3 k      |
   | `split-into-parts`            | Opus 5   | xhigh  | 8 k     | 300 s   | outline    | 40 k   | 14 k / 4 k      |
-  | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
+  | `build-chapter-outline`       | Opus 5   | xhigh  | 20 k    | 300 s   | outline    | 60 k   | 24 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
   | `check-coherence`             | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
@@ -466,8 +466,8 @@ measured tokens at today's tariff, never replayed from a recorded price.
 
 - **The relationship graph filled in** — `relate-characters` (CAL-091), the
   bible's fourth section and the one a sheet could not be: a sheet is asked
-  of one character, so nothing in its contract has a place for *what the
-  other side does not know*. `prompts/missions/relate-characters.ts` V1 asks
+  of one character, so nothing in its contract has a place for _what the
+  other side does not know_. `prompts/missions/relate-characters.ts` V1 asks
   the whole cast at once; `write-scene` **V3** and `check-coherence` **V2**
   read the graph, and the audit's V1 had already been asking for something
   nothing in its context could answer.
@@ -478,12 +478,12 @@ measured tokens at today's tariff, never replayed from a recorded price.
   three non-empty bound lists and there is no `isSupernatural` flag to
   lower, so the prompt spends its words on the one thing a shape cannot
   decide — which array an element belongs in — drawing the boundary by what
-  a thing *does* rather than by whether it reads as supernatural, and naming
+  a thing _does_ rather than by whether it reads as supernatural, and naming
   plainly why the bounds are asked for.
 - `context/` gained `worldBounds`, carried whole and outside the degradation
   ladder. `write-scene` **V4** and `check-coherence` **V3** read it: a power
   quoted without its bounds is an open offer to a scene short of an exit,
-  and the audit can now ask of what a character *can do* what it already
+  and the audit can now ask of what a character _can do_ what it already
   asked of what they know.
 
 - **The chronology** — `build-timeline` (CAL-093), the bible's sixth section
@@ -491,8 +491,8 @@ measured tokens at today's tariff, never replayed from a recorded price.
   written around that: it states the day axis and the one conversion behind
   it, says plainly that the redundancy it asks for — a day, a duration and an
   age for the same instant — is the evidence a check will read, and names the
-  failure mode with its own subtraction (*34 ans aujourd'hui, 12 ans il y a
-  trente ans*) rather than instructing the model to be careful. It is the one
+  failure mode with its own subtraction (_34 ans aujourd'hui, 12 ans il y a
+  trente ans_) rather than instructing the model to be careful. It is the one
   mission at `xhigh` in the bible stage, for the reason the backlog gives:
   cross-checking a chronology is reasoning rather than writing.
 
@@ -513,7 +513,7 @@ measured tokens at today's tariff, never replayed from a recorded price.
   hold the ages, the dates, the missing reciprocities and two facts recorded
   with opposite truth values, so what is left is narrow — and a model given a
   narrow ask and two open lists fills them. The instruction therefore says
-  twice that two empty lists are the good answer, and enumerates what is *not*
+  twice that two empty lists are the good answer, and enumerates what is _not_
   a contradiction before what is: periods that do not meet, a character who
   believes something false (`CanonFactBelief`’s entire reason for existing),
   and a rule with a declared exception. `xhigh` because these findings block a
@@ -523,7 +523,7 @@ measured tokens at today's tariff, never replayed from a recorded price.
 
 - **The parts** — `split-into-parts` (CAL-101), the plan stage's opening
   mission, and its whole design problem is progression: the two defects the
-  backlog names — *absence de progression*, *fin précipitée* — are what a
+  backlog names — _absence de progression_, _fin précipitée_ — are what a
   part read alone cannot show. The quality bars are the schema's shapes
   restated as demands (a basculement is one concrete event plus what it makes
   irreversible; the final state shows that irreversibility), the count arrives
@@ -533,6 +533,20 @@ measured tokens at today's tariff, never replayed from a recorded price.
   the découpage is the novel's one global-architecture decision, and a
   shallower run degrades on it silently — each part stays plausible while the
   whole stops progressing.
+
+- **The chapter plans** — `build-chapter-outline` V2 (CAL-102), one part's
+  chapters as a batch: the four bars the backlog sets (function and
+  consequence everywhere, no repeated stake, every revelation prepared, every
+  thread closed on schedule) are properties of a sequence, so the mission
+  answers a part, never a chapter. The count and the budget arrive as
+  `{{minChapters}}`/`{{maxChapters}}` and the ±10 % clause from the same
+  `chapterCalibrationForPartWordCount` and `CHAPTER_WORD_BUDGET_TOLERANCE`
+  the checker re-derives them from; threads and facts are cited by number in
+  the ask's lists, characters and places by the lists' own spellings (§6);
+  each thread carries its state and its assignment plan, and the prompt asks
+  for a close exactly in a thread's last assigned part — the last part of the
+  novel closing everything still open. V1 predates the batch contract and
+  stays beside V2, append-only (CAL-053).
 
 ## What arrives in its own task
 

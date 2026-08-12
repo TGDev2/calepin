@@ -47,6 +47,11 @@ and the chapter-count derivation live.
   range for a target, ±1 around round(target ÷ 18 000), clamped to 2–12. One
   function serves the schema's envelope, the prompt's variables and
   `checkPartStructure`'s gate, so the ask and the refusal cannot disagree.
+- `chapterCalibrationForPartWordCount`, `PART_CHAPTER_COUNT_RANGE`,
+  `CHAPTER_TARGET_WORD_COUNT_RANGE` — the same arithmetic one level down
+  (CAL-102): the admissible chapter-count range for one part's word target,
+  ±1 around round(part ÷ 3 000), clamped to 2–20, plus the envelope one
+  chapter's declared target stays inside. The same three readers.
 - `getPlanGenerationContext` — `@calepin/shared`'s `GenerationContext`
   (CAL-042), extended with both calibrations. Built ahead of its producer, the
   same way `getGenerationContextForProject` is: no executor calls this yet
@@ -71,6 +76,44 @@ and the chapter-count derivation live.
 - `verifyPartStructure`, `resolvePartStructure` — the brand and the flattening
   (`PART_TIPPING_POINT_CONNECTOR`, indexes resolved to labels). No
   persistence: `Part` rows and order keys belong to the executor task.
+
+`stake/` — the stake-overlap comparison both contracts share (CAL-101,
+extracted by CAL-102 when the chapter batch gave it a second reader).
+
+- `STAKE_OVERLAP_RATIO`, `STAKE_STOP_WORDS`, `contentWordsOf`, `stakeOverlap`
+  — content words compared over the larger set, accents significant, elisions
+  split. A lexical approximation: every consumer reports it as an advisory,
+  never a refusal.
+
+`chapters/` — the `build-chapter-outline` mission's contract (CAL-102).
+
+- `chapterOutlineBatchSchema` — the answer: **one part's chapter plans, in
+  reading order** (the batch the backlog demands; order is the answer, the
+  numéro derived, CAL-019). Each chapter carries the `ChapterOutline` columns'
+  own spellings — `dramaticFunction` and `consequence` required where the
+  columns are nullable, the MVP bar as shape — a day-resolved period over the
+  pinned `TimelinePrecision` mirror, a required-but-nullable revelation whose
+  preparing chapter is named by number (check-only; resolve stores no
+  position), three thread-action index lists (disjoint, so opened-and-closed-
+  in-one-chapter is unrepresentable) and fact indexes into the ask.
+- `chapterOutlineBatchInputSchema` — the ask `Generation.input` stores: the
+  part's resolved frame, each thread with its state and its **assignment
+  plan** (`assignedPartIndexes` — the duties are derived: assigned when
+  listed, to close when last listed), the cast, the places, the facts with
+  caller-supplied ids (§6), the preceding parts' chapter digests. An ask
+  assigning a closed thread is refused at composition.
+- `checkChapterOutlineBatch` — pure, index-keyed, row-capable: twenty-one
+  defect kinds refuse whole (count gate, references, the thread choreography
+  walked under the assignment plan — a thread closes at its last assigned
+  part, neither before nor after, and the final part closes everything — the
+  preparation references, the target envelope, the ±10 % word budget); three
+  advisories report and never refuse (`similar-stakes`,
+  `similar-preceding-stake`, `threadless-chapter`).
+- `verifyChapterOutlineBatch`, `resolveChapterOutlineBatch` — the brand and
+  the flattening (`CHAPTER_REVELATION_CONNECTOR`, names written back in the
+  ask's spelling, indexes resolved to labels and fact ids). No persistence:
+  `Chapter`/`ChapterOutline`/`Thread` rows and order keys belong to the
+  executor task.
 
 **Two entry points, and the split is load-bearing.** `@calepin/outline` is the
 whole surface; `@calepin/outline/calibration` is the pure half — the ranges,
