@@ -2297,6 +2297,7 @@ enum GenerationMission {
   DEFINE_STYLE // définir la section style
   CREATE_CHARACTER_SHEET // créer une fiche personnage
   RELATE_CHARACTERS // relier les personnages entre eux
+  DEFINE_WORLD // définir la bible du monde
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène
   EXTRACT_FACTS // extraire les faits

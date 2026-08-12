@@ -10,13 +10,13 @@
  * `mission-registry.test.ts` proves that claim by walking the workspace: no
  * file outside this one and the capability sheet names a model at all.
  *
- * **Never one general-purpose prompt** (CLAUDE.md §5.4). The eighteen
- * missions ask eighteen different things of a model — a diagnosis, a hunt for
- * the déjà-lu, an appraisal of reach, one section redone, a set of proposals,
- * one of them replaced, a judgement, a fusion or its argued refusal, the
- * novel's identity transposed, its style legislated, a
- * character sheet, a chapter plan, a scene, a list of atomic facts, a
- * contradiction hunt, a targeted
+ * **Never one general-purpose prompt** (CLAUDE.md §5.4). The twenty missions
+ * ask twenty different things of a model — a diagnosis, a hunt for the
+ * déjà-lu, an appraisal of reach, one section redone, a set of proposals, one
+ * of them replaced, a judgement, a fusion or its argued refusal, the novel's
+ * identity transposed, its style legislated, a character sheet, the cast's
+ * asymmetric ties, a world and the bounds on what it permits, a chapter plan,
+ * a scene, a list of atomic facts, a contradiction hunt, a targeted
  * correction, a summary — and merging them behind one treatment would mean
  * tuning none of them. The registry is total over `MissionId` (`satisfies`
  * below), so a mission cannot exist without its own declaration.
@@ -128,7 +128,7 @@ export const MISSION_REGISTRY = {
   /**
    * The whole source text, read once, in depth — the one mission whose input
    * legitimately is the entire starting text, hence the largest budget of the
-   * eighteen. Everything downstream is built on its answer, so it stays on the
+   * twenty. Everything downstream is built on its answer, so it stays on the
    * strongest model.
    */
   "analyze-source-text": {
@@ -391,6 +391,39 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 150_000,
   },
 
+  /**
+   * The bible's fifth section, and the widest answer of the five: three
+   * scalars, three inventories, and three lists of named things that become
+   * `Place` and `WorldRule` rows. The contract's own ceilings sum to roughly
+   * 4 400 words at the maximum every list allows — most of it in the twelve
+   * rules and the six capabilities, each of which may carry twelve bounds —
+   * so the output cap is the largest of the bible stage while staying well
+   * inside it.
+   *
+   * A sheet's context budget rather than the graph's: the ask carries the
+   * direction, the identity and the analysis, and deliberately not the cast
+   * (`world/schema.ts`) — the world precedes the people in it.
+   *
+   * Same model and effort as the four sections before it. The backlog rates
+   * the ask 3/3, and what is hard is not the format: it is declaring a power
+   * *and* what defeats it in the same breath, when every instinct of a
+   * generative model is to write the power alone. The contract makes the
+   * unbounded answer unrepresentable, but a bound that is real rather than
+   * decorative is judgement, and that is what the strongest model buys here.
+   */
+  "define-world": {
+    id: "define-world",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "high",
+    maxOutputTokens: 10_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 40_000,
+    expectedUsage: { inputTokens: 14_000, outputTokens: 4_000 },
+    expectedDurationMs: 140_000,
+  },
+
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {
     id: "build-chapter-outline",
@@ -408,7 +441,7 @@ export const MISSION_REGISTRY = {
   /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
-   * the eighteen, on the strongest model — this is not where a cost saving is
+   * the twenty, on the strongest model — this is not where a cost saving is
    * made.
    */
   "write-scene": {
@@ -447,7 +480,7 @@ export const MISSION_REGISTRY = {
   /**
    * The mission the product is judged on: a contradiction between a chapter
    * and everything established before it. The most demanding reasoning of the
-   * eighteen over the widest context, so it runs at `xhigh` and is given the
+   * twenty over the widest context, so it runs at `xhigh` and is given the
    * second-largest budget.
    */
   "check-coherence": {
@@ -482,7 +515,7 @@ export const MISSION_REGISTRY = {
   },
 
   /**
-   * The cheapest of the eighteen and the most frequent after `extract-facts`: one
+   * The cheapest of the twenty and the most frequent after `extract-facts`: one
    * chapter in, two summaries out, feeding the context of every later chapter.
    * The second mission on Sonnet, for the same reason.
    */

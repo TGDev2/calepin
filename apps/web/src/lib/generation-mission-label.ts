@@ -22,6 +22,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   DEFINE_STYLE: "Définition de la section style",
   CREATE_CHARACTER_SHEET: "Création d'une fiche personnage",
   RELATE_CHARACTERS: "Mise en relation des personnages",
+  DEFINE_WORLD: "Définition de la bible du monde",
   BUILD_CHAPTER_OUTLINE: "Construction d'un plan de chapitre",
   WRITE_SCENE: "Rédaction d'une scène",
   EXTRACT_FACTS: "Extraction des faits",

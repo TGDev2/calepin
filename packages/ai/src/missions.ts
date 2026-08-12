@@ -1,10 +1,10 @@
 /**
- * The eighteen mission identifiers (CLAUDE.md §4.2).
+ * The twenty mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same eighteen in SCREAMING_SNAKE because the column follows the schema's
+ * same twenty in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
  * can drift.
  *
@@ -62,7 +62,19 @@
  * `resolveRelationshipGraph`). Running the sheet prompt once per character and
  * unioning the results would produce a graph in which every edge was written
  * without its counterpart in view — precisely the graph the acceptance
- * criterion asks not to have.
+ * criterion asks not to have. `define-world` (CAL-092) closes the bible stage,
+ * and its separation is the plainest of the five: the other four ask about
+ * people and about prose, while this one asks what the world *permits*. Its
+ * answer is judged by a bar none of them carries — every out-of-norm
+ * capability arrives with its limits, its costs and its failure conditions, and
+ * the contract has no shape for one that does not — because a power with no
+ * stated bound is what makes a resolution by convenience undetectable later
+ * (CAL-114, CAL-159). Folding it into `define-novel-identity` would put that
+ * bar on nine fields it does not apply to and lose it on the one it does; and
+ * an identity field owes a quotation of the direction, while a world rule is
+ * invented under the direction's constraints rather than transposed from it —
+ * the same restraint-versus-invention split that already separates the
+ * identity from a character sheet, one section further on.
  */
 
 export const MISSION_IDS = [
@@ -78,6 +90,7 @@ export const MISSION_IDS = [
   "define-style",
   "create-character-sheet",
   "relate-characters",
+  "define-world",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

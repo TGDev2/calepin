@@ -146,6 +146,7 @@ describe("missionsWritingTo", () => {
       "CREATE_CHARACTER_SHEET",
       "DEFINE_NOVEL_IDENTITY",
       "DEFINE_STYLE",
+      "DEFINE_WORLD",
       "EXTRACT_FACTS",
       "RELATE_CHARACTERS",
     ]);
