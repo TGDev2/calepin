@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { CANON_FACT_CHAR_CEILINGS } from "./schema";
 import {
   type CanonFactContent,
   canonFactContentSchema,
   parseCanonFactContent,
 } from "./edit";
+import { CANON_FACT_CHAR_CEILINGS } from "./schema";
 
 /**
  * A fact as the form submits it. Every field is spelled out rather than
