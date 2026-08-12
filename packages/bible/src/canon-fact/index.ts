@@ -41,6 +41,18 @@ export {
   deduplicateCanonFacts,
   type KnownDeduplicableCanonFact,
 } from "./dedup";
+export {
+  CANON_FACT_EDIT_LIST_CEILINGS,
+  type CanonFactBeliefInput,
+  canonFactBeliefInputSchema,
+  type CanonFactBoundInput,
+  canonFactBoundInputSchema,
+  type CanonFactContent,
+  canonFactContentSchema,
+  type CanonFactSubjectInput,
+  canonFactSubjectInputSchema,
+  parseCanonFactContent,
+} from "./edit";
 export { factInForceOn } from "./in-force";
 export {
   CANON_FACT_SOURCE_BY_KIND,
