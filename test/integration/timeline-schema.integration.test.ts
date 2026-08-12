@@ -256,8 +256,8 @@ describe("timeline schema", () => {
           rawQuery(
             // `updatedById` is NOT NULL since CAL-022, and a raw insert is one
             // of the two paths the extension cannot see.
-            `INSERT INTO "timeline_events" ("id", "bibleId", "name", "category", "absoluteDay", "updatedAt", "updatedById")
-             VALUES ($1, $2, $3, 'NARRATED', 5, now(),
+            `INSERT INTO "timeline_events" ("id", "bibleId", "name", "category", "absoluteDay", "origin", "updatedAt", "updatedById")
+             VALUES ($1, $2, $3, 'NARRATED', 5, 'GENERATED', now(),
                      (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
             [`raw-${sequence}`, bibleId, "raw-imprecise"],
           ),

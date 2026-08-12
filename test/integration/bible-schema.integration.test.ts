@@ -567,8 +567,8 @@ describe("bible schema", () => {
 
       await expect(
         rawQuery(
-          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural", "updatedAt", "updatedById")
-           VALUES ($1, $2, 'fixture raw unmentioned limits', 'fixture statement', true, now(),
+          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural", "origin", "updatedAt", "updatedById")
+           VALUES ($1, $2, 'fixture raw unmentioned limits', 'fixture statement', true, 'GENERATED', now(),
                    (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-raw-rule", bibleId],
         ),
@@ -697,9 +697,9 @@ describe("bible schema", () => {
       await expect(
         rawQuery(
           `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural",
-                                      "limits", "updatedAt", "updatedById")
+                                      "limits", "origin", "updatedAt", "updatedById")
            VALUES ($1, $2, 'fixture raw half-bounded', 'fixture statement', true,
-                   ARRAY['fixture limit'], now(),
+                   ARRAY['fixture limit'], 'GENERATED', now(),
                    (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-raw-half-bounded", bibleId],
         ),
