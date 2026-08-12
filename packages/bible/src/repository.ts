@@ -25,3 +25,4 @@ export {
   runBibleCoherenceCheckWithin,
 } from "./coherence/repository";
 export { type BibleValidated, validateBible } from "./coherence/validate";
+export { getReferenceBible, type ReferenceBible } from "./version/reference";

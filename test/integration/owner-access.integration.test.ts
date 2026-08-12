@@ -129,6 +129,10 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * rather than among the helpers because they issue statements — taking the
  * transaction client as an argument changes who holds the connection, not
  * whether the statement names an owner.
+ * `mintBibleVersion` and `getReferenceBibleVersion` (CAL-100) are isolated in
+ * `bible-coherence.integration.test.ts` too, for the same reason as the
+ * quality-issue functions: a `BibleVersion` only exists once a bible has been
+ * validated, which is that file's own fixture to set up.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -157,6 +161,7 @@ const ENTRY_POINTS = [
   "getGenerationContextForProject",
   "getProjectForOwner",
   "getProjectTargetLength",
+  "getReferenceBibleVersion",
   "getRelationshipGraph",
   "getSourceText",
   "listProjectDashboardRows",
@@ -168,6 +173,7 @@ const ENTRY_POINTS = [
   "listRunningGenerations",
   "listSourceTextVersions",
   "lockBibleElement",
+  "mintBibleVersion",
   "openProjectScope",
   "readBibleLockGate",
   "readCanonicalDirectionObsolescence",

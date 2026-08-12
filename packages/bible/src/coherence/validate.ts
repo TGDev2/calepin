@@ -27,26 +27,37 @@
  * also go stale between the screen and the statement, which is the failure
  * `acceptOperationEstimate` exists to catch.
  *
- * CAL-100 owns what comes after: the named version, the transition of the
- * project's own status beyond what `withProjectStatus` already derives, and the
- * composer switching to the validated bible.
+ * The transition of the project's own status is `withProjectStatus`'s alone —
+ * `OUTLINE_IN_PROGRESS`'s condition is exactly `Bible.validatedAt !== null`, so
+ * stamping it here is already the whole transition. What this file adds for
+ * CAL-100 is the other two things CAL-099 left open: a `BibleVersion` savepoint
+ * of the bible as it stood at this exact validation, read fresh inside this
+ * same locked transaction (`getBibleOverview`, stripped to narrative content by
+ * `buildBibleVersionContent`), and — via `@calepin/bible/repository`'s
+ * `getReferenceBible` — the reference a future generation reads instead of the
+ * live, still-editable rows.
  */
 
 import { isBlockingIssue } from "@calepin/shared/coherence";
 import { ConflictError, fail, NotFoundError, type Result, succeed } from "@calepin/shared/errors";
 import {
+  getBibleOverview,
   listQualityIssuesWithin,
+  mintBibleVersion,
   type ProjectScope,
   type QualityIssueRow,
   scopedWhere,
   withProjectStatus,
 } from "@calepin/shared/repository";
 
+import { buildBibleVersionContent } from "../version/content";
 import { BIBLE_COHERENCE_CHECK_IDS, runBibleCoherenceCheck } from "./repository";
 
 export interface BibleValidated {
   readonly bibleId: string;
   readonly validatedAt: Date;
+  /** The savepoint minted for this validation — see `BibleVersion`. */
+  readonly versionNumber: number;
 }
 
 function alreadyValidated(): ConflictError {
@@ -89,6 +100,12 @@ function notCoherent(blocking: readonly QualityIssueRow[]): ConflictError {
  * what the first one returned. That is what makes an arbitration racing the
  * validation land on the right side of it: the decision is a write, and the
  * write the gate reads is the one that committed.
+ *
+ * The savepoint is minted **inside that same locked transaction**, from a
+ * fresh `getBibleOverview` read, right before the stamp — for the reason the
+ * gate itself re-reads rather than trusting the first transaction: the content
+ * a future generation will read has to be the content that was actually just
+ * judged coherent, not whatever the bible looked like when the check first ran.
  */
 export async function validateBible(scope: ProjectScope): Promise<Result<BibleValidated>> {
   const checked = await runBibleCoherenceCheck(scope);
@@ -110,6 +127,17 @@ export async function validateBible(scope: ProjectScope): Promise<Result<BibleVa
     const blocking = issues.filter(isBlockingIssue);
     if (blocking.length > 0) return fail(notCoherent(blocking));
 
+    const overview = await getBibleOverview(scope, client);
+    if (overview === null) {
+      return fail(new NotFoundError({ message: "bible not found", fieldPath: "bible" }));
+    }
+    const minted = await mintBibleVersion(client, scope, {
+      bibleId: bible.id,
+      createdById: scope.ownerId,
+      content: buildBibleVersionContent(overview),
+    });
+    if (!minted.ok) return fail(minted.error);
+
     const validatedAt = new Date();
     // Conditional on the bible still being unvalidated, so two clicks racing
     // each other settle on one timestamp instead of moving it.
@@ -120,6 +148,6 @@ export async function validateBible(scope: ProjectScope): Promise<Result<BibleVa
 
     if (written.count === 0) return fail(alreadyValidated());
 
-    return succeed({ bibleId: bible.id, validatedAt });
+    return succeed({ bibleId: bible.id, validatedAt, versionNumber: minted.value.versionNumber });
   });
 }

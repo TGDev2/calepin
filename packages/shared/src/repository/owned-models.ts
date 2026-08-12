@@ -60,6 +60,7 @@ export const PROJECT_OWNED_MODELS = {
   DirectionEvaluation: { table: "direction_evaluations", path: ["direction", "project"] },
 
   Bible: { table: "bibles", path: ["project"] },
+  BibleVersion: { table: "bible_versions", path: ["bible", "project"] },
   BibleIdentity: { table: "bible_identities", path: ["bible", "project"] },
   BibleStyle: { table: "bible_styles", path: ["bible", "project"] },
   BibleWorld: { table: "bible_worlds", path: ["bible", "project"] },

@@ -428,6 +428,19 @@ export {
   verifyBibleTimeline,
 } from "./timeline";
 export {
+  type BibleVersionContent,
+  buildBibleVersionContent,
+  type ReferenceBibleCharacter,
+  type ReferenceBibleIdentity,
+  type ReferenceBiblePlace,
+  type ReferenceBibleRelationship,
+  type ReferenceBibleStyle,
+  type ReferenceBibleTimelineEvent,
+  type ReferenceBibleWorld,
+  type ReferenceBibleWorldRule,
+  type ReferenceCanonFact,
+} from "./version";
+export {
   countWorldBounds,
   countWorldRows,
   describeWorldBounds,

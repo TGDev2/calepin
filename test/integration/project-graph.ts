@@ -132,6 +132,9 @@ export async function createProjectGraph(
   });
 
   const bible = await prisma.bible.create({ data: { projectId: project.id } });
+  const bibleVersion = await prisma.bibleVersion.create({
+    data: { bibleId: bible.id, versionNumber: 1, content: {}, createdById: user.id },
+  });
   const identity = await prisma.bibleIdentity.create({
     data: {
       bibleId: bible.id,
@@ -375,6 +378,7 @@ export async function createProjectGraph(
       CreativeDirection: direction.id,
       DirectionEvaluation: directionEvaluation.id,
       Bible: bible.id,
+      BibleVersion: bibleVersion.id,
       BibleIdentity: identity.id,
       BibleStyle: style.id,
       BibleWorld: world.id,

@@ -172,6 +172,12 @@ export const DUPLICATION_PLAN = [
       placeId: "Place",
     },
   },
+  // The savepoint travels with the bible it was minted from (CAL-100), for
+  // `ChapterSummaryRevision`'s reason: `Bible.validatedAt` is copied verbatim,
+  // so a copy of a validated bible reaches `OUTLINE_IN_PROGRESS` exactly as the
+  // original did — leaving the version behind would hand it that status with no
+  // reference any generation could actually read.
+  { model: "BibleVersion", references: { bibleId: "Bible", createdById: "User" } },
 
   { model: "Outline", references: { projectId: "Project", bibleId: "Bible" } },
   { model: "Part", references: { outlineId: "Outline" } },

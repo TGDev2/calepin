@@ -63,6 +63,13 @@ export {
   unlockBibleElement,
 } from "./bible-lock";
 export {
+  type BibleVersionMinted,
+  type BibleVersionReference,
+  getReferenceBibleVersion,
+  mintBibleVersion,
+  type MintBibleVersionInput,
+} from "./bible-version";
+export {
   type CanonFactBeliefRow,
   type CanonFactBoundRow,
   type CanonFactContentInput,

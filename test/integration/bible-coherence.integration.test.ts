@@ -19,16 +19,21 @@
  * fixture would otherwise have to carry.
  */
 
-import { runBibleCoherenceCheck, validateBible } from "@calepin/bible/repository";
+import { buildBibleVersionContent } from "@calepin/bible";
+import { getReferenceBible, runBibleCoherenceCheck, validateBible } from "@calepin/bible/repository";
 import { runWithActor } from "@calepin/shared/audit";
 import { BIBLE_COHERENCE_CHECKS, BIBLE_DETERMINISTIC_CHECKS } from "@calepin/shared/coherence";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import {
+  getBibleOverview,
+  getReferenceBibleVersion,
   listQualityIssues,
   listQualityIssuesWithin,
+  mintBibleVersion,
   openProjectScope,
   type ProjectScope,
   reconcileQualityIssues,
+  refreshProjectStatus,
   setQualityIssueStatus,
 } from "@calepin/shared/repository";
 import { PrismaClient } from "@prisma/client";
@@ -306,6 +311,162 @@ describe("the bible coherence check (CAL-099)", () => {
       expect(run.ok && run.value.bibleId).not.toBe(mine.bibleId);
 
       await expect(validatedAt(mine.bibleId)).resolves.toBeNull();
+    });
+  });
+
+  describe("the savepoint and reference bible (CAL-100)", () => {
+    interface MinimalFixture {
+      readonly ownerId: string;
+      readonly projectId: string;
+      readonly scope: ProjectScope;
+    }
+
+    /**
+     * A project carrying nothing past a canonical direction — `Bible` and
+     * nothing under it. `createFixture` (`createProjectGraph`) seeds one row in
+     * every project-owned table, `BibleVersion` included, which is exactly what
+     * the cross-model ownership suite needs and exactly what these tests must
+     * not start from: they are about the state *before* a first savepoint
+     * exists. Walked stepwise through `refreshProjectStatus`, `SEQUENCE`'s own
+     * shape in `project-status.integration.test.ts`, so the stored status is
+     * never more than one legal step from the rows — `validateBible` refuses
+     * otherwise.
+     */
+    async function seedBibleReadyToValidate(label: string): Promise<MinimalFixture> {
+      const user = await prisma.user.create({ data: { email: `${label}@example.test`, name: "Test User" } });
+      setActor(user.id);
+      const project = await prisma.project.create({ data: { title: label, userId: user.id } });
+      const opened = await openProjectScope({ ownerId: user.id, projectId: project.id });
+      if (!opened.ok) throw new Error("the fixture scope was refused");
+      const scope = opened.value;
+
+      const sourceText = await prisma.sourceText.create({ data: { projectId: project.id } });
+      await prisma.sourceTextVersion.create({
+        data: {
+          sourceTextId: sourceText.id,
+          versionNumber: 1,
+          content: "fixture text",
+          wordCount: 2,
+          editedById: user.id,
+        },
+      });
+      await refreshProjectStatus(scope);
+
+      await prisma.analysis.create({
+        data: { projectId: project.id, validatedAt: new Date(), validatedById: user.id },
+      });
+      await refreshProjectStatus(scope);
+
+      await prisma.creativeDirection.create({
+        data: {
+          projectId: project.id,
+          workingTitle: "fixture",
+          developedPremise: "fixture",
+          dominantGenre: "fixture",
+          mainConflict: "fixture",
+          protagonistArc: "fixture",
+          endingNature: "fixture",
+          novelPotentialAssessment: "fixture",
+          narrativeEngine: {
+            conflictNature: "interpersonal",
+            tensionSource: "pursuit",
+            protagonistStake: "life",
+            shiftTrigger: "revelation",
+            resolutionNature: "victory",
+          },
+          origin: "PROPOSED",
+          isCanonical: true,
+        },
+      });
+      await refreshProjectStatus(scope);
+
+      await prisma.bible.create({ data: { projectId: project.id } });
+
+      return { ownerId: user.id, projectId: project.id, scope };
+    }
+
+    async function storedStatus(projectId: string): Promise<string | undefined> {
+      return (await prisma.project.findUnique({ where: { id: projectId }, select: { status: true } }))
+        ?.status;
+    }
+
+    it("mints version 1 with the validated content, and none before validation", async () => {
+      const fixture = await seedBibleReadyToValidate("cal-100-mint");
+
+      await expect(getReferenceBible(fixture.scope)).resolves.toBeNull();
+
+      const overview = await getBibleOverview(fixture.scope);
+      if (overview === null) throw new Error("the fixture bible could not be read");
+      const expectedContent = buildBibleVersionContent(overview);
+
+      const validated = await runWithActor(fixture.ownerId, () => validateBible(fixture.scope));
+      expect(validated.ok).toBe(true);
+      expect(validated.ok && validated.value.versionNumber).toBe(1);
+
+      const reference = await getReferenceBible(fixture.scope);
+      expect(reference?.versionNumber).toBe(1);
+      expect(reference?.content).toEqual(expectedContent);
+    });
+
+    it("carries the bible through BIBLE_TO_VALIDATE to OUTLINE_IN_PROGRESS", async () => {
+      const fixture = await seedBibleReadyToValidate("cal-100-status");
+
+      await expect(storedStatus(fixture.projectId)).resolves.toBe("BIBLE_TO_VALIDATE");
+
+      const validated = await runWithActor(fixture.ownerId, () => validateBible(fixture.scope));
+      expect(validated.ok).toBe(true);
+
+      await expect(storedStatus(fixture.projectId)).resolves.toBe("OUTLINE_IN_PROGRESS");
+    });
+
+    it("keeps the reference frozen once the author edits the bible past validation", async () => {
+      const fixture = await createFixture();
+      const validated = await asOwner(fixture, () => validateBible(fixture.scope));
+      expect(validated.ok).toBe(true);
+
+      const before = await getReferenceBible(fixture.scope);
+      const originalRole = before?.content.characters[0]?.role ?? null;
+
+      setActor(fixture.graph.ownerId);
+      await prisma.character.update({
+        where: { id: fixture.graph.rows.Character },
+        data: { role: "un rôle réécrit après validation" },
+      });
+
+      const liveOverview = await getBibleOverview(fixture.scope);
+      expect(liveOverview?.characters[0]?.role).toBe("un rôle réécrit après validation");
+
+      const after = await getReferenceBible(fixture.scope);
+      expect(after?.content.characters[0]?.role).toBe(originalRole);
+      expect(after?.versionNumber).toBe(before?.versionNumber);
+    });
+
+    describe("cross-owner isolation", () => {
+      it("hides mintBibleVersion and getReferenceBibleVersion from another owner", async () => {
+        const mine = await createFixture();
+        const theirs = await createFixture();
+
+        const validated = await asOwner(mine, () => validateBible(mine.scope));
+        expect(validated.ok).toBe(true);
+
+        // `theirs` never sees a savepoint of `mine`'s bible — only, at most,
+        // the row `createProjectGraph` seeded under its own.
+        const theirsReference = await getReferenceBibleVersion(theirs.scope);
+        expect(theirsReference?.bibleId).not.toBe(mine.bibleId);
+
+        const mineReference = await getReferenceBibleVersion(mine.scope);
+        expect(mineReference?.bibleId).toBe(mine.bibleId);
+
+        const forged = await prisma.$transaction((client) =>
+          mintBibleVersion(client, theirs.scope, {
+            bibleId: mine.bibleId,
+            createdById: theirs.graph.ownerId,
+            content: {},
+          }),
+        );
+        expect(forged.ok).toBe(false);
+        expect(!forged.ok && forged.error.code).toBe("NOT_FOUND");
+      });
     });
   });
 });

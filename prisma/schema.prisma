@@ -106,6 +106,7 @@ model User {
   chapterSummariesCreated     ChapterSummaryRevision[]
   partSummariesCreated        PartSummaryRevision[]
   characterEditHistoryEntries CharacterEditHistory[]
+  bibleVersionsCreated        BibleVersion[]
   exportsRequested            Export[]                  @relation("ExportRequestedBy")
 
   /// The audit trail (CAL-022): every mutable row this account last modified.
@@ -828,8 +829,49 @@ model Bible {
   canonFacts    CanonFact[]
   /// The plan written against this bible (CAL-019).
   outline       Outline?
+  /// The savepoints `validateBible` mints (CAL-100) — see `BibleVersion`.
+  versions      BibleVersion[]
 
   @@map("bibles")
+}
+
+/// A savepoint of the whole bible, minted the moment `validateBible` (CAL-099)
+/// stamps `Bible.validatedAt` — CAL-100's "version nommée servant de point de
+/// sauvegarde". Append-only and never amended, `SourceTextVersion`'s shape: no
+/// audit block, because there is exactly one write and it names its own
+/// author. `content` is the frozen narrative — `@calepin/bible`'s
+/// `BibleVersionContent`, built from the same `getBibleOverview` read the
+/// coherence gate itself just ran, stripped of every field that describes
+/// editing state (`origin`, `lockedAt`, `lockedFields`) rather than the story.
+///
+/// One JSON column rather than a dozen child tables mirroring the live ones:
+/// this row is never queried by field, only ever handed whole to whatever
+/// later reads "the reference bible" — `Generation.input`'s own shape, for the
+/// same reason. There is no generic versioning socle to build this on yet
+/// (CAL-146, epic E14, lands well after this one), so the bible gets its own
+/// self-contained mechanism rather than waiting on it.
+///
+/// `validateBible` refuses a second validation outright today, so there is
+/// only ever one row per bible in practice — but `versionNumber` is computed
+/// generically (highest existing + 1) rather than hard-coded to 1, so a future
+/// re-validation path costs no schema change.
+model BibleVersion {
+  id            String @id @default(cuid())
+  bibleId       String
+  versionNumber Int
+  content       Json
+
+  createdAt   DateTime @default(now())
+  createdById String
+
+  bible     Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+  // Restrict, as SourceTextVersion.editedBy already is: a savepoint's author is
+  // part of what it records, and silently orphaning that would lose the fact
+  // of who validated the bible at that moment.
+  createdBy User  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([bibleId, versionNumber])
+  @@map("bible_versions")
 }
 
 /// The identity section of the bible (CAL-088).
