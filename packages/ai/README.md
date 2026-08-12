@@ -86,6 +86,7 @@ narrative rule, and never restates a domain schema.
   | `build-timeline`              | Opus 5   | xhigh  | 14 k    | 300 s   | bible      | 50 k   | 18 k / 6 k      |
   | `extract-initial-facts`       | Opus 5   | xhigh  | 16 k    | 300 s   | bible      | 60 k   | 26 k / 8 k      |
   | `detect-bible-contradictions` | Opus 5   | xhigh  | 8 k     | 300 s   | bible      | 60 k   | 24 k / 3 k      |
+  | `split-into-parts`            | Opus 5   | xhigh  | 8 k     | 300 s   | outline    | 40 k   | 14 k / 4 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -519,6 +520,19 @@ measured tokens at today's tariff, never replayed from a recorded price.
   write — an author cannot validate their bible while one stands — and a large
   input budget against a small output cap, because a contradiction is named
   rather than narrated.
+
+- **The parts** — `split-into-parts` (CAL-101), the plan stage's opening
+  mission, and its whole design problem is progression: the two defects the
+  backlog names — *absence de progression*, *fin précipitée* — are what a
+  part read alone cannot show. The quality bars are the schema's shapes
+  restated as demands (a basculement is one concrete event plus what it makes
+  irreversible; the final state shows that irreversibility), the count arrives
+  as `{{minParts}}`/`{{maxParts}}` from the same `partCalibrationForWordCount`
+  the checker's gate re-derives them from, and a thread is cited by its number
+  in the answer's own declared list, never by a label (§6). `xhigh` because
+  the découpage is the novel's one global-architecture decision, and a
+  shallower run degrades on it silently — each part stays plausible while the
+  whole stops progressing.
 
 ## What arrives in its own task
 

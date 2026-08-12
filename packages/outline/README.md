@@ -42,10 +42,35 @@ and the chapter-count derivation live.
 - `resolveNovelTargetWordCount`, `estimateChapterCalibration` — a choice
   resolved to one number (a preset's midpoint, or the custom value), then to
   a chapter count and a per-chapter target derived from it. Pure, no database.
+- `partCalibrationForWordCount`, `estimatePartCalibration`, `PART_COUNT_RANGE`
+  — the same interpretation one level up (CAL-101): the admissible part-count
+  range for a target, ±1 around round(target ÷ 18 000), clamped to 2–12. One
+  function serves the schema's envelope, the prompt's variables and
+  `checkPartStructure`'s gate, so the ask and the refusal cannot disagree.
 - `getPlanGenerationContext` — `@calepin/shared`'s `GenerationContext`
-  (CAL-042), extended with the calibration. Built ahead of its producer, the
-  same way `getGenerationContextForProject` is: no mission calls this yet
-  (CAL-048, CAL-060 still to come).
+  (CAL-042), extended with both calibrations. Built ahead of its producer, the
+  same way `getGenerationContextForProject` is: no executor calls this yet
+  (§13).
+
+`parts/` — the `split-into-parts` mission's contract (CAL-101).
+
+- `partStructureSchema` — the answer: the declared threads (`Thread`'s own
+  columns, ahead of the row — `Thread.openingChapterId` is NOT NULL and no
+  chapter exists yet) and the parts, fields spelled as the `Part` columns,
+  each part citing its threads by index into the answer's own list (§6). The
+  basculement is the pair `{ event, irreversibility }` — unfillable when the
+  event changes nothing — and the irreversibility is what separates the final
+  state from the initial one.
+- `partStructureInputSchema` — the ask `Generation.input` stores: the
+  direction and identity corpus, the cast's arcs, the planned events, the
+  resolved target word count the gate re-derives its range from.
+- `checkPartStructure` — pure, index-keyed, row-capable: seven defect kinds
+  refuse whole (count out of calibrated range, duplicate titles/labels,
+  unresolvable or duplicate references, orphan threads, echoed states); two
+  advisories report and never refuse (`similar-stakes`, `single-part-thread`).
+- `verifyPartStructure`, `resolvePartStructure` — the brand and the flattening
+  (`PART_TIPPING_POINT_CONNECTOR`, indexes resolved to labels). No
+  persistence: `Part` rows and order keys belong to the executor task.
 
 **Two entry points, and the split is load-bearing.** `@calepin/outline` is the
 whole surface; `@calepin/outline/calibration` is the pure half — the ranges,
