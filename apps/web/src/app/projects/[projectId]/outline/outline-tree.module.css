@@ -264,17 +264,31 @@
   font-size: 0.9rem;
 }
 
-/* The two re-cutting controls of a chapter (CAL-106). */
+/*
+ * The two re-cutting controls of a chapter (CAL-106), on its first line beside
+ * the move buttons — see the component for why they are not under the previews.
+ */
 .cutButtons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: var(--space-1);
+  display: inline-flex;
+  gap: 0.25rem;
 }
 
-.cutButtons .controlButton {
-  font-size: 0.8rem;
+.cutButton {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
   text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cutButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /*

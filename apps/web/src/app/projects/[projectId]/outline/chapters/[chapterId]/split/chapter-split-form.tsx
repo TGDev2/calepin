@@ -31,6 +31,7 @@ import {
   type ChapterSplitHalfName,
   checkChapterSplit,
 } from "@calepin/outline";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
 import { type ChapterSplitState, splitDefectSentence } from "@/lib/outline-cut";
@@ -146,6 +147,7 @@ export function ChapterSplitForm({ source, outlinePath, splitChapter }: ChapterS
   });
   const [state, setState] = useState<ChapterSplitState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   const arbitration = useMemo<ChapterSplitArbitration>(() => {
     const kept = (elements: readonly SplitElementView[], half: ChapterSplitHalfName): string[] =>
@@ -230,12 +232,19 @@ export function ChapterSplitForm({ source, outlinePath, splitChapter }: ChapterS
     [source, arbitration],
   );
 
+  /**
+   * On success the author goes back to the plan, where the two halves simply
+   * are. `router.push` rather than `window.location.assign`: the action has
+   * already called `revalidatePath`, so a client navigation lands on fresh data
+   * without paying for a full document load — which under a parallel end-to-end
+   * run was slow enough to outlast the assertion waiting for it.
+   */
   const submit = () => {
     startTransition(async () => {
       const answer = await splitChapter(arbitration);
 
       setState(answer);
-      if (answer.status === "idle") window.location.assign(outlinePath);
+      if (answer.status === "idle") router.push(outlinePath);
     });
   };
 

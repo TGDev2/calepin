@@ -808,6 +808,49 @@ function ChapterRow({
             <span aria-hidden="true">↓</span>
           </button>
         </span>
+
+        {/*
+          On the row's first line, beside the move buttons, and **not** under
+          the previews where they first went: the whole item is the drop target
+          and a control at its tail turns the row's lower half — the half that
+          means *behind this chapter* — into dead space a drop cannot reach. A
+          disabled button dispatches no pointer event at all, so the last
+          chapter of a part became undroppable-onto entirely. Found by
+          `outline-reorder.spec.ts`, which drops at ninety per cent of the row's
+          height; it is a real regression, not a test artefact.
+
+          `tabIndex={-1}` for the move buttons' reason: the APG keeps a tree to
+          one tab stop.
+        */}
+        <span className={styles.cutButtons}>
+          <button
+            type="button"
+            tabIndex={-1}
+            className={styles.cutButton}
+            aria-label={`Fusionner le chapitre ${String(chapter.number)} avec le suivant`}
+            disabled={pending || onMergeWithNext === null}
+            onClick={(event) => {
+              event.stopPropagation();
+              onMergeWithNext?.();
+            }}
+          >
+            Fusionner
+          </button>
+          <a
+            href={splitPath}
+            // A link is draggable by default, and dragging one starts a link
+            // drag instead of the row's own.
+            draggable={false}
+            tabIndex={-1}
+            className={styles.cutButton}
+            aria-label={`Scinder le chapitre ${String(chapter.number)}`}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            Scinder
+          </a>
+        </span>
       </div>
 
       <p className={styles.chapterPreview}>
@@ -826,39 +869,6 @@ function ChapterRow({
             : `${NUMBER_FORMAT.format(chapter.targetWordCount)} mots`}
         </span>
         <ThreadActionCounts actions={chapter.threadActions} />
-      </div>
-
-      {/*
-        `tabIndex={-1}` for the move buttons' reason: the APG keeps a tree to
-        one tab stop, and fifty chapters would otherwise cost a hundred and
-        fifty stops before the next control on the page. Both are reachable
-        with the pointer and through the tree's own roving focus.
-      */}
-      <div className={styles.cutButtons}>
-        <button
-          type="button"
-          tabIndex={-1}
-          className={styles.controlButton}
-          aria-label={`Fusionner le chapitre ${String(chapter.number)} avec le suivant`}
-          disabled={pending || onMergeWithNext === null}
-          onClick={(event) => {
-            event.stopPropagation();
-            onMergeWithNext?.();
-          }}
-        >
-          Fusionner avec le suivant
-        </button>
-        <a
-          href={splitPath}
-          tabIndex={-1}
-          className={styles.controlButton}
-          aria-label={`Scinder le chapitre ${String(chapter.number)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          Scinder
-        </a>
       </div>
 
       {expanded ? <ChapterDetail chapter={chapter} /> : null}
