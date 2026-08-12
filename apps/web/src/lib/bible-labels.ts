@@ -21,7 +21,7 @@ export const CANON_FACT_SOURCE_LABELS: Record<BibleCanonFactRow["source"], strin
 export const CANON_FACT_STATUS_LABELS: Record<BibleCanonFactRow["status"], string> = {
   PROPOSED: "proposé",
   CONFIRMED: "confirmé",
-  REJECTED: "rejeté",
+  REJECTED: "écarté",
 };
 
 export const CANON_FACT_VALIDITY_LABELS: Record<BibleCanonFactRow["validity"], string> = {

@@ -113,7 +113,7 @@ export function BibleWorkspace({
         <CharactersSection characters={characters} projectId={projectId} />
         <WorldSection world={world} places={places} worldRules={worldRules} />
         <TimelineSection events={timeline} />
-        <CanonFactsSection facts={canonFacts} />
+        <CanonFactsSection projectId={projectId} facts={canonFacts} />
       </div>
     </div>
   );

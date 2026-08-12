@@ -1,4 +1,5 @@
 import { CANON_FACT_BELIEF_STATE_LABELS } from "@calepin/bible";
+import Link from "next/link";
 
 import { LockBadge } from "@/components/lock-badge";
 import { ProvenanceBadge } from "@/components/provenance-badge";
@@ -9,6 +10,7 @@ import styles from "./bible-sections.module.css";
 import type { CanonFactView } from "./views";
 
 interface CanonFactsSectionProps {
+  readonly projectId: string;
   readonly facts: readonly CanonFactView[];
 }
 
@@ -18,13 +20,16 @@ interface CanonFactsSectionProps {
  * consultation screen that quietly dropped it would look like the fact had
  * never existed rather than like the author had already ruled on it.
  */
-export function CanonFactsSection({ facts }: CanonFactsSectionProps) {
+export function CanonFactsSection({ projectId, facts }: CanonFactsSectionProps) {
   return (
     <section id="canon-facts" className={styles.section} aria-labelledby="canon-facts-title">
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle} id="canon-facts-title">
           Faits canoniques
         </h2>
+        <Link className={styles.sectionLink} href={`/projects/${projectId}/bible/facts`}>
+          Écrire et modifier les faits
+        </Link>
       </div>
 
       {facts.length === 0 ? (
