@@ -14,8 +14,11 @@
  */
 
 export {
+  adjustChapterCalibration,
   CHAPTER_TARGET_WORD_COUNT_RANGE,
+  CHAPTER_WORD_BUDGET_TOLERANCE,
   chapterCalibrationForPartWordCount,
+  chapterWordBudgetGap,
   estimateChapterCalibration,
   estimatePartCalibration,
   PART_CHAPTER_COUNT_RANGE,
@@ -26,6 +29,7 @@ export {
 export { CUSTOM_TARGET_WORD_COUNT_RANGE, TARGET_LENGTH_RANGES } from "./ranges";
 export {
   type ChapterCalibration,
+  type ChapterWordBudgetGap,
   type NovelLengthChoice,
   type PartCalibration,
   type PartChapterCalibration,

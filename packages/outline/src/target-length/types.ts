@@ -63,3 +63,20 @@ export interface PartChapterCalibration {
   readonly minChapters: number;
   readonly maxChapters: number;
 }
+
+/**
+ * Whether a declared total of chapter target lengths stays within
+ * `CHAPTER_WORD_BUDGET_TOLERANCE` of the length it is measured against
+ * (CAL-103). The one arithmetic shared by the per-part AI-batch check
+ * (`checkChapterOutlineBatch`) and the novel-level manual-adjustment preview,
+ * so the two can never disagree about what "within 10%" means.
+ */
+export interface ChapterWordBudgetGap {
+  readonly totalTargetWordCount: number;
+  readonly novelTargetWordCount: number;
+  readonly minTotal: number;
+  readonly maxTotal: number;
+  readonly deviationWordCount: number;
+  readonly deviationRatio: number;
+  readonly withinTolerance: boolean;
+}

@@ -1,6 +1,7 @@
 import { TARGET_LENGTH_RANGES } from "./ranges";
 import type {
   ChapterCalibration,
+  ChapterWordBudgetGap,
   NovelLengthChoice,
   PartCalibration,
   PartChapterCalibration,
@@ -37,6 +38,15 @@ const PART_WORD_COUNT_BASELINE = 18_000;
  * the schema reuses it.
  */
 export const PART_COUNT_RANGE = { min: 2, max: 12 } as const;
+
+/**
+ * CAL-103's own bar: a declared total of chapter target lengths must stay
+ * within 10% of the length it is measured against, whether that is a part's
+ * target (`checkChapterOutlineBatch`, CAL-102) or the whole novel's (the
+ * manual-adjustment preview below). One constant for both, so the AI-batch
+ * check and the author's own adjustment cannot silently drift apart.
+ */
+export const CHAPTER_WORD_BUDGET_TOLERANCE = 0.1;
 
 /**
  * The admissible part counts for a novel of `novelTargetWordCount` words —
@@ -91,6 +101,51 @@ export function estimateChapterCalibration(choice: NovelLengthChoice): ChapterCa
 /** The part-count range a novel-length choice implies (CAL-101). */
 export function estimatePartCalibration(choice: NovelLengthChoice): PartCalibration {
   return partCalibrationForWordCount(resolveNovelTargetWordCount(choice));
+}
+
+/**
+ * A manual override of a starting `ChapterCalibration` (CAL-103): the author
+ * may move the chapter count, the per-chapter target, or both, away from the
+ * estimate. `novelTargetWordCount` is never overridden — it names the choice
+ * the calibration is measured against, not something the author edits here.
+ * Whether the result still fits the novel's target is `chapterWordBudgetGap`'s
+ * question, not this function's — it applies the override and nothing else.
+ */
+export function adjustChapterCalibration(
+  base: ChapterCalibration,
+  overrides: { readonly chapterCount?: number; readonly chapterTargetWordCount?: number },
+): ChapterCalibration {
+  return {
+    novelTargetWordCount: base.novelTargetWordCount,
+    chapterCount: overrides.chapterCount ?? base.chapterCount,
+    chapterTargetWordCount: overrides.chapterTargetWordCount ?? base.chapterTargetWordCount,
+  };
+}
+
+/**
+ * Whether a declared total of chapter target lengths stays within
+ * `CHAPTER_WORD_BUDGET_TOLERANCE` of the length it is measured against —
+ * `checkChapterOutlineBatch`'s inline arithmetic, generalized so the
+ * novel-level manual-adjustment preview reads the same bar. The bound is
+ * inclusive at both ends, `chapters/check.ts`'s own "boundary included" rule.
+ */
+export function chapterWordBudgetGap(
+  totalTargetWordCount: number,
+  novelTargetWordCount: number,
+): ChapterWordBudgetGap {
+  const minTotal = Math.floor(novelTargetWordCount * (1 - CHAPTER_WORD_BUDGET_TOLERANCE));
+  const maxTotal = Math.ceil(novelTargetWordCount * (1 + CHAPTER_WORD_BUDGET_TOLERANCE));
+  const deviationWordCount = totalTargetWordCount - novelTargetWordCount;
+
+  return {
+    totalTargetWordCount,
+    novelTargetWordCount,
+    minTotal,
+    maxTotal,
+    deviationWordCount,
+    deviationRatio: deviationWordCount / novelTargetWordCount,
+    withinTolerance: totalTargetWordCount >= minTotal && totalTargetWordCount <= maxTotal,
+  };
 }
 
 /**

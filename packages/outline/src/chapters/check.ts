@@ -54,11 +54,9 @@ import { contentWordsOf, STAKE_OVERLAP_RATIO, stakeOverlap } from "../stake/over
 import {
   CHAPTER_TARGET_WORD_COUNT_RANGE,
   chapterCalibrationForPartWordCount,
+  chapterWordBudgetGap,
 } from "../target-length/calibrate";
 import type { ChapterThreadState } from "./schema";
-
-/** CAL-103's "10 % of the target", applied to one batch's declared sum. */
-export const CHAPTER_WORD_BUDGET_TOLERANCE = 0.1;
 
 /**
  * The defect kinds — closed, and closed on purpose: a report that named its
@@ -516,16 +514,15 @@ function checkBudget(
     (total, chapter) => total + (chapter.targetWordCount ?? 0),
     0,
   );
-  const minTotal = Math.floor(partTargetWordCount * (1 - CHAPTER_WORD_BUDGET_TOLERANCE));
-  const maxTotal = Math.ceil(partTargetWordCount * (1 + CHAPTER_WORD_BUDGET_TOLERANCE));
+  const gap = chapterWordBudgetGap(declaredTotal, partTargetWordCount);
 
-  if (declaredTotal < minTotal || declaredTotal > maxTotal) {
+  if (!gap.withinTolerance) {
     defects.push({
       kind: "word-budget-out-of-tolerance",
       declaredTotal,
       partTargetWordCount,
-      minTotal,
-      maxTotal,
+      minTotal: gap.minTotal,
+      maxTotal: gap.maxTotal,
     });
   }
 

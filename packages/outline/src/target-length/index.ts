@@ -1,7 +1,11 @@
 export {
+  adjustChapterCalibration,
   CHAPTER_TARGET_WORD_COUNT_RANGE,
+  CHAPTER_WORD_BUDGET_TOLERANCE,
   type ChapterCalibration,
   chapterCalibrationForPartWordCount,
+  type ChapterWordBudgetGap,
+  chapterWordBudgetGap,
   CUSTOM_TARGET_WORD_COUNT_RANGE,
   estimateChapterCalibration,
   estimatePartCalibration,

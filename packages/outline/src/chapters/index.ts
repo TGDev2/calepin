@@ -1,7 +1,6 @@
 export {
   CHAPTER_BATCH_ADVISORY_KINDS,
   CHAPTER_BATCH_DEFECT_KINDS,
-  CHAPTER_WORD_BUDGET_TOLERANCE,
   type ChapterBatchAdvisory,
   type ChapterBatchAdvisoryKind,
   type ChapterBatchCheckChapter,

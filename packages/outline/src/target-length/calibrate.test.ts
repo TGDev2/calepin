@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  adjustChapterCalibration,
   CHAPTER_TARGET_WORD_COUNT_RANGE,
+  CHAPTER_WORD_BUDGET_TOLERANCE,
   chapterCalibrationForPartWordCount,
+  chapterWordBudgetGap,
   estimateChapterCalibration,
   estimatePartCalibration,
   PART_CHAPTER_COUNT_RANGE,
@@ -270,5 +273,105 @@ describe("chapterCalibrationForPartWordCount", () => {
 
       expect(reachable).toBe(true);
     }
+  });
+});
+
+describe("chapterWordBudgetGap", () => {
+  it("reports zero deviation for an exact match", () => {
+    expect(chapterWordBudgetGap(65_000, 65_000)).toEqual({
+      totalTargetWordCount: 65_000,
+      novelTargetWordCount: 65_000,
+      minTotal: 58_500,
+      maxTotal: 71_500,
+      deviationWordCount: 0,
+      deviationRatio: 0,
+      withinTolerance: true,
+    });
+  });
+
+  it("stays within tolerance for a total inside the ±10% envelope", () => {
+    const gap = chapterWordBudgetGap(70_000, 65_000);
+
+    expect(gap.withinTolerance).toBe(true);
+    expect(gap.deviationWordCount).toBe(5_000);
+    expect(gap.deviationRatio).toBeCloseTo(5_000 / 65_000);
+  });
+
+  it("includes the boundary, both floor and ceiling", () => {
+    // Mirrors chapters/check.test.ts's "boundary included" case, at the
+    // novel scale rather than the part scale.
+    expect(chapterWordBudgetGap(9_000, 10_000).withinTolerance).toBe(true);
+    expect(chapterWordBudgetGap(11_000, 10_000).withinTolerance).toBe(true);
+  });
+
+  it("refuses a total just past the boundary on either side", () => {
+    expect(chapterWordBudgetGap(8_999, 10_000).withinTolerance).toBe(false);
+    expect(chapterWordBudgetGap(11_001, 10_000).withinTolerance).toBe(false);
+  });
+
+  it("derives minTotal/maxTotal from CHAPTER_WORD_BUDGET_TOLERANCE", () => {
+    const gap = chapterWordBudgetGap(50_000, 50_000);
+
+    expect(gap.minTotal).toBe(Math.floor(50_000 * (1 - CHAPTER_WORD_BUDGET_TOLERANCE)));
+    expect(gap.maxTotal).toBe(Math.ceil(50_000 * (1 + CHAPTER_WORD_BUDGET_TOLERANCE)));
+  });
+
+  it("reports a negative deviation when the total falls short", () => {
+    const gap = chapterWordBudgetGap(40_000, 65_000);
+
+    expect(gap.deviationWordCount).toBe(-25_000);
+    expect(gap.withinTolerance).toBe(false);
+  });
+});
+
+describe("adjustChapterCalibration", () => {
+  const base = estimateChapterCalibration({ targetLength: "STANDARD" });
+
+  it("returns an equivalent calibration when nothing is overridden", () => {
+    expect(adjustChapterCalibration(base, {})).toEqual(base);
+  });
+
+  it("overrides only the chapter count", () => {
+    expect(adjustChapterCalibration(base, { chapterCount: 30 })).toEqual({
+      ...base,
+      chapterCount: 30,
+    });
+  });
+
+  it("overrides only the per-chapter target", () => {
+    expect(adjustChapterCalibration(base, { chapterTargetWordCount: 4_000 })).toEqual({
+      ...base,
+      chapterTargetWordCount: 4_000,
+    });
+  });
+
+  it("overrides both, and never the novel target", () => {
+    expect(
+      adjustChapterCalibration(base, { chapterCount: 50, chapterTargetWordCount: 1_200 }),
+    ).toEqual({
+      novelTargetWordCount: base.novelTargetWordCount,
+      chapterCount: 50,
+      chapterTargetWordCount: 1_200,
+    });
+  });
+
+  // CAL-103's own point: a manual adjustment is not held inside the
+  // estimate's own guarantee — pushing the chapter count up while keeping
+  // the per-chapter target fixed can carry the total outside the 10% bar,
+  // which is exactly what chapterWordBudgetGap exists to catch.
+  it("composes with chapterWordBudgetGap to catch an adjustment that breaks the 10% bar", () => {
+    const adjusted = adjustChapterCalibration(base, { chapterCount: 60 });
+    const total = adjusted.chapterCount * adjusted.chapterTargetWordCount;
+    const gap = chapterWordBudgetGap(total, base.novelTargetWordCount);
+
+    expect(gap.withinTolerance).toBe(false);
+  });
+
+  it("composes with chapterWordBudgetGap to confirm a modest adjustment stays in bounds", () => {
+    const adjusted = adjustChapterCalibration(base, { chapterCount: base.chapterCount + 1 });
+    const total = adjusted.chapterCount * adjusted.chapterTargetWordCount;
+    const gap = chapterWordBudgetGap(total, base.novelTargetWordCount);
+
+    expect(gap.withinTolerance).toBe(true);
   });
 });

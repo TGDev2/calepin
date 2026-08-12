@@ -55,6 +55,7 @@ import {
 } from "@/lib/project-creation-draft-storage";
 import type { SourceTextImportResult } from "@/lib/source-text-import";
 
+import { ChapterCalibrationPreview } from "./chapter-calibration-preview";
 import styles from "./project-creation-wizard.module.css";
 import { SourceTextCounter } from "./source-text-counter";
 import { SourceTextFileImport } from "./source-text-file-import";
@@ -349,6 +350,10 @@ export function ProjectCreationWizard({
             ) : (
               <input type="hidden" name="targetWordCount" value={draft.targetWordCount} />
             )}
+            <ChapterCalibrationPreview
+              draftTargetLength={draft.targetLength}
+              draftTargetWordCount={draft.targetWordCount}
+            />
           </fieldset>
         ) : null}
 

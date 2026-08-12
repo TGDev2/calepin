@@ -20,7 +20,6 @@ export {
   CHAPTER_PERIOD_PRECISIONS,
   CHAPTER_REVELATION_CONNECTOR,
   CHAPTER_THREAD_STATES,
-  CHAPTER_WORD_BUDGET_TOLERANCE,
   CHAPTER_WORD_TARGETS,
   type ChapterBatchAdvisory,
   type ChapterBatchAdvisoryKind,
@@ -135,9 +134,13 @@ export {
   stakeOverlap,
 } from "./stake";
 export {
+  adjustChapterCalibration,
   CHAPTER_TARGET_WORD_COUNT_RANGE,
+  CHAPTER_WORD_BUDGET_TOLERANCE,
   type ChapterCalibration,
   chapterCalibrationForPartWordCount,
+  type ChapterWordBudgetGap,
+  chapterWordBudgetGap,
   CUSTOM_TARGET_WORD_COUNT_RANGE,
   estimateChapterCalibration,
   estimatePartCalibration,
