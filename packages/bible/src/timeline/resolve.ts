@@ -27,6 +27,16 @@ interface Placement {
   baseDay: number | null;
   rootId: string;
   hops: number;
+  /**
+   * How far `day` could be off. Accumulated by **summing** along the chain,
+   * which is interval arithmetic rather than statistics: the uncertainties are
+   * not independent samples to average, they are bounds, and a year-precise
+   * root followed by a month-precise hop really can be out by both. Summing is
+   * the permissive direction, and permissive is the correct one — a detector
+   * that cries wolf is turned off, and then the requirement is lost rather
+   * than met.
+   */
+  tolerance: number;
 }
 
 const CYCLE_MESSAGE = "timeline chain contains a cycle";
@@ -48,6 +58,11 @@ const DANGLING_ANCHOR_MESSAGE = "timeline anchor is absent from the given events
  * Chains that never reach a date come last, grouped by chain rather than
  * interleaved — an order the data does not support is not invented, but the
  * order it does support is never lost either.
+ *
+ * Each resolved event also carries `toleranceDays` — how far its day could be
+ * off, summed along the chain from the date it is rooted in (CAL-093). An event
+ * whose placement states no precision contributes nothing, so a caller that
+ * knows no tolerances gets zeroes and the answer it always got.
  *
  * Two inputs are refused rather than guessed at, both as values (§7): a cycle,
  * which no order can satisfy and which the database cannot forbid beyond the
@@ -93,7 +108,13 @@ export function resolveTimeline<TEvent extends TimelinePlacement>(
     // reporting it is not this function's job — ordering by the author's own
     // date is the reading that does not silently overrule them.
     if (event.absoluteDay !== null) {
-      return { day: event.absoluteDay, baseDay: event.absoluteDay, rootId: event.id, hops: 0 };
+      return {
+        day: event.absoluteDay,
+        baseDay: event.absoluteDay,
+        rootId: event.id,
+        hops: 0,
+        tolerance: event.dateToleranceDays ?? 0,
+      };
     }
 
     if (event.precedingEventId === null) {
@@ -101,7 +122,7 @@ export function resolveTimeline<TEvent extends TimelinePlacement>(
       // an event with neither placement unstorable. Handled anyway, because a
       // caller may build a list by hand and an unplaced event still has to come
       // back somewhere rather than disappear.
-      return { day: null, baseDay: null, rootId: event.id, hops: 0 };
+      return { day: null, baseDay: null, rootId: event.id, hops: 0, tolerance: 0 };
     }
 
     const anchor = byId.get(event.precedingEventId);
@@ -126,6 +147,10 @@ export function resolveTimeline<TEvent extends TimelinePlacement>(
       baseDay: day ?? anchorPlacement.baseDay,
       rootId: anchorPlacement.rootId,
       hops: day === null ? anchorPlacement.hops + 1 : 0,
+      // An undated event has no width worth naming: `null` already says the
+      // axis does not place it, and a number beside that would suggest it
+      // nearly does.
+      tolerance: day === null ? 0 : anchorPlacement.tolerance + (event.durationToleranceDays ?? 0),
     };
   }
 
@@ -138,7 +163,13 @@ export function resolveTimeline<TEvent extends TimelinePlacement>(
 
   resolved.sort((left, right) => compare(left, right));
 
-  return succeed(resolved.map(({ event, placement }) => ({ event, day: placement.day })));
+  return succeed(
+    resolved.map(({ event, placement }) => ({
+      event,
+      day: placement.day,
+      toleranceDays: placement.tolerance,
+    })),
+  );
 }
 
 function compare(
