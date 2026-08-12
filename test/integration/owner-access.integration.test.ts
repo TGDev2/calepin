@@ -112,6 +112,9 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * so `scopedWhere` is all that stands between a lock written by name and
  * another author's row; the behaviour half needs a generation to block, which
  * the shared graph is not arranged to produce.
+ * `editCharacter` is isolated in `character-editing.integration.test.ts`: it
+ * needs a locked field, a locked row and a name collision to prove its own
+ * refusals, none of which the shared graph is arranged to hold.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -128,10 +131,12 @@ const ENTRY_POINTS = [
   "discardDirection",
   "duplicateProject",
   "editAnalysisSection",
+  "editCharacter",
   "editDirection",
   "editRelationship",
   "getAnalysis",
   "getBibleOverview",
+  "getCharacterForEdit",
   "getDirectionsForComparison",
   "getGenerationContextForProject",
   "getProjectForOwner",

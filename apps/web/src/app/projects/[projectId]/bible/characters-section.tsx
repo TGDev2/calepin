@@ -168,6 +168,12 @@ export function CharactersSection({ characters, projectId }: CharactersSectionPr
                     </ul>
                   </div>
                 )}
+
+                <p className={styles.subsection}>
+                  <Link href={`/projects/${projectId}/bible/characters/${character.id}`}>
+                    Modifier cette fiche →
+                  </Link>
+                </p>
               </details>
             </li>
           ))}

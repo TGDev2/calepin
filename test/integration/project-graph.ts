@@ -183,6 +183,15 @@ export async function createProjectGraph(
       origin: "GENERATED",
     },
   });
+  const characterEditHistoryEntry = await prisma.characterEditHistory.create({
+    data: {
+      characterId: character.id,
+      name: `${label}-first`,
+      importance: "SECONDARY",
+      changedFields: ["NAME"],
+      editedById: user.id,
+    },
+  });
   const place = await prisma.place.create({
     data: { bibleId: bible.id, name: `${label}-place`, origin: "GENERATED" },
   });
@@ -369,6 +378,7 @@ export async function createProjectGraph(
       BibleStyle: style.id,
       BibleWorld: world.id,
       Character: character.id,
+      CharacterEditHistory: characterEditHistoryEntry.id,
       Relationship: relationship.id,
       Place: place.id,
       WorldRule: worldRule.id,

@@ -103,6 +103,32 @@ export function isCharacterLockField(field: string): field is CharacterLockField
 }
 
 /**
+ * The French noun phrase for each of the sixteen sheet fields (CAL-097) — one
+ * table for the lock button, the editor's own field labels and the edit
+ * history's "changed fields" line, `BIBLE_LOCK_LABELS`'s reason for living
+ * here rather than in `apps/web`: this module already holds the French copy
+ * this exact concern needs.
+ */
+export const CHARACTER_LOCK_FIELD_LABELS: Readonly<Record<CharacterLockField, string>> = {
+  NAME: "Nom",
+  AGE: "Âge",
+  ROLE: "Rôle",
+  IMPORTANCE: "Importance",
+  APPEARANCE: "Apparence",
+  INITIAL_SITUATION: "Situation initiale",
+  APPARENT_DESIRE: "Désir apparent",
+  DEEP_NEED: "Besoin profond",
+  FEAR: "Peur",
+  CONTRADICTION: "Contradiction",
+  SECRET: "Secret",
+  PAST: "Passé",
+  PLANNED_ARC: "Évolution prévue",
+  SPEECH_STYLE: "Manière de parler",
+  HELD_KNOWLEDGE: "Connaissances détenues",
+  ELEMENTS_TO_PRESERVE: "Éléments à ne pas modifier",
+};
+
+/**
  * The one model a lock can name a field of.
  *
  * A constant rather than a condition written out at each of the four sites that

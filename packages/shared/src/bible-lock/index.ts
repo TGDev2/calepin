@@ -39,6 +39,7 @@ export {
   BIBLE_LOCKABLE_MODELS,
   type BibleLockableModel,
   type BibleLockLabel,
+  CHARACTER_LOCK_FIELD_LABELS,
   CHARACTER_LOCK_FIELDS,
   type CharacterLockField,
   FIELD_LOCKABLE_MODEL,

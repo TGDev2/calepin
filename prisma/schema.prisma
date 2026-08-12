@@ -105,6 +105,7 @@ model User {
   chapterRevisionsCreated     ChapterRevision[]
   chapterSummariesCreated     ChapterSummaryRevision[]
   partSummariesCreated        PartSummaryRevision[]
+  characterEditHistoryEntries CharacterEditHistory[]
   exportsRequested            Export[]                  @relation("ExportRequestedBy")
 
   /// The audit trail (CAL-022): every mutable row this account last modified.
@@ -1093,6 +1094,8 @@ model Character {
   chapterOutlinesFocal  ChapterOutline[]
   /// The planned chapters this character is present in (CAL-019).
   chapterAppearances    ChapterOutlineCharacter[]
+  /// What a hand edit changed, and what it replaced (CAL-097).
+  editHistory           CharacterEditHistory[]
 
   // The target of Relationship's two composite foreign keys. It is what makes a
   // relationship between two bibles unstorable rather than merely unlikely.
@@ -1105,6 +1108,62 @@ model Character {
   // "The main characters of this bible", without reading a single sheet.
   @@index([bibleId, importance])
   @@map("characters")
+}
+
+/// One saved hand edit of a sheet (CAL-097) — append-only, and never itself
+/// lockable: it is the record of an edit, not a bible element a generation
+/// could rewrite.
+///
+/// **A snapshot, not a diff.** `ChapterRevision`'s own convention: every
+/// column below is the sheet's value *before* this edit reached it, so
+/// reading one row and the current `Character` row side by side is the whole
+/// comparison — no field-by-field patch to replay. `changedFields` is
+/// computed once, at write time, so the history screen never re-derives it
+/// by diffing two snapshots against each other.
+///
+/// No `updatedAt`, no audit block (CLAUDE.md §4.3's `Revision` rule): the row
+/// is never modified once written, and `editedById`/`editedAt` already name
+/// who and when. Project-owned — walked to `Project` through `character` in
+/// `owned-models.ts` — but listed in `duplication-plan.ts`'s
+/// `UNDUPLICATED_MODELS`: it is a record of edits made to the original, not
+/// part of the novel, so a duplicated project leaves it behind.
+model CharacterEditHistory {
+  id          String @id @default(cuid())
+  characterId String
+
+  name               String
+  age                Int?
+  role               String?
+  importance         CharacterImportance
+  appearance         String?
+  initialSituation   String?
+  apparentDesire     String?
+  deepNeed           String?
+  fear               String?
+  contradiction      String?
+  secret             String?
+  past               String?
+  plannedArc         String?
+  speechStyle        String?
+  heldKnowledge      String[] @default([])
+  elementsToPreserve String[] @default([])
+
+  /// Which of the sixteen fields above this edit actually changed — the enum
+  /// CAL-095 already gives every sheet field, reused rather than restated.
+  changedFields CharacterField[] @default([])
+
+  editedAt   DateTime @default(now())
+  editedById String
+  // Restrict, as ChapterRevision.createdBy already is: the record of who
+  // made an edit is the audit trail and must not be silently orphaned.
+  // Deleting a project still works — it cascades this table away, through
+  // Character, before the reference to the user is checked.
+  editedBy   User     @relation(fields: [editedById], references: [id], onDelete: Restrict)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, editedAt])
+  @@map("character_edit_history")
 }
 
 /// The nature of a tie. The specification names no list, so this one is

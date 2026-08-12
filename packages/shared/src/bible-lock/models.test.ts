@@ -7,6 +7,7 @@ import { PROJECT_OWNED_MODEL_NAMES } from "../repository/owned-models";
 import {
   BIBLE_LOCK_LABELS,
   BIBLE_LOCKABLE_MODELS,
+  CHARACTER_LOCK_FIELD_LABELS,
   CHARACTER_LOCK_FIELDS,
   FIELD_LOCKABLE_MODEL,
   isBibleLockableModel,
@@ -110,6 +111,14 @@ describe("FIELD_LOCKABLE_MODEL", () => {
 
       expect(modelBlock(model)).not.toMatch(/lockedFields/);
     }
+  });
+});
+
+describe("CHARACTER_LOCK_FIELD_LABELS", () => {
+  it("names every lockable field, and only those", () => {
+    expect(Object.keys(CHARACTER_LOCK_FIELD_LABELS).sort()).toEqual(
+      [...CHARACTER_LOCK_FIELDS].sort(),
+    );
   });
 });
 

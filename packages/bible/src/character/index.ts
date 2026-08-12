@@ -1,9 +1,16 @@
 /**
- * The character sheet: contract, knowledge vocabulary, verification and
- * resolution (CAL-090). `fixtures.ts` is deliberately absent — test material,
- * not public surface.
+ * The character sheet: contract, knowledge vocabulary, verification,
+ * resolution and hand-editing (CAL-090, CAL-097). `fixtures.ts` is
+ * deliberately absent — test material, not public surface.
  */
 
+export {
+  CHARACTER_EDIT_CHAR_CEILINGS,
+  CHARACTER_EDIT_LIST_MAX,
+  type CharacterContent,
+  characterContentSchema,
+  parseCharacterContent,
+} from "./edit";
 export {
   CHARACTER_KNOWLEDGE_STANCE_LABELS,
   CHARACTER_KNOWLEDGE_STANCE_PREFIXES,

@@ -83,6 +83,7 @@ export const UNDUPLICATED_MODELS = {
   QualityIssuePassage: "an anchor into an issue the copy does not have",
   Export: "names a storage object the original owns, with its own expiry",
   Publication: "holds a globally unique slug and a first-publication date; a copy is unpublished",
+  CharacterEditHistory: "a record of edits made to the original sheet; the copy starts with none",
 } as const satisfies Partial<Record<ProjectOwnedModelName, string>>;
 
 export type UnduplicatedModelName = keyof typeof UNDUPLICATED_MODELS;

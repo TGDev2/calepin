@@ -63,6 +63,15 @@ export {
   unlockBibleElement,
 } from "./bible-lock";
 export {
+  type CharacterContentInput,
+  type CharacterEdited,
+  type CharacterEditHistoryEntry,
+  type CharacterEditSnapshot,
+  editCharacter,
+  type EditCharacterInput,
+  getCharacterForEdit,
+} from "./character";
+export {
   type CanonicalDirectionSelected,
   type DirectionContentInput,
   type DirectionDiscarded,

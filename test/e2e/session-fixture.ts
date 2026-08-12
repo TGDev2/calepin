@@ -1088,3 +1088,88 @@ export async function seedProjectWithBible(userId: string, title: string): Promi
     await prisma.$disconnect();
   }
 }
+
+export interface SeededCharacterSheet extends SeededProject {
+  readonly characterId: string;
+  readonly relatedCharacterId: string;
+}
+
+/**
+ * A bible carrying one fully filled sheet (CAL-097): all sixteen own-row
+ * fields set, one field locked (`FEAR`), one outgoing tie to a second
+ * character — enough for the editor's fields, its lock control, its history
+ * (once a spec edits something) and its "accès direct aux autres fiches" all
+ * to have something real to show.
+ */
+export async function seedProjectWithCharacterSheet(
+  userId: string,
+  title: string,
+): Promise<SeededCharacterSheet> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({
+      data: { userId, title, updatedById: userId },
+    });
+
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+
+    const character = await prisma.character.create({
+      data: {
+        bibleId: bible.id,
+        name: "Corentin Maillard",
+        age: 34,
+        role: "ancien associé",
+        importance: "MAIN",
+        appearance: "une cicatrice à la tempe",
+        initialSituation: "revient dans sa ville natale",
+        apparentDesire: "récupérer sa maison",
+        deepNeed: "être pardonné",
+        fear: "être oublié",
+        contradiction: "veut réparer et ne sait que fuir",
+        secret: "il a menti sur la date de son retour",
+        past: "a quitté la ville sans un mot, quinze ans plus tôt",
+        plannedArc: "affronte enfin ce qu'il a fui",
+        speechStyle: "phrases courtes, jamais un compliment direct",
+        heldKnowledge: ["Sait : la maison a été vendue"],
+        elementsToPreserve: ["son silence sur le départ"],
+        origin: "GENERATED",
+        lockedFields: ["FEAR"],
+        updatedById: userId,
+      },
+    });
+
+    const related = await prisma.character.create({
+      data: {
+        bibleId: bible.id,
+        name: "Élise Fougeray",
+        importance: "SECONDARY",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    await prisma.relationship.create({
+      data: {
+        bibleId: bible.id,
+        fromCharacterId: character.id,
+        toCharacterId: related.id,
+        type: "PROFESSIONAL",
+        label: "ancienne associée de",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    return {
+      projectId: project.id,
+      title,
+      characterId: character.id,
+      relatedCharacterId: related.id,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

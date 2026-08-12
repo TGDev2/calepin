@@ -565,6 +565,9 @@ describe("prisma schema", () => {
       // chapter names its cast, a sheet does not name its chapters.
       "chapterOutlinesFocal",
       "chapterAppearances",
+      // The record of hand edits (CAL-097). A back-relation, not a sheet
+      // field: it is written on the history row, never on the sheet itself.
+      "editHistory",
     ];
 
     const characterSheetFields = modelFields("Character").filter(
