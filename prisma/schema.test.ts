@@ -1748,6 +1748,7 @@ describe("prisma schema", () => {
           "DETECT_BIBLE_CONTRADICTIONS", // CAL-099
           "SPLIT_INTO_PARTS", // CAL-101
           "BUILD_CHAPTER_OUTLINE",
+          "SPLIT_CHAPTER_OUTLINE", // CAL-106
           "WRITE_SCENE",
           "EXTRACT_FACTS",
           "CHECK_COHERENCE",

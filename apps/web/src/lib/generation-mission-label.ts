@@ -29,6 +29,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   DETECT_BIBLE_CONTRADICTIONS: "Contrôle de cohérence de la bible",
   SPLIT_INTO_PARTS: "Découpage en parties",
   BUILD_CHAPTER_OUTLINE: "Plans de chapitre d'une partie",
+  SPLIT_CHAPTER_OUTLINE: "Répartition d'une scission de chapitre",
   WRITE_SCENE: "Rédaction d'une scène",
   EXTRACT_FACTS: "Extraction des faits",
   CHECK_COHERENCE: "Contrôle de cohérence",

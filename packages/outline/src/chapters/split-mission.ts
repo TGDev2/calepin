@@ -19,13 +19,13 @@
  * (`factDecompositionSchema`'s device, CAL-094).
  *
  * **A declaration is checked only where it could flatter the answer.** A
- * placement claiming `first`, `second` or `both` claims the source's own
- * wording was *kept*, and that is verified against the halves through
- * `createVerbatimMatcher`; `rewritten` claims nothing and is taken at its word.
- * Claiming a copy that is not there is the lie that hides a rewrite behind a
- * reassuring word; claiming a rewrite that turned out to be a copy costs
- * nobody anything (the `dimensionTreatments` and `OutOfNormCapability` device,
- * pointed at the half of the declaration that can lie).
+ * placement claiming `first`, `second`, `both` or `divided` claims the source's
+ * own wording was *kept*, and each of the four is verified against the halves
+ * through `createVerbatimMatcher`; `rewritten` claims nothing and is taken at
+ * its word. Claiming a copy that is not there is the lie that hides a rewrite
+ * behind a reassuring word; claiming a rewrite that turned out to be a copy
+ * costs nobody anything (the `dimensionTreatments` and `OutOfNormCapability`
+ * device, pointed at the half of the declaration that can lie).
  *
  * **A proposal resolves into an arbitration.** `resolveChapterSplitProposal`
  * hands back exactly the `ChapterSplitArbitration` a person would have filled

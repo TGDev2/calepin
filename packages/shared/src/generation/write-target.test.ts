@@ -157,10 +157,13 @@ describe("missionsWritingTo", () => {
       "PROPOSE_DIRECTIONS",
       "REPLACE_DIRECTION",
     ]);
-    // The two plan missions share the project-wide outline target, so a
-    // chapter plan cannot be built while the parts are being recut (CAL-101).
+    // The plan missions share the project-wide outline target, so a chapter
+    // plan cannot be built while the parts are being recut (CAL-101), and a
+    // chapter cannot be split while a batch is being planned around it
+    // (CAL-106).
     expect(missionsWritingTo("outline").sort()).toEqual([
       "BUILD_CHAPTER_OUTLINE",
+      "SPLIT_CHAPTER_OUTLINE",
       "SPLIT_INTO_PARTS",
     ]);
   });

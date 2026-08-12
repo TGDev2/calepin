@@ -147,6 +147,20 @@
  * all. Re-proposing **one** chapter against locked neighbours is CAL-111's
  * own mission, the `regenerate-analysis-section`/`replace-direction`
  * precedent: a different ask, not this one rendered narrow.
+ *
+ * `split-chapter-outline` (CAL-106) is the third plan mission and the only one
+ * handed a chapter that already exists. `build-chapter-outline` invents a
+ * sequence under a frame; this one is given one chapter's sixteen attributes
+ * and asked **where to cut them in two** — under a constraint no batch ask can
+ * state, that everything the chapter carried comes out the other side. That is
+ * why the answer is not two chapter plans alone: it carries a `placements`
+ * account, one entry per character, per fact, per thread action and per prose
+ * column, each with the reason for where it went, and the account's
+ * exhaustiveness is what makes *aucune information perdue* checkable at the
+ * answer rather than hoped for. The merge has no mission at all and wants
+ * none: consolidating two chapters is arithmetic (union the references, join
+ * the prose), while deciding which consequence belongs to which half is
+ * judgement — §5.4's division, drawn between two halves of one feature.
  */
 
 export const MISSION_IDS = [
@@ -168,6 +182,7 @@ export const MISSION_IDS = [
   "detect-bible-contradictions",
   "split-into-parts",
   "build-chapter-outline",
+  "split-chapter-outline",
   "write-scene",
   "extract-facts",
   "check-coherence",

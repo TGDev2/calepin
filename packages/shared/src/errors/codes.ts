@@ -127,6 +127,38 @@ export const ERROR_CODES = [
    * to tick would go stale, a decision on file cannot.
    */
   "BIBLE_NOT_COHERENT",
+  /**
+   * Two chapters cannot be merged as the plan stands (CAL-106) — they are not
+   * adjacent, they sit in two parts, one is already written or one plan is
+   * locked. `conflict` for `BIBLE_ELEMENT_LOCKED`'s reason: the request is well
+   * formed and nothing about it needs correcting; what stands in the way is the
+   * state of the plan, and the remedy is a move, an unlock or nothing at all.
+   *
+   * Its own code, and so is the split's, because the interface answers each by
+   * naming the obstacle from the report rather than by printing a sentence.
+   */
+  "CHAPTER_MERGE_REFUSED",
+  /**
+   * The merge would drop the second chapter's place, its focal role or its
+   * period precision, and the caller did not say they knew (CAL-106).
+   *
+   * `OBSOLESCENCE_NOT_ACKNOWLEDGED`'s device applied to a consolidation: a
+   * chapter has one place, one focal character and one precision, so a merge of
+   * two that disagree has to choose — and *aucune information ne doit être
+   * perdue* is only a property of the write if the write refuses until somebody
+   * has read what would go. Never asked when nothing would be lost, for the
+   * same reason as there: a confirmation of an empty warning teaches an author
+   * to tick without reading.
+   */
+  "CHAPTER_MERGE_LOSS_NOT_ACKNOWLEDGED",
+  /**
+   * The arbitrated redistribution does not account for what the chapter carried
+   * (CAL-106) — an element on neither half, an element on a half that never
+   * held it, one thread endpoint claimed twice, a thread closed before it
+   * opens. `conflict` for `CHAPTER_MERGE_REFUSED`'s reason, and its own code so
+   * the screen can put every finding back beside the control that produced it.
+   */
+  "CHAPTER_SPLIT_REFUSED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -308,6 +340,9 @@ export const CATEGORY_BY_CODE = {
   ANALYSIS_NOT_VALIDATED: "conflict",
   BIBLE_ELEMENT_LOCKED: "conflict",
   BIBLE_NOT_COHERENT: "conflict",
+  CHAPTER_MERGE_REFUSED: "conflict",
+  CHAPTER_MERGE_LOSS_NOT_ACKNOWLEDGED: "conflict",
+  CHAPTER_SPLIT_REFUSED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

@@ -553,6 +553,29 @@ export const MISSION_REGISTRY = {
   },
 
   /**
+   * One chapter cut in two (CAL-106). `xhigh` for a narrower ask than the
+   * batch's but the same failure mode: the plausible-looking split is the one
+   * that quietly drops a thread action or leaves both halves chasing the same
+   * objective, and neither shows up reading either half alone. The ask is one
+   * chapter and its neighbourhood rather than a whole part, so the context
+   * budget is a third of the batch's; the answer is two chapter plans plus one
+   * placement per element, which is roughly two chapters' worth of fields and
+   * about seventy short reasons.
+   */
+  "split-chapter-outline": {
+    id: "split-chapter-outline",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "outline" },
+    contextBudgetTokens: 20_000,
+    expectedUsage: { inputTokens: 8_000, outputTokens: 3_000 },
+    expectedDurationMs: 90_000,
+  },
+
+  /**
    * The prose itself, and the only mission that produces any: everything a
    * reader reads comes from here. Largest output cap and longest deadline of
    * the twenty, on the strongest model — this is not where a cost saving is

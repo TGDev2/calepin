@@ -60,6 +60,7 @@ export const MISSION_QUEUE: Readonly<Record<Mission, GenerationQueueName>> = {
   EXTRACT_INITIAL_FACTS: "generation-slow",
   SPLIT_INTO_PARTS: "generation-slow",
   BUILD_CHAPTER_OUTLINE: "generation-slow",
+  SPLIT_CHAPTER_OUTLINE: "generation-slow",
   WRITE_SCENE: "generation-slow",
   FIX_ISSUE: "generation-slow",
 };

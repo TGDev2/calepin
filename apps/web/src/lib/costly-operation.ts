@@ -58,6 +58,7 @@ export const MISSION_ID_BY_GENERATION_MISSION = {
   DETECT_BIBLE_CONTRADICTIONS: "detect-bible-contradictions",
   SPLIT_INTO_PARTS: "split-into-parts",
   BUILD_CHAPTER_OUTLINE: "build-chapter-outline",
+  SPLIT_CHAPTER_OUTLINE: "split-chapter-outline",
   WRITE_SCENE: "write-scene",
   EXTRACT_FACTS: "extract-facts",
   CHECK_COHERENCE: "check-coherence",
