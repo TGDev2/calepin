@@ -88,6 +88,7 @@ narrative rule, and never restates a domain schema.
   | `detect-bible-contradictions` | Opus 5   | xhigh  | 8 k     | 300 s   | bible      | 60 k   | 24 k / 3 k      |
   | `split-into-parts`            | Opus 5   | xhigh  | 8 k     | 300 s   | outline    | 40 k   | 14 k / 4 k      |
   | `build-chapter-outline`       | Opus 5   | xhigh  | 20 k    | 300 s   | outline    | 60 k   | 24 k / 6 k      |
+  | `split-chapter-outline`       | Opus 5   | xhigh  | 8 k     | 300 s   | outline    | 20 k   | 8 k / 3 k       |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
   | `check-coherence`             | Opus 5   | xhigh  | 16 k    | 600 s   | coherence  | 120 k  | 40 k / 10 k     |
@@ -547,6 +548,18 @@ measured tokens at today's tariff, never replayed from a recorded price.
   for a close exactly in a thread's last assigned part — the last part of the
   novel closing everything still open. V1 predates the batch contract and
   stays beside V2, append-only (CAL-053).
+
+- **The scission of one chapter** — `split-chapter-outline` V1 (CAL-106). The
+  design problem is not *write two chapters*: the batch mission already does
+  that, with a whole part in view. It is **do not lose anything on the way** —
+  a model handed one chapter and asked for two produces two plausible ones and
+  silently drops the thread it could not place. Three ideas answer that: the
+  cut is named and argued before the halves are; every element is accounted
+  for one by one in `placements`, with where it went and why; and the
+  vocabulary is closed and numbered, so a claim that a column was *kept* can
+  be read back against the text the ask showed. The merge has no prompt at
+  all — consolidating two chapters is arithmetic, and §5.4 gives a mission
+  only to the half that is judgement.
 
 ## What arrives in its own task
 

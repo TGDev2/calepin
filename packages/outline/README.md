@@ -115,11 +115,42 @@ extracted by CAL-102 when the chapter batch gave it a second reader).
   `Chapter`/`ChapterOutline`/`Thread` rows and order keys belong to the
   executor task.
 
-**Two entry points, and the split is load-bearing.** `@calepin/outline` is the
-whole surface; `@calepin/outline/calibration` is the pure half — the ranges,
-the chapter maths and their types, with no database read anywhere in its module
-graph. A browser bundle must import the second: the root barrel re-exports
-`getPlanGenerationContext`, which reaches `@calepin/shared/repository` and
-through it `node:async_hooks`, and Turbopack answers a server-only module in a
-client chunk by refusing to build the page rather than shaking the unused
-branch out. `apps/web`'s creation wizard is the caller this exists for.
+`chapters/cut.ts`, `chapters/merge.ts`, `chapters/split.ts`,
+`chapters/split-mission.ts` — re-cutting a plan that already exists (CAL-106).
+
+- `ChapterCutSource` / `ChapterCutOutline` — the one structural projection both
+  operations read a chapter through, nullable exactly as the columns are, with
+  references as ids because both rewrite rows. `revisionCount` is on it because
+  a written chapter refuses both operations.
+- `planChapterMerge` — the survivor is the first chapter and keeps its id, its
+  part and its order key; the prose is joined behind `CHAPTER_MERGE_CONNECTOR`,
+  the references unioned, the period the union interval at the coarser
+  precision, the target word counts summed and never clamped. Five defects
+  refuse whole; three `CHAPTER_MERGE_LOSS_KINDS` — the attributes a chapter has
+  only one of — need `acknowledgeLoss` instead.
+- `chapterSplitArbitrationSchema` / `checkChapterSplit` — the author's final
+  word and the conservation arithmetic that refuses it: nothing of the source
+  on neither half, nothing on a half the source did not carry, plus the
+  endpoint, ordering, focal, span and ±10 % budget rules. Prose is accounted
+  for and never refused (`rewritten-prose`).
+- `chapterSplitInputSchema` / `chapterSplitProposalSchema` — the
+  `split-chapter-outline` mission: two halves, a `cutPoint` pair, and a
+  `placements` account covering every element with the reason for where it
+  went. `verifyChapterSplitProposal` runs `checkChapterSplit` itself rather
+  than restating it, and `resolveChapterSplitProposal` returns a
+  `ChapterSplitArbitration` — so a model and a person produce the same thing.
+
+`repository/` — everything that opens a transaction: `moveChapter` (CAL-105),
+`mergeChapters` and `splitChapter` (CAL-106), and `getPlanGenerationContext`.
+
+**Three entry points, and the split is load-bearing.** `@calepin/outline` is
+the whole **pure** surface; `@calepin/outline/repository` holds everything that
+touches a database; `@calepin/outline/calibration` is the pure half of
+`target-length` alone, for callers that want nothing else. Until CAL-106 the
+root barrel re-exported `getPlanGenerationContext`, which reaches
+`@calepin/shared/repository` and through it `node:async_hooks` — so the first
+*value* import of the root barrel from a client component failed `pnpm build`
+inside Turbopack, naming a page unrelated to the change. Moving that read
+behind `/repository` is what makes the root barrel importable from a browser
+chunk, which the plan screen's arbitration form needs (it runs
+`checkChapterSplit` as a live preview).
