@@ -35,6 +35,7 @@ import {
   duplicateProject,
   editAnalysisSection,
   getAnalysis,
+  getBibleOverview,
   getDirectionsForComparison,
   getGenerationContextForProject,
   getProjectForOwner,
@@ -130,6 +131,7 @@ const ENTRY_POINTS = [
   "editDirection",
   "editRelationship",
   "getAnalysis",
+  "getBibleOverview",
   "getDirectionsForComparison",
   "getGenerationContextForProject",
   "getProjectForOwner",
@@ -1040,6 +1042,54 @@ describe("owner access policy", () => {
       });
 
       const theirs = await getAnalysis(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs).toBeNull();
+    });
+
+    // CAL-096's consultation screen. The nine parallel reads are exercised at
+    // once through the same graph the other entry points share, rather than
+    // isolated the way `getRelationshipGraph` is: nothing here classifies or
+    // orders the rows, so one cast, one tie, one place, one rule, one event
+    // and one fact are enough to prove every section is scoped, and a second
+    // fixture would only repeat this one.
+    it("getBibleOverview refuses another owner's project", async () => {
+      const mine = await getBibleOverview(aliceScope);
+
+      expect(mine).toMatchObject({
+        bibleId: alice.rows.Bible,
+        validatedAt: null,
+        identity: { workingTitle: "fixture", origin: "GENERATED", lockedAt: null },
+        style: { pointOfView: "fixture", origin: "GENERATED", lockedAt: null },
+        world: { era: "fixture", origin: "GENERATED", lockedAt: null },
+        places: [{ id: alice.rows.Place, name: "owner-access-alice-place", origin: "GENERATED" }],
+        worldRules: [
+          { id: alice.rows.WorldRule, name: "owner-access-alice-rule", origin: "GENERATED" },
+        ],
+        relationships: [
+          { id: alice.rows.Relationship, type: "FAMILY", label: "fixture", origin: "GENERATED" },
+        ],
+        timeline: [
+          {
+            id: alice.rows.TimelineEvent,
+            name: "owner-access-alice-event",
+            origin: "GENERATED",
+            participants: [{ characterId: alice.rows.Character, declaredAge: null }],
+          },
+        ],
+        canonFacts: [
+          {
+            id: alice.rows.CanonFact,
+            statement: "fixture",
+            source: "BIBLE",
+            status: "PROPOSED",
+            beliefs: [{ characterId: alice.rows.Character, state: "BELIEVES_TRUE" }],
+            subjects: [{ characterId: alice.rows.Character, placeId: null }],
+          },
+        ],
+      });
+      expect(mine?.characters).toHaveLength(2);
+      expect(mine?.characters.map((c) => c.id)).toContain(alice.rows.Character);
+
+      const theirs = await getBibleOverview(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs).toBeNull();
     });
 

@@ -40,6 +40,21 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type BibleCanonFactBeliefRow,
+  type BibleCanonFactRow,
+  type BibleCanonFactSubjectRow,
+  type BibleCharacterRow,
+  type BibleIdentityRow,
+  type BibleOverview,
+  type BiblePlaceRow,
+  type BibleStyleRow,
+  type BibleTimelineEventRow,
+  type BibleTimelineParticipantRow,
+  type BibleWorldRow,
+  type BibleWorldRuleRow,
+  getBibleOverview,
+} from "./bible";
+export {
   type BibleElementLockInput,
   type BibleElementLockState,
   lockBibleElement,
