@@ -15,10 +15,12 @@ import {
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { ProvenanceBadge } from "@/components/provenance-badge";
 import { SubmitButton } from "@/components/submit-button";
 import {
   analysisPath,
   analysisValidationErrorMessage,
+  PROVENANCE_LABELS,
   readAnalysisSection,
 } from "@/lib/analysis-edit";
 import { getCurrentUser } from "@/lib/current-user";
@@ -35,7 +37,6 @@ import { AnnotationDeleteForm } from "./annotation-delete-form";
 import { AnnotationForm } from "./annotation-form";
 import { ElementKindBadge } from "./element-kind-badge";
 import styles from "./page.module.css";
-import { ProvenanceBadge } from "./provenance-badge";
 import { SectionEditor, type SectionEditorRow } from "./section-editor";
 import { SECTION_META } from "./section-metadata";
 
@@ -108,9 +109,11 @@ export default async function AnalysisPage({
 
           <p className={styles.intro}>
             Un second marqueur dit d&apos;où vient chaque élément et le reste après vos
-            modifications : <ProvenanceBadge provenance="proposed" />{" "}
-            <ProvenanceBadge provenance="accepted" /> <ProvenanceBadge provenance="edited" />{" "}
-            <ProvenanceBadge provenance="user-written" />
+            modifications :{" "}
+            <ProvenanceBadge provenance="proposed" {...PROVENANCE_LABELS.proposed} />{" "}
+            <ProvenanceBadge provenance="accepted" {...PROVENANCE_LABELS.accepted} />{" "}
+            <ProvenanceBadge provenance="edited" {...PROVENANCE_LABELS.edited} />{" "}
+            <ProvenanceBadge provenance="user-written" {...PROVENANCE_LABELS["user-written"]} />
           </p>
 
           {validationError === null ? null : (
@@ -235,7 +238,10 @@ function SectionContent({
                 <span className={styles.elementLabel}>{element.label}</span>
               )}
               <ElementKindBadge kind={element.kind} />
-              <ProvenanceBadge provenance={element.provenance} />
+              <ProvenanceBadge
+                provenance={element.provenance}
+                {...PROVENANCE_LABELS[element.provenance]}
+              />
             </div>
 
             <p className={styles.elementStatement}>{element.statement}</p>

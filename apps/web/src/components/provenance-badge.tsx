@@ -1,27 +1,27 @@
 import type { ProvenanceState } from "@calepin/shared/provenance";
 
-import { PROVENANCE_LABELS } from "@/lib/analysis-edit";
-
 import styles from "./provenance-badge.module.css";
 
 interface ProvenanceBadgeProps {
   readonly provenance: ProvenanceState;
+  readonly label: string;
+  readonly explanation: string;
 }
 
 /**
- * Where one element of the diagnostic came from (CAL-073) — the second marker
- * on the screen, built to CAL-072's rule: a distinct icon shape, a visible
- * French label and a border style each carry the distinction on their own, so
- * it survives a colorblind eye, a monochrome print and a screen reader.
+ * Where one element came from (CAL-073) — a distinct icon shape, a visible
+ * French label and a border style each carry the distinction on their own
+ * (CAL-072's rule), so it survives a colorblind eye, a monochrome print and a
+ * screen reader.
  *
- * The four states are `@calepin/shared/provenance`'s and are never re-derived
- * here; the words are `PROVENANCE_LABELS`'. `title` carries the one-sentence
- * explanation for a pointer, and the same sentence is in the visually hidden
- * span for everyone else — a `title` alone is invisible to a keyboard.
+ * `label`/`explanation` are the caller's words, not this component's: the
+ * analysis screen and the bible screen (CAL-096) each read "proposed" in
+ * their own domain's terms, and a component that imported one fixed table
+ * could not serve both. `title` carries the explanation for a pointer, and
+ * the same sentence sits in a visually hidden span for everyone else — a
+ * `title` alone is invisible to a keyboard.
  */
-export function ProvenanceBadge({ provenance }: ProvenanceBadgeProps) {
-  const { label, explanation } = PROVENANCE_LABELS[provenance];
-
+export function ProvenanceBadge({ provenance, label, explanation }: ProvenanceBadgeProps) {
   return (
     <span className={`${styles.badge} ${styles[VARIANT[provenance]]}`} title={explanation}>
       <Icon provenance={provenance} />
@@ -39,7 +39,7 @@ const VARIANT = {
   "user-written": "userWritten",
 } as const satisfies Record<ProvenanceState, string>;
 
-function Icon({ provenance }: ProvenanceBadgeProps) {
+function Icon({ provenance }: { readonly provenance: ProvenanceState }) {
   return (
     <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path fill="currentColor" d={ICON_PATH[provenance]} />
