@@ -14,6 +14,28 @@ export {
   checkChapterOutlineBatch,
 } from "./check";
 export {
+  CHAPTER_MERGE_CONNECTOR,
+  CHAPTER_MERGE_DEFECT_KINDS,
+  CHAPTER_MERGE_LOSS_KINDS,
+  CHAPTER_MERGE_TITLE_CONNECTOR,
+  CHAPTER_PROSE_COLUMNS,
+  type ChapterMergeDefect,
+  type ChapterMergeDefectKind,
+  type ChapterMergeLoss,
+  type ChapterMergeLossKind,
+  type ChapterMergeOutcome,
+  type ChapterMergePlan,
+  type ChapterMergeReport,
+  type ChapterMergeRequest,
+  chapterMergeRequestSchema,
+  type ChapterProseColumn,
+  type MergeableChapter,
+  type MergeableChapterOutline,
+  type MergedChapterOutline,
+  parseChapterMergeRequest,
+  planChapterMerge,
+} from "./merge";
+export {
   CHAPTER_REVELATION_CONNECTOR,
   resolveChapterOutlineBatch,
   type ResolvedChapterOutlineBatch,
