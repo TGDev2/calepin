@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (twenty since CAL-092), pinned
+- `missions.ts` — the mission identifiers (twenty-one since CAL-093), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -83,6 +83,7 @@ narrative rule, and never restates a domain schema.
   | `create-character-sheet`      | Opus 5   | high   | 8 k     | 240 s   | bible      | 40 k   | 12 k / 4 k      |
   | `relate-characters`           | Opus 5   | high   | 12 k    | 300 s   | bible      | 60 k   | 20 k / 5 k      |
   | `define-world`                | Opus 5   | high   | 10 k    | 300 s   | bible      | 40 k   | 14 k / 4 k      |
+  | `build-timeline`              | Opus 5   | xhigh  | 14 k    | 300 s   | bible      | 50 k   | 18 k / 6 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -481,6 +482,16 @@ measured tokens at today's tariff, never replayed from a recorded price.
   quoted without its bounds is an open offer to a scene short of an exit,
   and the audit can now ask of what a character *can do* what it already
   asked of what they know.
+
+- **The chronology** — `build-timeline` (CAL-093), the bible's sixth section
+  and the first mission whose answer a calculation can settle. The prompt is
+  written around that: it states the day axis and the one conversion behind
+  it, says plainly that the redundancy it asks for — a day, a duration and an
+  age for the same instant — is the evidence a check will read, and names the
+  failure mode with its own subtraction (*34 ans aujourd'hui, 12 ans il y a
+  trente ans*) rather than instructing the model to be careful. It is the one
+  mission at `xhigh` in the bible stage, for the reason the backlog gives:
+  cross-checking a chronology is reasoning rather than writing.
 
 ## What arrives in its own task
 

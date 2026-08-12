@@ -90,4 +90,25 @@ exceptions to them, in the French the writing context and the coherence prompt
 quote — which is where the bounds stop being a declaration and start being what
 makes a resolution by convenience detectable (CAL-114, CAL-159).
 
+`build-timeline` (CAL-093) is the sixth, and the only one whose answer is
+checked by calculation rather than judged by shape. The other five refuse a bad
+answer by leaving it no room to arrive in — a rule that forbids nothing, a
+constraint with no consequence, a basis quoting nothing; a chronology instead
+produces numbers that either can or cannot all be true at once, and
+`checkTimelineArithmetic` decides that without asking a model anything. It reads
+positions rather than names, so a database row satisfies it as readily as an
+answer and CAL-133 can re-run it over the events a chapter actually told.
+
+Two arrays rather than a category field, so `TimelineEvent.category` is written
+from provenance and an initial chronology has no way to narrate anything —
+`resolveWorldRules`' arrangement one section over. Two demands the column
+deliberately does not make: an age on every presence and a day for every event,
+because without either a model can satisfy the contract and leave the
+calculation nothing to read. The age rule is one birth-day window per character,
+intersected across every statement about them; the intersection running empty is
+the inconsistency, and what is reported is what disagrees with the reading most
+of the statements support rather than a disjoint pair. `unverifiableAges` counts
+what the calculation could **not** establish, because a chronology dated to the
+decade passes trivially and silence must not read as approval.
+
 Backlog: E09 — CAL-088 to CAL-100. Schemas: CAL-016, CAL-017, CAL-018.
