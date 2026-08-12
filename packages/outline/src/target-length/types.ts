@@ -38,3 +38,16 @@ export interface ChapterCalibration {
   readonly chapterCount: number;
   readonly chapterTargetWordCount: number;
 }
+
+/**
+ * What a novel-length choice is worth in parts (CAL-101). A range rather than
+ * `ChapterCalibration`'s single count, because how many parts a novel takes is
+ * itself a dramatic decision — the mission chooses within the range, and the
+ * checker refuses a split outside it.
+ */
+export interface PartCalibration {
+  /** The choice resolved to a single number — a preset's midpoint, or the custom value. */
+  readonly novelTargetWordCount: number;
+  readonly minParts: number;
+  readonly maxParts: number;
+}

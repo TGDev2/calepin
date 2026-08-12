@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateChapterCalibration, resolveNovelTargetWordCount } from "./calibrate";
+import {
+  estimateChapterCalibration,
+  estimatePartCalibration,
+  PART_COUNT_RANGE,
+  partCalibrationForWordCount,
+  resolveNovelTargetWordCount,
+} from "./calibrate";
 import type { NovelLengthChoice } from "./types";
 
 describe("resolveNovelTargetWordCount", () => {
@@ -86,6 +92,94 @@ describe("estimateChapterCalibration", () => {
       const deviation = Math.abs(sum - novelTargetWordCount) / novelTargetWordCount;
 
       expect(deviation).toBeLessThan(0.1);
+    }
+  });
+});
+
+describe("estimatePartCalibration", () => {
+  // CAL-101's acceptance bar — "le découpage s'adapte réellement" — proved at
+  // the source: the three presets resolve to three distinct ranges, so a split
+  // acceptable for a short novel is refusable for a long one before any model
+  // is asked anything.
+  it("derives a distinct part-count range for each preset", () => {
+    expect(estimatePartCalibration({ targetLength: "SHORT" })).toEqual({
+      novelTargetWordCount: 37_500,
+      minParts: 2,
+      maxParts: 3,
+    });
+    expect(estimatePartCalibration({ targetLength: "STANDARD" })).toEqual({
+      novelTargetWordCount: 65_000,
+      minParts: 3,
+      maxParts: 5,
+    });
+    expect(estimatePartCalibration({ targetLength: "LONG" })).toEqual({
+      novelTargetWordCount: 95_000,
+      minParts: 4,
+      maxParts: 6,
+    });
+  });
+
+  it("adapts to a custom choice at both extremes of its range", () => {
+    // The floor collapses to [2, 2]: a 20 000-word novel gets exactly two
+    // parts, because below two a découpage is not one.
+    expect(estimatePartCalibration({ targetLength: "CUSTOM", targetWordCount: 20_000 })).toEqual({
+      novelTargetWordCount: 20_000,
+      minParts: 2,
+      maxParts: 2,
+    });
+    expect(estimatePartCalibration({ targetLength: "CUSTOM", targetWordCount: 200_000 })).toEqual({
+      novelTargetWordCount: 200_000,
+      minParts: 10,
+      maxParts: 12,
+    });
+  });
+
+  // One arithmetic serves the estimate, the prompt and the checker's gate —
+  // the wrapper only resolves the choice first.
+  it("wraps partCalibrationForWordCount over the resolved word count", () => {
+    const choices: NovelLengthChoice[] = [
+      { targetLength: "SHORT" },
+      { targetLength: "STANDARD" },
+      { targetLength: "LONG" },
+      { targetLength: "CUSTOM", targetWordCount: 72_000 },
+    ];
+
+    for (const choice of choices) {
+      expect(estimatePartCalibration(choice)).toEqual(
+        partCalibrationForWordCount(resolveNovelTargetWordCount(choice)),
+      );
+    }
+  });
+
+  it("agrees with the chapter calibration on the resolved word count", () => {
+    const choice: NovelLengthChoice = { targetLength: "CUSTOM", targetWordCount: 87_654 };
+
+    expect(estimatePartCalibration(choice).novelTargetWordCount).toBe(
+      estimateChapterCalibration(choice).novelTargetWordCount,
+    );
+  });
+});
+
+describe("partCalibrationForWordCount", () => {
+  it("never leaves the envelope, and never proposes an empty range", () => {
+    for (let words = 20_000; words <= 200_000; words += 1_000) {
+      const { minParts, maxParts } = partCalibrationForWordCount(words);
+
+      expect(minParts).toBeGreaterThanOrEqual(PART_COUNT_RANGE.min);
+      expect(maxParts).toBeLessThanOrEqual(PART_COUNT_RANGE.max);
+      expect(minParts).toBeLessThanOrEqual(maxParts);
+    }
+  });
+
+  it("scales monotonically: more words never allow fewer parts", () => {
+    let previous = partCalibrationForWordCount(20_000);
+
+    for (let words = 21_000; words <= 200_000; words += 1_000) {
+      const current = partCalibrationForWordCount(words);
+
+      expect(current.minParts).toBeGreaterThanOrEqual(previous.minParts);
+      expect(current.maxParts).toBeGreaterThanOrEqual(previous.maxParts);
+      previous = current;
     }
   });
 });

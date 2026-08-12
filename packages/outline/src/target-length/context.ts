@@ -7,17 +7,20 @@ import {
   type ProjectTargetLength,
 } from "@calepin/shared/repository";
 
-import { estimateChapterCalibration } from "./calibrate";
-import type { ChapterCalibration, NovelLengthChoice } from "./types";
+import { estimateChapterCalibration, estimatePartCalibration } from "./calibrate";
+import type { ChapterCalibration, NovelLengthChoice, PartCalibration } from "./types";
 
 /**
  * The context the plan-generation missions must see (CAL-043), on top of
  * `GenerationContext`'s own fields (CAL-042) — the same "grow the shared
  * shape ahead of `@calepin/ai`'s real composer" the language field already
- * established.
+ * established. `partCalibration` joined with CAL-101, for the same reason
+ * `chapterCalibration` was here first: both are read off the one target-length
+ * choice, and a composer reading them from two places could see two choices.
  */
 export interface PlanGenerationContext extends GenerationContext {
   readonly chapterCalibration: ChapterCalibration;
+  readonly partCalibration: PartCalibration;
 }
 
 /**
@@ -41,9 +44,9 @@ export function toNovelLengthChoice(raw: ProjectTargetLength): NovelLengthChoice
 
 /**
  * The plan's own generation context, read ahead of its producer the same way
- * `getGenerationContextForProject` is: no mission calls this yet (CAL-048,
- * CAL-060 still to come), but it is the one place a `build-chapter-outline`
- * call will get its calibration from once one does.
+ * `getGenerationContextForProject` is: no executor calls this yet (§13), but
+ * it is the one place a `split-into-parts` or `build-chapter-outline` call
+ * will get its calibration from once one does.
  */
 export async function getPlanGenerationContext(
   scope: ProjectScope,
@@ -54,11 +57,14 @@ export async function getPlanGenerationContext(
   ]);
 
   return flatMapResult(base, (context) =>
-    flatMapResult(targetLength, (raw) =>
-      succeed({
+    flatMapResult(targetLength, (raw) => {
+      const choice = toNovelLengthChoice(raw);
+
+      return succeed({
         ...context,
-        chapterCalibration: estimateChapterCalibration(toNovelLengthChoice(raw)),
-      }),
-    ),
+        chapterCalibration: estimateChapterCalibration(choice),
+        partCalibration: estimatePartCalibration(choice),
+      });
+    }),
   );
 }

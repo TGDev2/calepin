@@ -1,8 +1,8 @@
 /**
  * `getPlanGenerationContext` (CAL-043), against a real PostgreSQL: it must
- * carry `GenerationContext`'s own fields (CAL-042) *and* the chapter
- * calibration derived from the project's chosen novel length — for a preset
- * and for a `CUSTOM` choice alike.
+ * carry `GenerationContext`'s own fields (CAL-042) *and* the chapter and part
+ * calibrations (CAL-101) derived from the project's chosen novel length — for
+ * a preset and for a `CUSTOM` choice alike.
  *
  * Same shape as `generation-repository.integration.test.ts`: a
  * `createAuditedClient` for seeding, a separate bare `PrismaClient`
@@ -56,6 +56,12 @@ describe("getPlanGenerationContext (CAL-043)", () => {
       chapterCount: 22,
       chapterTargetWordCount: 2_955,
     });
+    // 65 000 / 18 000 ≈ 4 parts, ±1 (CAL-101).
+    expect(context.value.partCalibration).toEqual({
+      novelTargetWordCount: 65_000,
+      minParts: 3,
+      maxParts: 5,
+    });
   });
 
   it("derives a CUSTOM word count into a chapter calibration", async () => {
@@ -85,6 +91,12 @@ describe("getPlanGenerationContext (CAL-043)", () => {
       novelTargetWordCount: 100_000,
       chapterCount: 33,
       chapterTargetWordCount: 3_030,
+    });
+    // 100 000 / 18 000 ≈ 6 parts, ±1 (CAL-101).
+    expect(context.value.partCalibration).toEqual({
+      novelTargetWordCount: 100_000,
+      minParts: 5,
+      maxParts: 7,
     });
   });
 

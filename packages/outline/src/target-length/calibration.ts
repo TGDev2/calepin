@@ -13,11 +13,18 @@
  * things: the root barrel is this plus the database read.
  */
 
-export { estimateChapterCalibration, resolveNovelTargetWordCount } from "./calibrate";
+export {
+  estimateChapterCalibration,
+  estimatePartCalibration,
+  PART_COUNT_RANGE,
+  partCalibrationForWordCount,
+  resolveNovelTargetWordCount,
+} from "./calibrate";
 export { CUSTOM_TARGET_WORD_COUNT_RANGE, TARGET_LENGTH_RANGES } from "./ranges";
 export {
   type ChapterCalibration,
   type NovelLengthChoice,
+  type PartCalibration,
   TARGET_LENGTHS,
   type TargetLength,
   type TargetLengthRange,
