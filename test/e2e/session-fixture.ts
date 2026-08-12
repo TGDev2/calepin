@@ -954,3 +954,137 @@ export async function seedProjectWithRelationships(
     await prisma.$disconnect();
   }
 }
+
+/**
+ * A bible carrying one row in every section CAL-096's screen reads, with
+ * three things planted on purpose: an identity left unvalidated (so it reads
+ * "Proposition du modèle"), a canon fact confirmed into the canon (so it
+ * reads "Élément validé"), and a locked world rule (so the lock badge has
+ * something to show). One characteristic, otherwise-unlikely word —
+ * "chaudronnerie" — sits nowhere but in one canon fact's statement, which is
+ * what a search spec asserts against rather than a word common enough to
+ * match by accident.
+ */
+export async function seedProjectWithBible(userId: string, title: string): Promise<SeededProject> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({
+      data: { userId, title, updatedById: userId },
+    });
+
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+
+    await prisma.bibleIdentity.create({
+      data: {
+        bibleId: bible.id,
+        workingTitle: "Le dernier quart",
+        genre: "Roman social",
+        subGenre: "Chronique ouvrière",
+        tone: "Sobre",
+        narrativePromise: "Une usine ferme, et ceux qui restent doivent se choisir un avenir.",
+        centralQuestion: "Que devient-on quand le métier qu'on a appris disparaît ?",
+        endingNature: "Fin ouverte",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    await prisma.bibleStyle.create({
+      data: {
+        bibleId: bible.id,
+        pointOfView: "Troisième personne",
+        focalization: "Alternée",
+        tense: "Passé simple",
+        languageRegister: "Populaire, technique par endroits",
+        descriptiveDensity: "Élevée sur les gestes du travail",
+        pacing: "Régulier",
+        dialogueBalance: "Dense",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    await prisma.bibleWorld.create({
+      data: {
+        bibleId: bible.id,
+        era: "Années 1980",
+        socialContext: "Bassin industriel en reconversion",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    const character = await prisma.character.create({
+      data: {
+        bibleId: bible.id,
+        name: "Robert Fassin",
+        importance: "MAIN",
+        role: "Chef d'atelier",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    await prisma.place.create({
+      data: {
+        bibleId: bible.id,
+        name: "Atelier de chaudronnerie",
+        description: "Le dernier atelier encore en activité.",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+
+    // Locked, so LockBadge has a real row to render for.
+    await prisma.worldRule.create({
+      data: {
+        bibleId: bible.id,
+        name: "Fermeture programmée",
+        statement: "L'usine ferme dans six mois, quoi qu'il arrive.",
+        origin: "GENERATED",
+        lockedAt: new Date(),
+        updatedById: userId,
+      },
+    });
+
+    const event = await prisma.timelineEvent.create({
+      data: {
+        bibleId: bible.id,
+        name: "Annonce de la fermeture",
+        category: "BACKSTORY",
+        absoluteDay: -10,
+        datePrecision: "DAY",
+        origin: "GENERATED",
+        updatedById: userId,
+      },
+    });
+    await prisma.timelineEventParticipant.create({
+      data: {
+        bibleId: bible.id,
+        eventId: event.id,
+        characterId: character.id,
+        updatedById: userId,
+      },
+    });
+
+    // Confirmed, so its badge reads "Élément validé" — CanonFact's own
+    // provenance signal (status), independent of the identity's above.
+    await prisma.canonFact.create({
+      data: {
+        bibleId: bible.id,
+        statement: "Robert connaît un poste en chaudronnerie dans la ville voisine.",
+        isTrue: true,
+        source: "BIBLE",
+        status: "CONFIRMED",
+        updatedById: userId,
+      },
+    });
+
+    return { projectId: project.id, title };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

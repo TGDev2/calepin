@@ -163,6 +163,7 @@ Marc continua son chemin, sa valise à la main, se demandant ce que son propre r
   await seedUpToOutline("proj_outline_demo", demoUserId);
   await seedUpToOutline("proj_writing_demo", demoUserId);
   await seedRelationshipGraph("proj_writing_demo");
+  await seedBibleContent("proj_writing_demo");
   await seedFirstChapter("proj_writing_demo", demoUserId);
   await seedAnalysisContent("proj_writing_demo", demoUserId, sourceTextVersion.id);
 
@@ -340,6 +341,304 @@ async function seedRelationshipGraph(projectId: string) {
   }
 
   console.log("Relationships: 3 characters, 5 directed ties");
+}
+
+/**
+ * The rest of the bible (CAL-096): identity, style, world with its places and
+ * rules, a short chronology and a handful of canon facts — enough to exercise
+ * every section of the consultation screen and, in particular, to prove its
+ * search finds one fact fast. Built around the same cast and the same gare de
+ * Nîmes `seedRelationshipGraph` already established, rather than a second,
+ * unrelated cast.
+ */
+async function seedBibleContent(projectId: string) {
+  const bible = await prisma.bible.findUniqueOrThrow({ where: { projectId } });
+
+  const cast = await prisma.character.findMany({
+    where: { bibleId: bible.id, name: { in: ["Marc", "Simone", "Julien"] } },
+    select: { id: true, name: true },
+  });
+  const idOf = new Map(cast.map((character) => [character.name, character.id]));
+  const marcId = idOf.get("Marc");
+  const simoneId = idOf.get("Simone");
+  const julienId = idOf.get("Julien");
+  if (marcId === undefined || simoneId === undefined || julienId === undefined) {
+    throw new Error("seedBibleContent requires seedRelationshipGraph's cast to exist first");
+  }
+
+  await prisma.bibleIdentity.upsert({
+    where: { bibleId: bible.id },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      workingTitle: "Les quais qu'on ne quitte pas",
+      genre: "Roman contemporain",
+      subGenre: "Drame intimiste",
+      tone: "Mélancolique et tendre",
+      narrativePromise:
+        "Un lieu de passage devient le théâtre d'adieux qui ne disent jamais leur nom.",
+      themes: ["la mémoire", "le départ"],
+      counterThemes: ["l'attachement", "le retour"],
+      centralQuestion: "Peut-on quitter un lieu sans quitter ce qu'on y a laissé ?",
+      endingNature: "Fin ouverte",
+      origin: "GENERATED",
+    },
+  });
+
+  await prisma.bibleStyle.upsert({
+    where: { bibleId: bible.id },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      pointOfView: "Troisième personne limitée",
+      focalization: "Alternée entre Marc, Simone et Julien",
+      tense: "Présent de narration",
+      languageRegister: "Courant, avec des pointes de langue orale",
+      descriptiveDensity: "Modérée, concentrée sur les gestes",
+      pacing: "Lent, ponctué de scènes brèves",
+      dialogueBalance: "Peu de dialogue, beaucoup de non-dit",
+      recurringMotifs: ["les quais de gare", "les trains manqués"],
+      elementsToAvoid: ["l'emphase", "les retournements spectaculaires"],
+      origin: "GENERATED",
+    },
+  });
+
+  await prisma.bibleWorld.upsert({
+    where: { bibleId: bible.id },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      era: "Époque contemporaine",
+      socialContext: "France provinciale, autour d'une gare régionale",
+      technologies: [],
+      institutions: ["SNCF"],
+      constraints: ["Les personnages ne se croisent que par hasard, jamais par accord."],
+      origin: "GENERATED",
+    },
+  });
+
+  await prisma.place.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Gare de Nîmes" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Gare de Nîmes",
+      description:
+        "Le lieu où les trois personnages se croisent sans jamais s'être donné rendez-vous.",
+      origin: "GENERATED",
+    },
+  });
+  await prisma.place.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Quai numéro trois" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Quai numéro trois",
+      description: "Le quai des trains de nuit, celui que Marc et Julien connaissent le mieux.",
+      origin: "GENERATED",
+    },
+  });
+
+  await prisma.worldRule.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Trains de nuit" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Trains de nuit",
+      statement: "Les trains de nuit ne circulent plus après vingt-deux heures dans cette région.",
+      isSupernatural: false,
+      origin: "GENERATED",
+    },
+  });
+  await prisma.worldRule.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Mémoire du quai" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Mémoire du quai",
+      statement: "Le quai retient une trace de chaque adieu qui y a été prononcé à voix haute.",
+      isSupernatural: true,
+      limits: ["Seuls les adieux prononcés à voix haute laissent une trace."],
+      costs: ["Celui qui l'invoque revit brièvement la scène qu'il cherche."],
+      failureConditions: ["La trace s'efface si personne n'y repense pendant dix ans."],
+      origin: "GENERATED",
+    },
+  });
+
+  const birth = await prisma.timelineEvent.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Naissance de Marc" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Naissance de Marc",
+      category: "BACKSTORY",
+      absoluteDay: -21915,
+      datePrecision: "YEAR",
+      origin: "GENERATED",
+    },
+    select: { id: true },
+  });
+  await prisma.timelineEventParticipant.upsert({
+    where: { eventId_characterId: { eventId: birth.id, characterId: marcId } },
+    update: {},
+    create: { bibleId: bible.id, eventId: birth.id, characterId: marcId, declaredAge: 0 },
+  });
+
+  const meeting = await prisma.timelineEvent.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Rencontre sur le quai" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Rencontre sur le quai",
+      summary: "Marc et Simone échangent quarante ans en dix minutes, sans rien en attendre.",
+      category: "BACKSTORY",
+      absoluteDay: -30,
+      datePrecision: "DAY",
+      dateLabel: "un jeudi de novembre",
+      origin: "GENERATED",
+    },
+    select: { id: true },
+  });
+  await prisma.timelineEventParticipant.upsert({
+    where: { eventId_characterId: { eventId: meeting.id, characterId: marcId } },
+    update: {},
+    create: { bibleId: bible.id, eventId: meeting.id, characterId: marcId, declaredAge: null },
+  });
+  await prisma.timelineEventParticipant.upsert({
+    where: { eventId_characterId: { eventId: meeting.id, characterId: simoneId } },
+    update: {},
+    create: { bibleId: bible.id, eventId: meeting.id, characterId: simoneId, declaredAge: null },
+  });
+
+  const thursday = await prisma.timelineEvent.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Le jeudi de Julien" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Le jeudi de Julien",
+      summary: "Le rendez-vous hebdomadaire de Julien et Simone, le jour où le roman s'ouvre.",
+      category: "NARRATED",
+      absoluteDay: 0,
+      datePrecision: "DAY",
+      origin: "GENERATED",
+    },
+    select: { id: true },
+  });
+  await prisma.timelineEventParticipant.upsert({
+    where: { eventId_characterId: { eventId: thursday.id, characterId: simoneId } },
+    update: {},
+    create: { bibleId: bible.id, eventId: thursday.id, characterId: simoneId, declaredAge: null },
+  });
+  await prisma.timelineEventParticipant.upsert({
+    where: { eventId_characterId: { eventId: thursday.id, characterId: julienId } },
+    update: {},
+    create: { bibleId: bible.id, eventId: thursday.id, characterId: julienId, declaredAge: 24 },
+  });
+
+  // Placed only relative to the previous event — no absoluteDay of its own —
+  // so the screen's chronology exercises resolveTimeline's chain resolution
+  // and not only the day axis.
+  await prisma.timelineEvent.upsert({
+    where: { bibleId_name: { bibleId: bible.id, name: "Le jeudi suivant" } },
+    update: {},
+    create: {
+      bibleId: bible.id,
+      name: "Le jeudi suivant",
+      category: "PLANNED",
+      precedingEventId: thursday.id,
+      daysAfterPreceding: 7,
+      durationPrecision: "DAY",
+      origin: "GENERATED",
+    },
+  });
+
+  // Five facts, five different readings of the origin badge: confirmed
+  // (validated whatever proposed it), hand-entered and not yet confirmed,
+  // proposed by a generation, and rejected but kept — CanonFact's own
+  // deduplication reason (CLAUDE.md's glossary entry) is why it survives
+  // rather than being deleted.
+  const soldHouse = await prisma.canonFact.upsert({
+    where: { id: `${bible.id}-fact-sold-house` },
+    update: {},
+    create: {
+      id: `${bible.id}-fact-sold-house`,
+      bibleId: bible.id,
+      statement: "Simone a vendu la maison de Nîmes.",
+      isTrue: true,
+      source: "BIBLE",
+      status: "CONFIRMED",
+    },
+    select: { id: true },
+  });
+  await prisma.canonFactSubject.upsert({
+    where: { id: `${bible.id}-subject-sold-house` },
+    update: {},
+    create: {
+      id: `${bible.id}-subject-sold-house`,
+      bibleId: bible.id,
+      factId: soldHouse.id,
+      characterId: simoneId,
+    },
+  });
+  await prisma.canonFactBelief.upsert({
+    where: { factId_characterId: { factId: soldHouse.id, characterId: julienId } },
+    update: {},
+    create: { bibleId: bible.id, factId: soldHouse.id, characterId: julienId, state: "UNAWARE" },
+  });
+
+  await prisma.canonFact.upsert({
+    where: { id: `${bible.id}-fact-grew-up` },
+    update: {},
+    create: {
+      id: `${bible.id}-fact-grew-up`,
+      bibleId: bible.id,
+      statement: "Marc a grandi à Nîmes.",
+      isTrue: true,
+      source: "SOURCE_TEXT",
+      status: "CONFIRMED",
+    },
+  });
+
+  await prisma.canonFact.upsert({
+    where: { id: `${bible.id}-fact-job-search` },
+    update: {},
+    create: {
+      id: `${bible.id}-fact-job-search`,
+      bibleId: bible.id,
+      statement: "Julien cherche un emploi à Nîmes.",
+      isTrue: true,
+      source: "USER",
+      status: "PROPOSED",
+    },
+  });
+
+  await prisma.canonFact.upsert({
+    where: { id: `${bible.id}-fact-missed-train` },
+    update: {},
+    create: {
+      id: `${bible.id}-fact-missed-train`,
+      bibleId: bible.id,
+      statement: "Marc a manqué son train ce jeudi-là.",
+      isTrue: true,
+      source: "CHAPTER",
+      status: "PROPOSED",
+    },
+  });
+
+  await prisma.canonFact.upsert({
+    where: { id: `${bible.id}-fact-still-lives` },
+    update: {},
+    create: {
+      id: `${bible.id}-fact-still-lives`,
+      bibleId: bible.id,
+      statement: "Julien vit toujours à Nîmes.",
+      isTrue: false,
+      source: "CHAPTER",
+      status: "REJECTED",
+    },
+  });
+
+  console.log("Bible content: identity, style, world, 2 places, 2 rules, 4 events, 5 facts");
 }
 
 /** A plan of three chapters, the first of which carries text. */
