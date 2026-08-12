@@ -22,13 +22,6 @@ export { checkUndeclaredNames, extractNameCandidates } from "./checks/names";
 export { checkRelationshipSymmetry } from "./checks/relationships";
 export { checkBibleTimeline } from "./checks/timeline";
 export { BIBLE_PROSE_SOURCE_NAMES } from "./copy";
-export {
-  BIBLE_COHERENCE_CHECK_IDS,
-  type BibleCoherenceReport,
-  readBibleCoherenceIssues,
-  runBibleCoherenceCheck,
-  runBibleCoherenceCheckWithin,
-} from "./repository";
 export { type BibleContradictionRowIds, resolveBibleContradictions } from "./rows";
 export {
   BIBLE_CONTRADICTION_CHAR_CEILINGS,
@@ -77,7 +70,6 @@ export {
   timelineEventNames,
 } from "./subject";
 export { BIBLE_COHERENCE_SUITE, BIBLE_SUITE_CHECK_IDS, checkBibleCoherence } from "./suite";
-export { type BibleValidated, validateBible } from "./validate";
 export {
   BIBLE_CONTRADICTION_DROP_REASONS,
   type BibleContradictionDroppedEntry,

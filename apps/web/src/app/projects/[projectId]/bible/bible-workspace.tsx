@@ -20,6 +20,7 @@
  * anchor scroll, exactly like the sidebar.
  */
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -104,7 +105,11 @@ export function BibleWorkspace({
         ) : (
           <p className={styles.notice}>
             Cette bible n&rsquo;est pas encore validée : les éléments proposés restent modifiables
-            jusqu&rsquo;à sa validation.
+            jusqu&rsquo;à sa validation.{" "}
+            <Link href={`/projects/${projectId}/bible/coherence`}>
+              Contrôler sa cohérence et la valider
+            </Link>
+            .
           </p>
         )}
 

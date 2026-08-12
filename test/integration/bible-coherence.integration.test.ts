@@ -19,7 +19,7 @@
  * fixture would otherwise have to carry.
  */
 
-import { runBibleCoherenceCheck, validateBible } from "@calepin/bible";
+import { runBibleCoherenceCheck, validateBible } from "@calepin/bible/repository";
 import { runWithActor } from "@calepin/shared/audit";
 import { BIBLE_COHERENCE_CHECKS, BIBLE_DETERMINISTIC_CHECKS } from "@calepin/shared/coherence";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
