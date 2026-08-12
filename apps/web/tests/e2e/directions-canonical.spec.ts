@@ -69,7 +69,10 @@ test("retains one direction and moves the project to the bible stage", async ({
     // And the status the choice implies is on the project screen, derived from
     // the row rather than announced by the action.
     await page.goto(`/projects/${project.projectId}`);
-    await expect(page.getByText("Bible à valider")).toBeVisible();
+    // Scoped to `main`: the project page streams its body behind a Suspense
+    // boundary, so the fallback and the settled content both carry the status
+    // for an instant and an unscoped locator trips strict mode.
+    await expect(page.getByRole("main").getByText("Bible à valider")).toBeVisible();
   } finally {
     await closeSignedInSession(session);
   }
