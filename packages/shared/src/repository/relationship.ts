@@ -48,6 +48,7 @@ import { bibleElementLockedError, isBibleElementLocked } from "../bible-lock";
 import { getDatabaseClient } from "../database/client";
 import { ConflictError, NotFoundError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
+import { type ContentOrigin, originAfterEdit } from "../provenance";
 import { assertProjectScope, type ProjectScope, requireOwnedRow, scopedWhere } from "./scope";
 import { withProjectTransaction } from "./transaction";
 
@@ -66,6 +67,7 @@ export interface BibleRelationship {
   readonly type: $Enums.RelationshipType;
   readonly label: string;
   readonly description: string | null;
+  readonly origin: ContentOrigin;
   readonly lockedAt: Date | null;
 }
 
@@ -117,6 +119,7 @@ export async function getRelationshipGraph(
         type: true,
         label: true,
         description: true,
+        origin: true,
         lockedAt: true,
       },
       orderBy: [{ fromCharacterId: "asc" }, { toCharacterId: "asc" }, { type: "asc" }],
@@ -212,6 +215,9 @@ export async function writeRelationship(
         type: input.type,
         label: input.label,
         description: input.description,
+        // Hand-entered through the one form this repository has, never a
+        // mission (CLAUDE.md §13, CAL-096).
+        origin: "USER_WRITTEN",
       },
       select: { id: true },
     });
@@ -248,6 +254,10 @@ export interface RelationshipEdited {
  *
  * Changing an edge's *ends* is not an edit: it is another edge between another
  * pair, and it goes through `writeRelationship` and `deleteRelationship`.
+ *
+ * `origin` moves through `originAfterEdit` (CAL-073, CAL-096): an edge this
+ * form wrote is already `USER_WRITTEN` and stays there; nothing here can move
+ * it back toward `GENERATED`.
  */
 export async function editRelationship(
   scope: ProjectScope,
@@ -265,6 +275,7 @@ export async function editRelationship(
         type: true,
         label: true,
         description: true,
+        origin: true,
         lockedAt: true,
       },
     });
@@ -310,7 +321,15 @@ export async function editRelationship(
 
     await tx.relationship.update({
       where: { id: relationship.id },
-      data: { type: input.type, label: input.label, description: input.description },
+      data: {
+        type: input.type,
+        label: input.label,
+        description: input.description,
+        // `changed` is true here — the short circuit above already returned
+        // for an identical resubmission — so this only ever moves the origin
+        // forward, `originAfterEdit`'s monotonicity (CAL-073).
+        origin: originAfterEdit(relationship.origin, true),
+      },
     });
 
     return succeed({ updated: true });
