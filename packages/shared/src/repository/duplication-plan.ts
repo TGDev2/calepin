@@ -138,6 +138,7 @@ export const DUPLICATION_PLAN = [
   { model: "Bible", references: { projectId: "Project", validatedById: "User" } },
   { model: "BibleIdentity", references: { bibleId: "Bible" } },
   { model: "BibleStyle", references: { bibleId: "Bible" } },
+  { model: "BibleWorld", references: { bibleId: "Bible" } },
   { model: "Character", references: { bibleId: "Bible" } },
   {
     model: "Relationship",

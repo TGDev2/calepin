@@ -85,6 +85,12 @@ export const AUDITED_MODELS = {
     statusKind: "timestamp",
     statusless: null,
   },
+  BibleWorld: {
+    table: "bible_worlds",
+    status: "lockedAt",
+    statusKind: "timestamp",
+    statusless: null,
+  },
   Character: { table: "characters", status: "lockedAt", statusKind: "timestamp", statusless: null },
   Relationship: {
     table: "relationships",

@@ -118,6 +118,7 @@ model User {
   biblesUpdated                    Bible[]                    @relation("BibleUpdatedBy")
   bibleIdentitiesUpdated           BibleIdentity[]            @relation("BibleIdentityUpdatedBy")
   bibleStylesUpdated               BibleStyle[]               @relation("BibleStyleUpdatedBy")
+  bibleWorldsUpdated               BibleWorld[]               @relation("BibleWorldUpdatedBy")
   charactersUpdated                Character[]                @relation("CharacterUpdatedBy")
   relationshipsUpdated             Relationship[]             @relation("RelationshipUpdatedBy")
   placesUpdated                    Place[]                    @relation("PlaceUpdatedBy")
@@ -811,6 +812,7 @@ model Bible {
 
   identity      BibleIdentity?
   style         BibleStyle?
+  world         BibleWorld?
   characters    Character[]
   relationships Relationship[]
   places        Place[]
@@ -904,6 +906,52 @@ model BibleStyle {
   bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
 
   @@map("bible_styles")
+}
+
+/// The world section of the bible (CAL-092) — the scalar half of it.
+///
+/// Its own row for `BibleIdentity`'s reason: produced by its own mission,
+/// regenerated alone, locked alone, and a row that exists means a section that
+/// has been produced, which is what lets the columns be NOT NULL instead of
+/// nulls each reader would have to interpret.
+///
+/// Four of the specification's ten world items are deliberately absent, and
+/// none of them is missing. Lieux and règles du monde are `Place` and
+/// `WorldRule`, their own tables since CAL-016, because a generation context is
+/// composed of the few elements it needs and never of a whole section
+/// (CLAUDE.md §5.8). Éléments surnaturels are `WorldRule` rows too, carrying
+/// `isSupernatural` — one table, because a supernatural element *is* a rule of
+/// the world and a second table would let the two disagree about what the world
+/// allows. And limites de ces éléments is the shape of those rows rather than a
+/// column here: a `supernaturalLimits` text beside them could be empty while
+/// capabilities exist, which is the one state CAL-092 exists to prevent.
+///
+/// `politicalContext` is the single nullable content column, and it is nullable
+/// because the specification writes *contexte politique **éventuel***. Null is
+/// an answer the mission gives explicitly (the contract's field is
+/// required-but-nullable), never a field it skipped.
+model BibleWorld {
+  id      String @id @default(cuid())
+  bibleId String @unique
+
+  era              String // époque
+  socialContext    String // contexte social
+  politicalContext String? // contexte politique éventuel
+  technologies     String[] @default([]) // technologies
+  institutions     String[] @default([]) // institutions
+  constraints      String[] @default([]) // contraintes
+
+  lockedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedById String   @default("unattributed")
+  version     Int      @default(1)
+  updatedBy   User     @relation("BibleWorldUpdatedBy", fields: [updatedById], references: [id], onDelete: NoAction)
+
+  bible Bible @relation(fields: [bibleId], references: [id], onDelete: Cascade)
+
+  @@map("bible_worlds")
 }
 
 /// How much of the cast a character is. Not a duplicate of `role`, which stays

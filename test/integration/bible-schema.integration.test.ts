@@ -6,7 +6,7 @@ import { type AuditedClient, createAuditedClient } from "./audited-client";
 
 const AGE_CHECK = /characters_age_check/;
 const DISTINCT_CHARACTERS_CHECK = /relationships_distinct_characters_check/;
-const SUPERNATURAL_LIMITS_CHECK = /world_rules_supernatural_limits_check/;
+const SUPERNATURAL_BOUNDS_CHECK = /world_rules_supernatural_bounds_check/;
 const VALIDATION_CHECK = /bibles_validation_check/;
 
 /**
@@ -507,7 +507,7 @@ describe("bible schema", () => {
             limits: [],
           },
         }),
-      ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
     });
 
     // The case the first version of this suite missed, and the one that found
@@ -527,7 +527,7 @@ describe("bible schema", () => {
             isSupernatural: true,
           },
         }),
-      ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
 
       await expect(
         rawQuery(
@@ -536,7 +536,7 @@ describe("bible schema", () => {
                    (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
           ["bible-schema-raw-rule", bibleId],
         ),
-      ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
     });
 
     // The array columns are NOT NULL, which is what the Prisma client's own
@@ -586,8 +586,8 @@ describe("bible schema", () => {
     });
 
     // The constraint has to hold on the way out of a valid state too: emptying
-    // the limits, or turning an ordinary rule supernatural, is the same
-    // violation as inserting one.
+    // any of the three bounds, or turning an ordinary rule supernatural, is the
+    // same violation as inserting one.
     it("refuses an update that strips the limits or promotes a rule", async () => {
       const { bibleId } = await createBibleFixture();
       const bounded = await prisma.worldRule.create({
@@ -597,6 +597,8 @@ describe("bible schema", () => {
           statement: "fixture statement",
           isSupernatural: true,
           limits: ["fixture limit"],
+          costs: ["fixture cost"],
+          failureConditions: ["fixture failure condition"],
         },
       });
       const ordinary = await prisma.worldRule.create({
@@ -605,10 +607,55 @@ describe("bible schema", () => {
 
       await expect(
         prisma.worldRule.update({ where: { id: bounded.id }, data: { limits: [] } }),
-      ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
       await expect(
         prisma.worldRule.update({ where: { id: ordinary.id }, data: { isSupernatural: true } }),
-      ).rejects.toThrow(SUPERNATURAL_LIMITS_CHECK);
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
+    });
+
+    // CAL-092 widened the constraint from limits alone to all three. The three
+    // are not interchangeable: a power with a ceiling but no cost is free to
+    // use, and one that never fails is one no scene can be lost to — both are
+    // the shape a resolution by convenience takes, which is what the bound
+    // exists to keep detectable.
+    it.each(["costs", "failureConditions"] as const)(
+      "refuses a supernatural rule whose %s are empty, limits notwithstanding",
+      async (bound) => {
+        const { bibleId } = await createBibleFixture();
+
+        await expect(
+          prisma.worldRule.create({
+            data: {
+              bibleId,
+              name: `fixture unbounded ${bound}`,
+              statement: "fixture statement",
+              isSupernatural: true,
+              limits: ["fixture limit"],
+              costs: bound === "costs" ? [] : ["fixture cost"],
+              failureConditions:
+                bound === "failureConditions" ? [] : ["fixture failure condition"],
+            },
+          }),
+        ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
+      },
+    );
+
+    // The path no Zod schema and no client extension can see. The mission's
+    // contract cannot represent an unbounded capability at all; this is the
+    // layer beneath it, and it is the one a fixture, a seed or an import takes.
+    it("refuses a half-bounded rule through raw SQL too", async () => {
+      const { bibleId } = await createBibleFixture();
+
+      await expect(
+        rawQuery(
+          `INSERT INTO "world_rules" ("id", "bibleId", "name", "statement", "isSupernatural",
+                                      "limits", "updatedAt", "updatedById")
+           VALUES ($1, $2, 'fixture raw half-bounded', 'fixture statement', true,
+                   ARRAY['fixture limit'], now(),
+                   (SELECT p."userId" FROM "projects" p JOIN "bibles" b ON b."projectId" = p."id" WHERE b."id" = $2))`,
+          ["bible-schema-raw-half-bounded", bibleId],
+        ),
+      ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
     });
   });
 

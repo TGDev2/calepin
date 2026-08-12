@@ -156,6 +156,13 @@ export async function createProjectGraph(
       dialogueBalance: "fixture",
     },
   });
+  const world = await prisma.bibleWorld.create({
+    data: {
+      bibleId: bible.id,
+      era: "fixture",
+      socialContext: "fixture",
+    },
+  });
 
   const character = await prisma.character.create({
     data: { bibleId: bible.id, name: `${label}-first` },
@@ -353,6 +360,7 @@ export async function createProjectGraph(
       Bible: bible.id,
       BibleIdentity: identity.id,
       BibleStyle: style.id,
+      BibleWorld: world.id,
       Character: character.id,
       Relationship: relationship.id,
       Place: place.id,

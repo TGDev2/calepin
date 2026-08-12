@@ -617,13 +617,46 @@ describe("prisma schema", () => {
         }
       });
 
-      // Two sections, two missions (CAL-088, CAL-089), two rows: a section that
-      // has not been produced has no row, which is what lets its columns be
-      // non-null instead of nine nulls each reader has to interpret.
+      it("carries the world's six scalar fields, and none of the four that are rows", () => {
+        const world = modelBlock("BibleWorld");
+
+        for (const field of [
+          "era",
+          "socialContext",
+          "politicalContext",
+          "technologies",
+          "institutions",
+          "constraints",
+        ]) {
+          expect(world).toMatch(new RegExp(`^\\s*${field}\\s+\\S`, "m"));
+        }
+
+        // Lieux, règles du monde and éléments surnaturels are `Place` and
+        // `WorldRule` rows (CAL-016), and *les limites de ces éléments* is
+        // those rows' own shape. A column here holding the limits could be
+        // empty while a supernatural rule existed — the one state CAL-092
+        // exists to make unreachable.
+        expect(world).not.toMatch(/^\s*(places|worldRules|supernatural\w*|limits)\s/m);
+      });
+
+      // The specification writes *contexte politique éventuel*, and it is the
+      // only content column of the three sections that may be null.
+      it("makes the political context the world's one nullable column", () => {
+        const world = modelBlock("BibleWorld");
+
+        expect(world).toMatch(/^\s*politicalContext\s+String\?/m);
+        expect(world).toMatch(/^\s*era\s+String\s/m);
+        expect(world).toMatch(/^\s*socialContext\s+String\s/m);
+      });
+
+      // Three sections, three missions (CAL-088, CAL-089, CAL-092), three rows:
+      // a section that has not been produced has no row, which is what lets its
+      // columns be non-null instead of nulls each reader has to interpret.
       it("holds each section in its own row, one per bible", () => {
         expect(modelBlock("BibleIdentity")).toMatch(/bibleId\s+String\s+@unique/);
         expect(modelBlock("BibleStyle")).toMatch(/bibleId\s+String\s+@unique/);
-        expect(modelBlock("Bible")).not.toMatch(/^\s*(workingTitle|pointOfView)\s/m);
+        expect(modelBlock("BibleWorld")).toMatch(/bibleId\s+String\s+@unique/);
+        expect(modelBlock("Bible")).not.toMatch(/^\s*(workingTitle|pointOfView|era)\s/m);
       });
 
       // The same shape Analysis uses: the timestamp is the status, and the pair
@@ -725,6 +758,7 @@ describe("prisma schema", () => {
       const LOCKABLE_MODELS = [
         "BibleIdentity",
         "BibleStyle",
+        "BibleWorld",
         "Character",
         "Relationship",
         "Place",
@@ -843,6 +877,7 @@ describe("prisma schema", () => {
       expect(modelBlock("Bible")).toMatch(/@@map\("bibles"\)/);
       expect(modelBlock("BibleIdentity")).toMatch(/@@map\("bible_identities"\)/);
       expect(modelBlock("BibleStyle")).toMatch(/@@map\("bible_styles"\)/);
+      expect(modelBlock("BibleWorld")).toMatch(/@@map\("bible_worlds"\)/);
       expect(modelBlock("Character")).toMatch(/@@map\("characters"\)/);
       expect(modelBlock("Relationship")).toMatch(/@@map\("relationships"\)/);
       expect(modelBlock("Place")).toMatch(/@@map\("places"\)/);

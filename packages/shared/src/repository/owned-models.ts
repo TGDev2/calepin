@@ -62,6 +62,7 @@ export const PROJECT_OWNED_MODELS = {
   Bible: { table: "bibles", path: ["project"] },
   BibleIdentity: { table: "bible_identities", path: ["bible", "project"] },
   BibleStyle: { table: "bible_styles", path: ["bible", "project"] },
+  BibleWorld: { table: "bible_worlds", path: ["bible", "project"] },
   Character: { table: "characters", path: ["bible", "project"] },
   Relationship: { table: "relationships", path: ["bible", "project"] },
   Place: { table: "places", path: ["bible", "project"] },
