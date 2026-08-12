@@ -111,4 +111,32 @@ of the statements support rather than a disjoint pair. `unverifiableAges` counts
 what the calculation could **not** establish, because a chronology dated to the
 decade passes trivially and silence must not read as approval.
 
+`extract-initial-facts` (CAL-094) is the seventh and last, and the one CAL-018
+named three times while deferring to it: `CanonFactSource.BIBLE` is annotated
+with this task, `Character.heldKnowledge` says its checkable form is derived
+here, and `CanonFact` carries no unique index on its statement because
+*deduplication belongs to the extraction mission*. It reads every other section
+plus the source text, and its identifier is its own — `extract-facts` is taken by
+the chapter pass of E13, which is given one chapter rather than a whole bible.
+
+Three arrays again, and this time the device lands on a constraint already
+written in SQL: `canon_facts_validity_check`'s three branches become three
+shapes, so a permanent fact has no bound field to leave empty and a period fact
+placed by nothing cannot be expressed. Every fact owes a **verbatim quotation**
+of one closed corpus entry, which is what decides `CanonFact.source` without
+believing a declaration and what makes an invented canon impossible rather than
+merely unlikely; an unfound quotation drops the fact. `knownBy` declares a
+`CanonFactBeliefState` directly rather than a sheet stance, because the fact
+already declares `isTrue` and a stance would re-decide it — the sheet's
+vocabulary reaches this mission as the prefixes `resolveCharacterSheet` writes.
+
+Atomicity is `checkCanonFactStatement`, five closed defects over four marker
+tables, deliberately silent on relative pronouns and appositions. Decompositions
+are **declared** and their composite must itself fail that checker, the
+`StyleConstraint.violation` device applied to a claim about work done.
+`deduplicateCanonFacts` merges an equal key and absorbs its beliefs, keeps both
+when one character is given two stances (that is a contradiction, and CAL-099
+arbitrates), reports a near-duplicate without ever merging it, and drops what
+`knownFacts` already holds — which is why `CanonFactStatus` keeps rejected rows.
+
 Backlog: E09 — CAL-088 to CAL-100. Schemas: CAL-016, CAL-017, CAL-018.
