@@ -1,0 +1,27 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. `outline/page.module.css`'s own shape.
+ */
+
+.page {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.breadcrumb {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.5rem;
+}
+
+.lead {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  max-width: 48rem;
+}

@@ -45,7 +45,7 @@ import { chapterStatusLabel } from "@/lib/chapter-status-label";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
-import { moveChapterAction } from "./actions";
+import { mergeChaptersAction, moveChapterAction } from "./actions";
 import { OutlineSummary } from "./outline-summary";
 import { OutlineTree } from "./outline-tree";
 import styles from "./page.module.css";
@@ -231,7 +231,12 @@ function OutlinePageData({ projectId, project, overview }: OutlinePageDataProps)
         validated config into its own unit test, and the project id is not a
         value the client should be trusted to supply anyway.
       */}
-      <OutlineTree parts={parts} moveChapter={moveChapterAction.bind(null, projectId)} />
+      <OutlineTree
+        parts={parts}
+        projectId={projectId}
+        moveChapter={moveChapterAction.bind(null, projectId)}
+        mergeChapters={mergeChaptersAction.bind(null, projectId)}
+      />
     </>
   );
 }

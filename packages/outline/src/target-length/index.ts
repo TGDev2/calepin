@@ -21,4 +21,9 @@ export {
   type TargetLength,
   type TargetLengthRange,
 } from "./calibration";
-export { getPlanGenerationContext, type PlanGenerationContext } from "./context";
+// `./context` is deliberately absent: it opens a database read, so it belongs
+// behind `@calepin/outline/repository` and nowhere near the root barrel
+// (CAL-106). Keeping it here made the root barrel impure, which is why two
+// client components had to reach for `@calepin/outline/calibration` and why
+// the first *value* import of the root barrel from a client component broke
+// `pnpm build` with `node:async_hooks`.

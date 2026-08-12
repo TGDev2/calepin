@@ -42,7 +42,11 @@ export interface OutlineChapterOutlineFactRow {
 export interface OutlineChapterOutlineRow {
   readonly workingTitle: string | null;
   readonly targetWordCount: number | null;
+  /** The id the plan stores, beside the name the screen shows: a split writes
+   * ids, so a screen that arbitrates one has to read them (CAL-106). */
+  readonly focalCharacterId: string | null;
   readonly focalCharacterName: string | null;
+  readonly placeId: string | null;
   readonly placeName: string | null;
   readonly periodStartDay: number | null;
   readonly periodEndDay: number | null;
@@ -120,7 +124,9 @@ export async function getOutlineOverview(scope: ProjectScope): Promise<OutlineOv
             select: {
               workingTitle: true,
               targetWordCount: true,
+              focalCharacterId: true,
               focalCharacter: { select: { name: true } },
+              placeId: true,
               place: { select: { name: true } },
               periodStartDay: true,
               periodEndDay: true,
@@ -177,7 +183,9 @@ export async function getOutlineOverview(scope: ProjectScope): Promise<OutlineOv
           : {
               workingTitle: chapter.chapterOutline.workingTitle,
               targetWordCount: chapter.chapterOutline.targetWordCount,
+              focalCharacterId: chapter.chapterOutline.focalCharacterId,
               focalCharacterName: chapter.chapterOutline.focalCharacter?.name ?? null,
+              placeId: chapter.chapterOutline.placeId,
               placeName: chapter.chapterOutline.place?.name ?? null,
               periodStartDay: chapter.chapterOutline.periodStartDay,
               periodEndDay: chapter.chapterOutline.periodEndDay,

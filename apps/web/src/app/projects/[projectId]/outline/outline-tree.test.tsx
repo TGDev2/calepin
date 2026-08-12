@@ -116,9 +116,18 @@ const PARTS: readonly PartView[] = [
  * test — the whole reason the action is a prop rather than an import.
  */
 const NO_MOVE = () => Promise.resolve({ status: "idle" as const });
+/** Same stub, same reason, for the merge (CAL-106). */
+const NO_MERGE = () => Promise.resolve({ status: "idle" as const });
 
 function render(): string {
-  return renderToStaticMarkup(<OutlineTree parts={PARTS} moveChapter={NO_MOVE} />);
+  return renderToStaticMarkup(
+    <OutlineTree
+      parts={PARTS}
+      projectId="project-1"
+      moveChapter={NO_MOVE}
+      mergeChapters={NO_MERGE}
+    />,
+  );
 }
 
 describe("OutlineTree", () => {
@@ -244,15 +253,34 @@ describe("OutlineTree", () => {
     expect(html).toContain("Alt + flèche haut");
   });
 
-  it("keeps the tree to a single tab stop, move controls included", () => {
+  it("keeps the tree to a single tab stop, every chapter control included", () => {
     const html = render();
 
     // The roving tabindex is the APG's own: one `0`, everything else `-1` —
-    // and six move buttons are exactly why that has to be re-checked here.
+    // and four controls per chapter are exactly why that has to be re-checked
+    // here.
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
-    // Four treeitems out of five, plus two move buttons on each of the three
-    // chapters. Nothing else in the tree is reachable by Tab.
-    expect(html.match(/tabindex="-1"/g)).toHaveLength(4 + 3 * 2);
+    // Four treeitems out of five, plus two move buttons, one merge button and
+    // one split link on each of the three chapters. Nothing else in the tree
+    // is reachable by Tab.
+    expect(html.match(/tabindex="-1"/g)).toHaveLength(4 + 3 * 4);
+  });
+
+  it("offers a merge to every chapter but the last of its part", () => {
+    const html = render();
+
+    // Part 1 holds two chapters and part 2 holds one, so exactly one chapter
+    // has a next sibling to absorb — the other two close their part and their
+    // control is disabled rather than absent, so the row keeps its shape.
+    expect(html.match(/aria-label="Fusionner le chapitre \d+ avec le suivant"/g)).toHaveLength(3);
+    expect(html.match(/Fusionner le chapitre \d+ avec le suivant" disabled/g)).toHaveLength(2);
+  });
+
+  it("links each chapter to its own arbitration screen", () => {
+    const html = render();
+
+    expect(html).toContain('href="/projects/project-1/outline/chapters/chapter-1/split"');
+    expect(html.match(/aria-label="Scinder le chapitre \d+"/g)).toHaveLength(3);
   });
 });
 

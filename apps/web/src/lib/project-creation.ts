@@ -20,11 +20,11 @@
  * what a mission is later held to cannot drift apart.
  */
 
-// `@calepin/outline/calibration`, never the package root: the root barrel
-// re-exports `getPlanGenerationContext`, whose module graph reaches
-// `@calepin/shared/repository` and so `node:async_hooks`. This module is
-// imported by a `"use client"` component, and Turbopack answers that by
-// refusing to build the whole page rather than shaking the unused branch out.
+// `@calepin/outline/calibration`: the pure half of `target-length`, which is
+// all this module needs. The root barrel was impure until CAL-106 moved
+// `getPlanGenerationContext` behind `@calepin/outline/repository`; the narrow
+// entry point stays because it is the honest one, not because the wide one is
+// still a trap.
 import { CUSTOM_TARGET_WORD_COUNT_RANGE } from "@calepin/outline/calibration";
 import {
   FREEDOM_LEVELS,

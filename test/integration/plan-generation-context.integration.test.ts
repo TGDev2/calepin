@@ -9,7 +9,7 @@
  * registered on the seam the repository layer itself reads through.
  */
 
-import { getPlanGenerationContext } from "@calepin/outline";
+import { getPlanGenerationContext } from "@calepin/outline/repository";
 import { configureDatabaseClient, resetDatabaseClient } from "@calepin/shared/database";
 import { freedomConstraints, sourceDepartureBudget } from "@calepin/shared/freedom-level";
 import { openProjectScope } from "@calepin/shared/repository";

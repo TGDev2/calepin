@@ -13,6 +13,7 @@
  * layout, one epic earlier.
  */
 
+export { getPlanGenerationContext, type PlanGenerationContext } from "../target-length/context";
 export { type ChaptersMerged, mergeChapters } from "./chapter-merge";
 export { type ChapterMoved, moveChapter } from "./chapter-move";
 export { type ChapterSplit, splitChapter } from "./chapter-split";

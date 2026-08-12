@@ -67,12 +67,35 @@
  * environment variables and nothing to do with a tree. The same injection §5.3
  * asks for one layer down, for the same reason: what is passed in can be
  * replaced in a test.
+ *
+ * ---
+ *
+ * **Re-cutting (CAL-106).** Two more controls per chapter, and they are
+ * deliberately unlike the three above: a move is a gesture, while merging and
+ * splitting change what a chapter *says*.
+ *
+ *   - **« Fusionner avec le suivant »**, offered only where there is a next
+ *     chapter **in the same part** — merging across a boundary would move
+ *     content between two parts without saying so, and the domain refuses it.
+ *     The first call goes out without the acknowledgement; a merge that would
+ *     drop a place, a focal role or a period precision comes back refused, and
+ *     the panel that refusal produces is what the author reads before the
+ *     second call carries `acknowledgeLoss`. The screen never works the losses
+ *     out for itself, so it cannot disagree with the write about them.
+ *   - **« Scinder »**, a link to the chapter's own arbitration screen: sixteen
+ *     attributes across two columns is not something that fits beside a tree.
  */
 
-import type { ChapterMoveRequest } from "@calepin/outline";
+import type { ChapterMergeRequest, ChapterMoveRequest } from "@calepin/outline";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { LockBadge } from "@/components/lock-badge";
+import {
+  type ChapterMergeState,
+  chaptersMergedAnnouncement,
+  chapterSplitPath,
+  mergeLossSentence,
+} from "@/lib/outline-cut";
 import { chapterMovedAnnouncement, type ChapterMoveState } from "@/lib/outline-move";
 
 import styles from "./outline-tree.module.css";
@@ -82,6 +105,10 @@ export interface OutlineTreeProps {
   readonly parts: readonly PartView[];
   /** `moveChapterAction`, already bound to this project. */
   readonly moveChapter: (request: ChapterMoveRequest) => Promise<ChapterMoveState>;
+  /** `mergeChaptersAction`, already bound to this project (CAL-106). */
+  readonly mergeChapters: (request: ChapterMergeRequest) => Promise<ChapterMergeState>;
+  /** The project id, for the link to a chapter own split screen. */
+  readonly projectId: string;
 }
 
 type FlatItem =
@@ -152,13 +179,14 @@ function placementKey(partId: string, chapterNumber: number): string {
   return `${partId}|${String(chapterNumber)}`;
 }
 
-export function OutlineTree({ parts, moveChapter }: OutlineTreeProps) {
+export function OutlineTree({ parts, moveChapter, mergeChapters, projectId }: OutlineTreeProps) {
   const [expandedParts, setExpandedParts] = useState<ReadonlySet<string>>(
     () => new Set(parts.map((part) => part.id)),
   );
   const [expandedChapters, setExpandedChapters] = useState<ReadonlySet<string>>(() => new Set());
   const [focusedId, setFocusedId] = useState<string | null>(parts[0]?.id ?? null);
   const [moveState, setMoveState] = useState<ChapterMoveState>({ status: "idle" });
+  const [mergeState, setMergeState] = useState<ChapterMergeState>({ status: "idle" });
   const [announcement, setAnnouncement] = useState("");
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<DropHint | null>(null);
@@ -291,6 +319,46 @@ export function OutlineTree({ parts, moveChapter }: OutlineTreeProps) {
 
       if (result.status === "error") movingRef.current = null;
       setMoveState(result);
+    });
+  }
+
+  /**
+   * Merging a chapter with the one after it.
+   *
+   * **Two attempts, and the first is the one that finds out.** The action is
+   * called without the acknowledgement; when the merge would drop a place, a
+   * focal role or a period precision, the write refuses and hands back the
+   * kinds, which this turns into the panel below. Confirming calls again with
+   * `acknowledgeLoss`. The screen never works the losses out for itself — a
+   * second answer able to disagree with the write is exactly what CAL-086's
+   * device exists to prevent.
+   */
+  function mergeWithNext(
+    survivorChapterId: string,
+    absorbedChapterId: string,
+    acknowledgeLoss: boolean,
+  ): void {
+    if (pending) return;
+
+    setMergeState({ status: "idle" });
+    setAnnouncement("");
+
+    startTransition(async () => {
+      const result = await mergeChapters({
+        survivorChapterId,
+        absorbedChapterId,
+        acknowledgeLoss,
+      });
+
+      setMergeState(result);
+
+      if (result.status === "idle") {
+        const number = parts
+          .flatMap((part) => part.chapters)
+          .find((chapter) => chapter.id === survivorChapterId)?.number;
+
+        if (number !== undefined) setAnnouncement(chaptersMergedAnnouncement(number));
+      }
     });
   }
 
@@ -444,12 +512,48 @@ export function OutlineTree({ parts, moveChapter }: OutlineTreeProps) {
       </div>
 
       <p role="status" aria-live="polite" className={styles.announcement}>
-        {pending ? "Déplacement en cours…" : announcement}
+        {pending ? "Opération en cours…" : announcement}
       </p>
       {moveState.status === "error" ? (
         <p role="alert" className={styles.error}>
           {moveState.message}
         </p>
+      ) : null}
+      {mergeState.status === "error" ? (
+        <p role="alert" className={styles.error}>
+          {mergeState.message}
+        </p>
+      ) : null}
+      {mergeState.status === "confirm" ? (
+        <div role="alert" className={styles.confirm}>
+          <p>Cette fusion ne conserverait pas tout&nbsp;:</p>
+          <ul>
+            {mergeState.losses.map((loss) => (
+              <li key={loss}>{mergeLossSentence(loss)}</li>
+            ))}
+          </ul>
+          <p className={styles.confirmControls}>
+            <button
+              type="button"
+              className={styles.controlButton}
+              disabled={pending}
+              onClick={() => {
+                mergeWithNext(mergeState.survivorChapterId, mergeState.absorbedChapterId, true);
+              }}
+            >
+              Fusionner quand même
+            </button>
+            <button
+              type="button"
+              className={styles.controlButton}
+              onClick={() => {
+                setMergeState({ status: "idle" });
+              }}
+            >
+              Annuler
+            </button>
+          </p>
+        </div>
       ) : null}
 
       <div role="tree" aria-label="Plan du roman, par parties et chapitres" className={styles.tree}>
@@ -528,6 +632,15 @@ export function OutlineTree({ parts, moveChapter }: OutlineTreeProps) {
                         )
                       }
                       onMove={(direction) => stepChapter(part, chapter.id, direction)}
+                      splitPath={chapterSplitPath(projectId, chapter.id)}
+                      onMergeWithNext={
+                        nextInPart(part, chapter.id) === null
+                          ? null
+                          : () => {
+                              const next = nextInPart(part, chapter.id);
+                              if (next !== null) mergeWithNext(chapter.id, next, false);
+                            }
+                      }
                       onDragStart={() => setDragging(chapter.id)}
                       onDragEnd={() => {
                         setDragging(null);
@@ -552,6 +665,19 @@ export function OutlineTree({ parts, moveChapter }: OutlineTreeProps) {
   );
 }
 
+/**
+ * The chapter this one would absorb, or `null` when it closes its part.
+ *
+ * Inside the part only: merging across a boundary would move content between
+ * two parts without saying so, and the domain refuses it. Moving the chapter in
+ * first (CAL-105) is the way through, and it is a decision made in the open.
+ */
+function nextInPart(part: PartView, chapterId: string): string | null {
+  const index = part.chapters.findIndex((chapter) => chapter.id === chapterId);
+
+  return index === -1 ? null : (part.chapters[index + 1]?.id ?? null);
+}
+
 interface ChapterRowProps {
   readonly chapter: ChapterView;
   readonly expanded: boolean;
@@ -566,6 +692,9 @@ interface ChapterRowProps {
   readonly onFocus: () => void;
   readonly onToggle: () => void;
   readonly onMove: (direction: -1 | 1) => void;
+  /** Null when the chapter closes its part and has nothing to absorb. */
+  readonly onMergeWithNext: (() => void) | null;
+  readonly splitPath: string;
   readonly onDragStart: () => void;
   readonly onDragEnd: () => void;
   readonly onDragOverEdge: (edge: "before" | "after") => void;
@@ -593,6 +722,8 @@ function ChapterRow({
   onFocus,
   onToggle,
   onMove,
+  onMergeWithNext,
+  splitPath,
   onDragStart,
   onDragEnd,
   onDragOverEdge,
@@ -695,6 +826,39 @@ function ChapterRow({
             : `${NUMBER_FORMAT.format(chapter.targetWordCount)} mots`}
         </span>
         <ThreadActionCounts actions={chapter.threadActions} />
+      </div>
+
+      {/*
+        `tabIndex={-1}` for the move buttons' reason: the APG keeps a tree to
+        one tab stop, and fifty chapters would otherwise cost a hundred and
+        fifty stops before the next control on the page. Both are reachable
+        with the pointer and through the tree's own roving focus.
+      */}
+      <div className={styles.cutButtons}>
+        <button
+          type="button"
+          tabIndex={-1}
+          className={styles.controlButton}
+          aria-label={`Fusionner le chapitre ${String(chapter.number)} avec le suivant`}
+          disabled={pending || onMergeWithNext === null}
+          onClick={(event) => {
+            event.stopPropagation();
+            onMergeWithNext?.();
+          }}
+        >
+          Fusionner avec le suivant
+        </button>
+        <a
+          href={splitPath}
+          tabIndex={-1}
+          className={styles.controlButton}
+          aria-label={`Scinder le chapitre ${String(chapter.number)}`}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          Scinder
+        </a>
       </div>
 
       {expanded ? <ChapterDetail chapter={chapter} /> : null}

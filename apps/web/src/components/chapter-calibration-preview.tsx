@@ -11,11 +11,11 @@
  * on every keystroke, how far the resulting total sits from the novel's own
  * target and whether that stays inside CAL-103's ±10% bar.
  *
- * **`@calepin/outline/calibration`, never the package root** — the same trap
- * `apps/web/src/lib/project-creation.ts` already documents: the root barrel
- * re-exports `getPlanGenerationContext`, whose module graph reaches
- * `@calepin/shared/repository` and `node:async_hooks`, which Turbopack
- * refuses to bundle for a client component.
+ * **`@calepin/outline/calibration`** — the pure half of `target-length`, which
+ * is all this component needs. The root barrel was impure until CAL-106 moved
+ * `getPlanGenerationContext` behind `@calepin/outline/repository`; the narrow
+ * entry point stays because it is the honest one, not because the wide one is
+ * still a trap.
  *
  * **Indicative only.** No schema field stores a manually adjusted chapter
  * count today, and nothing downstream (CAL-101/102's missions) reads one —

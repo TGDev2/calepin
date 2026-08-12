@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Moving one chapter of the plan (CAL-105).
+ * Moving, merging and splitting the chapters of the plan (CAL-105, CAL-106).
  *
  * It composes and nothing more (§3.3): the session says who is asking,
  * `openProjectScope` turns the project id into a proof of ownership,
@@ -22,8 +22,12 @@
  * and the error's own fields — never a working title, never a thread label.
  */
 
-import { parseChapterMoveRequest } from "@calepin/outline";
-import { moveChapter } from "@calepin/outline/repository";
+import {
+  parseChapterMergeRequest,
+  parseChapterMoveRequest,
+  parseChapterSplitArbitration,
+} from "@calepin/outline";
+import { mergeChapters, moveChapter, splitChapter } from "@calepin/outline/repository";
 import { runWithActor } from "@calepin/shared/audit";
 import { type AppError, errorLogFields } from "@calepin/shared/errors";
 import { logger } from "@calepin/shared/logging";
@@ -32,6 +36,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
+import {
+  CHAPTER_MERGE_MISSING_MESSAGE,
+  CHAPTER_MERGE_REFUSED_MESSAGE,
+  CHAPTER_MERGE_UNAVAILABLE_MESSAGE,
+  CHAPTER_SPLIT_UNAVAILABLE_MESSAGE,
+  type ChapterMergeState,
+  type ChapterSplitState,
+  parseMergeLossKinds,
+} from "@/lib/outline-cut";
 import {
   CHAPTER_MOVE_MISSING_MESSAGE,
   CHAPTER_MOVE_UNAVAILABLE_MESSAGE,
@@ -104,4 +117,168 @@ export async function moveChapterAction(
       return { status: "error", message: CHAPTER_MOVE_UNAVAILABLE_MESSAGE };
     }
   });
+}
+
+/**
+ * Merging a chapter with the one after it (CAL-106).
+ *
+ * Two attempts by design. The first arrives with `acknowledgeLoss: false`; when
+ * the merge would drop a place, a focal role or a period precision, the write
+ * refuses and the screen turns that refusal into the panel the author reads.
+ * The kinds come **out of the refusal** rather than from a second computation
+ * here, so the panel and the write cannot disagree about what is at stake, and
+ * a screen that skipped the panel could never produce the second attempt.
+ */
+export async function mergeChaptersAction(
+  projectId: string,
+  submitted: unknown,
+): Promise<ChapterMergeState> {
+  if (typeof projectId !== "string" || projectId.length === 0) redirect(DASHBOARD_PATH);
+
+  const user = await getCurrentUser();
+  if (!user) redirect(signInDestination(outlinePath(projectId)));
+
+  const request = parseChapterMergeRequest(submitted);
+  if (!request.ok) return { status: "error", message: request.error.userMessage };
+
+  return withRequestLogContext(async (): Promise<ChapterMergeState> => {
+    try {
+      const scope = await openProjectScope({ ownerId: user.id, projectId });
+      if (!scope.ok) return refuseMerge(user.id, projectId, scope.error, request.value);
+
+      const merged = await runWithActor(user.id, async () =>
+        mergeChapters(scope.value, request.value),
+      );
+      if (!merged.ok) return refuseMerge(user.id, projectId, merged.error, request.value);
+
+      revalidatePath(outlinePath(projectId));
+      logger.info("chapter.merged", {
+        userId: user.id,
+        projectId,
+        // Counts and nothing else — the report carries no word of the plan (§9).
+        itemCount: merged.value.report.consolidated.characters,
+      });
+
+      return { status: "idle" };
+    } catch (error: unknown) {
+      logger.error("chapter.merge-failed", {
+        userId: user.id,
+        projectId,
+        ...errorLogFields(error),
+      });
+
+      return { status: "error", message: CHAPTER_MERGE_UNAVAILABLE_MESSAGE };
+    }
+  });
+}
+
+function refuseMerge(
+  userId: string,
+  projectId: string,
+  error: AppError,
+  request: { readonly survivorChapterId: string; readonly absorbedChapterId: string },
+): ChapterMergeState {
+  logger.warn("chapter.merge-refused", { userId, projectId, ...errorLogFields(error) });
+
+  if (error.code === "CHAPTER_MERGE_LOSS_NOT_ACKNOWLEDGED") {
+    return {
+      status: "confirm",
+      survivorChapterId: request.survivorChapterId,
+      absorbedChapterId: request.absorbedChapterId,
+      losses: parseMergeLossKinds(error.fieldPath),
+    };
+  }
+
+  if (error.code === "CHAPTER_MERGE_REFUSED") {
+    return { status: "error", message: CHAPTER_MERGE_REFUSED_MESSAGE };
+  }
+
+  if (error.category === "validation") return { status: "error", message: error.userMessage };
+
+  return {
+    status: "error",
+    message:
+      error.code === "NOT_FOUND"
+        ? CHAPTER_MERGE_MISSING_MESSAGE
+        : CHAPTER_MERGE_UNAVAILABLE_MESSAGE,
+  };
+}
+
+/**
+ * Applying the author's arbitration of a split (CAL-106).
+ *
+ * The whole redistribution crossed a serialisation boundary, so it is parsed
+ * before anything else (§6) and then checked again by the repository against
+ * rows read inside the writing transaction — the screen's copy of the chapter
+ * is never what conservation is measured against.
+ */
+export async function splitChapterAction(
+  projectId: string,
+  submitted: unknown,
+): Promise<ChapterSplitState> {
+  if (typeof projectId !== "string" || projectId.length === 0) redirect(DASHBOARD_PATH);
+
+  const user = await getCurrentUser();
+  if (!user) redirect(signInDestination(outlinePath(projectId)));
+
+  const arbitration = parseChapterSplitArbitration(submitted);
+  if (!arbitration.ok) {
+    return { status: "error", message: arbitration.error.userMessage, defects: [] };
+  }
+
+  return withRequestLogContext(async (): Promise<ChapterSplitState> => {
+    try {
+      const scope = await openProjectScope({ ownerId: user.id, projectId });
+      if (!scope.ok) return refuseSplit(user.id, projectId, scope.error);
+
+      const applied = await runWithActor(user.id, async () =>
+        splitChapter(scope.value, arbitration.value),
+      );
+      if (!applied.ok) return refuseSplit(user.id, projectId, applied.error);
+
+      revalidatePath(outlinePath(projectId));
+      logger.info("chapter.split", {
+        userId: user.id,
+        projectId,
+        itemCount: applied.value.report.redistributed.threadActions,
+      });
+
+      return { status: "idle" };
+    } catch (error: unknown) {
+      logger.error("chapter.split-failed", {
+        userId: user.id,
+        projectId,
+        ...errorLogFields(error),
+      });
+
+      return { status: "error", message: CHAPTER_SPLIT_UNAVAILABLE_MESSAGE, defects: [] };
+    }
+  });
+}
+
+function refuseSplit(userId: string, projectId: string, error: AppError): ChapterSplitState {
+  logger.warn("chapter.split-refused", { userId, projectId, ...errorLogFields(error) });
+
+  if (error.code === "CHAPTER_SPLIT_REFUSED") {
+    return {
+      status: "error",
+      message: error.userMessage,
+      // The closed defect kinds, which the form turns into a sentence beside
+      // the control that produced each one.
+      defects: (error.fieldPath ?? "").split(",").filter((kind) => kind.length > 0),
+    };
+  }
+
+  if (error.category === "validation") {
+    return { status: "error", message: error.userMessage, defects: [] };
+  }
+
+  return {
+    status: "error",
+    message:
+      error.code === "NOT_FOUND"
+        ? CHAPTER_MERGE_MISSING_MESSAGE
+        : CHAPTER_SPLIT_UNAVAILABLE_MESSAGE,
+    defects: [],
+  };
 }

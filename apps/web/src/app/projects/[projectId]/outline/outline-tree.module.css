@@ -263,3 +263,44 @@
   margin: 0;
   font-size: 0.9rem;
 }
+
+/* The two re-cutting controls of a chapter (CAL-106). */
+.cutButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.cutButtons .controlButton {
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+/*
+ * The panel a merge that would lose something opens. `--color-warning`, not
+ * `--color-danger`: nothing has gone wrong — the author is being told what a
+ * chapter cannot carry twice, and asked to decide.
+ */
+.confirm {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-1);
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+}
+
+.confirm p {
+  margin: 0 0 var(--space-1);
+}
+
+.confirm ul {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-3);
+}
+
+.confirmControls {
+  display: flex;
+  gap: var(--space-1);
+}
