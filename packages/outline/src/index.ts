@@ -62,6 +62,9 @@ export {
   verifyChapterOutlineBatch,
 } from "./chapters";
 export {
+  type ChapterMovePlan,
+  type ChapterMoveRequest,
+  chapterMoveRequestSchema,
   compareOrderKeys,
   isOrderKey,
   moveOrderKey,
@@ -72,9 +75,12 @@ export {
   orderKeyAt,
   orderKeyBetween,
   orderKeysBetween,
+  parseChapterMoveRequest,
+  planChapterMove,
   type ResolvedOutline,
   type ResolvedPart,
   resolveOutline,
+  STALE_PLAN_MESSAGE,
 } from "./order";
 export {
   checkPartStructure,

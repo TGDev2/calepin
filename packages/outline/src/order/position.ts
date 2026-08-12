@@ -18,7 +18,13 @@ import { isOrderKey, orderKeyBetween } from "./key";
 const UNSORTED_MESSAGE = "siblings are not in ascending order";
 const OUT_OF_RANGE_MESSAGE = "position is outside the sibling range";
 
-const STALE_PLAN_MESSAGE =
+/**
+ * The one sentence every stale-plan refusal ends in. Exported because `move.ts`
+ * refuses on the same ground one level up — an anchor that has left the part
+ * since the screen was drawn — and two wordings for one situation is how an
+ * author learns that reloading sometimes helps and sometimes does not.
+ */
+export const STALE_PLAN_MESSAGE =
   "Le plan a changé depuis son affichage. Rechargez-le avant de déplacer ce chapitre.";
 
 /**

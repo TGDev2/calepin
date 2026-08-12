@@ -14,7 +14,36 @@
 
 .controls {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/*
+ * The move report. It keeps its box whether or not it holds a sentence, so a
+ * move does not shift the fifty rows below it by one line.
+ */
+.announcement {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.error {
+  margin: 0;
+  padding: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--color-text);
+  background: var(--color-danger-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
 }
 
 .controlButton {
@@ -51,6 +80,7 @@
 }
 
 .partRow {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: var(--space-1);
@@ -88,6 +118,7 @@
 }
 
 .chapterItem {
+  position: relative;
   padding: 0.4rem var(--space-2) 0.4rem calc(var(--space-2) + 1.25rem);
   border-top: 1px solid var(--color-border);
 }
@@ -97,10 +128,69 @@
 }
 
 .chapterRow {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
   cursor: pointer;
+}
+
+.chapterRow[data-dragging="true"] {
+  opacity: 0.5;
+}
+
+/*
+ * The drop indicator: a rule drawn on the edge the pointer is offering, never
+ * a colour change on its own — the repository's "never colour alone" rule, and
+ * a line is what says *where* rather than merely *which*.
+ */
+.chapterItem[data-drop]::after,
+.partRow[data-drop="head"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-text);
+}
+
+.chapterItem[data-drop="before"]::after {
+  top: -1px;
+}
+
+/* A drop on a part's header lands first *inside* the part: the line goes under it. */
+.chapterItem[data-drop="after"]::after,
+.partRow[data-drop="head"]::after {
+  bottom: -1px;
+}
+
+.moveButtons {
+  display: flex;
+  flex: none;
+  gap: 0.15rem;
+  margin-left: auto;
+}
+
+.moveButton {
+  padding: 0 0.35rem;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+}
+
+.moveButton:hover:not(:disabled) {
+  background: var(--color-background);
+}
+
+.moveButton:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
+  opacity: 0.5;
 }
 
 .chapterNumber {

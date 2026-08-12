@@ -109,8 +109,16 @@ const PARTS: readonly PartView[] = [
   },
 ];
 
+/**
+ * The move never runs here: `renderToStaticMarkup` produces markup and fires no
+ * event, and what a keystroke or a drop *does* is proved end-to-end
+ * (`outline-reorder.spec.ts`). The stub is what lets this file stay a markup
+ * test — the whole reason the action is a prop rather than an import.
+ */
+const NO_MOVE = () => Promise.resolve({ status: "idle" as const });
+
 function render(): string {
-  return renderToStaticMarkup(<OutlineTree parts={PARTS} />);
+  return renderToStaticMarkup(<OutlineTree parts={PARTS} moveChapter={NO_MOVE} />);
 }
 
 describe("OutlineTree", () => {
@@ -194,4 +202,66 @@ describe("OutlineTree", () => {
     expect(html).toContain("Tout déplier");
     expect(html).toContain("Tout replier");
   });
+
+  // --- reordering (CAL-105) ------------------------------------------------
+  //
+  // There is no jsdom in this repository, so what a keystroke or a drop does is
+  // proved end-to-end (`outline-reorder.spec.ts`). What is provable here is the
+  // markup the two gestures need: the handles, their names, and the region the
+  // result is announced in.
+
+  it("gives every chapter a named pair of move controls", () => {
+    const html = render();
+
+    for (const number of [1, 2, 3]) {
+      expect(html).toContain(`aria-label="Monter le chapitre ${String(number)}"`);
+      expect(html).toContain(`aria-label="Descendre le chapitre ${String(number)}"`);
+    }
+  });
+
+  it("disables the move that would leave the plan, and only that one", () => {
+    // Chapter 1 is at the head of the novel and chapter 3 at its tail; a plan
+    // does not wrap, so exactly one direction is unavailable at each end. The
+    // middle chapter has both.
+    expect(moveButton("Monter le chapitre 1")).toContain("disabled");
+    expect(moveButton("Descendre le chapitre 1")).not.toContain("disabled");
+    expect(moveButton("Monter le chapitre 2")).not.toContain("disabled");
+    expect(moveButton("Descendre le chapitre 2")).not.toContain("disabled");
+    expect(moveButton("Descendre le chapitre 3")).toContain("disabled");
+  });
+
+  it("makes a locked chapter movable like any other", () => {
+    // The lock stops automatic modification (CAL-107); a move is the author's
+    // own decision, so the locked chapter's controls are ordinary ones.
+    expect(moveButton("Monter le chapitre 3")).not.toContain("disabled");
+  });
+
+  it("makes every chapter row draggable and keeps a region to report the move in", () => {
+    const html = render();
+
+    expect(html.match(/draggable="true"/g)).toHaveLength(3);
+    expect(html).toContain('role="status"');
+    expect(html).toContain("Alt + flèche haut");
+  });
+
+  it("keeps the tree to a single tab stop, move controls included", () => {
+    const html = render();
+
+    // The roving tabindex is the APG's own: one `0`, everything else `-1` —
+    // and six move buttons are exactly why that has to be re-checked here.
+    expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+    // Four treeitems out of five, plus two move buttons on each of the three
+    // chapters. Nothing else in the tree is reachable by Tab.
+    expect(html.match(/tabindex="-1"/g)).toHaveLength(4 + 3 * 2);
+  });
 });
+
+/** One move control's own markup, from its accessible name to its closing tag. */
+function moveButton(label: string): string {
+  const html = render();
+  const start = html.indexOf(`aria-label="${label}"`);
+
+  expect(start).toBeGreaterThan(-1);
+
+  return html.slice(start, html.indexOf("</button>", start));
+}

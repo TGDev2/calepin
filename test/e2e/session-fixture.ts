@@ -1173,3 +1173,124 @@ export async function seedProjectWithCharacterSheet(
     await prisma.$disconnect();
   }
 }
+
+export interface SeededPlan extends SeededProject {
+  /** The two parts, in reading order. */
+  readonly partIds: readonly string[];
+  /** The six chapters, in reading order at the moment of seeding. */
+  readonly chapterIds: readonly string[];
+}
+
+/**
+ * A plan a reorder has something to move around (CAL-105): two parts of three
+ * chapters, each with a working title so the rows are told apart on screen, and
+ * one thread whose opening, continuation and closing straddle both parts —
+ * which is what makes "the badges followed the chapter" an assertion rather
+ * than a hope.
+ */
+export async function seedProjectWithReorderablePlan(
+  userId: string,
+  title: string,
+): Promise<SeededPlan> {
+  const prisma = new PrismaClient();
+
+  try {
+    const project = await prisma.project.create({ data: { userId, title, updatedById: userId } });
+    const bible = await prisma.bible.create({
+      data: { projectId: project.id, updatedById: userId },
+    });
+    const outline = await prisma.outline.create({
+      data: { projectId: project.id, bibleId: bible.id, updatedById: userId },
+    });
+
+    const partIds: string[] = [];
+    const chapterIds: string[] = [];
+    const partKeys = ["i", "r"];
+    const chapterKeys = ["c", "i", "o"];
+
+    for (const [partIndex, partKey] of partKeys.entries()) {
+      const part = await prisma.part.create({
+        data: {
+          outlineId: outline.id,
+          orderKey: partKey,
+          title: `Partie ${String(partIndex + 1)}`,
+          updatedById: userId,
+        },
+      });
+      partIds.push(part.id);
+
+      for (const chapterKey of chapterKeys) {
+        const chapter = await prisma.chapter.create({
+          data: {
+            outlineId: outline.id,
+            bibleId: bible.id,
+            partId: part.id,
+            orderKey: chapterKey,
+            updatedById: userId,
+          },
+        });
+        chapterIds.push(chapter.id);
+
+        await prisma.chapterOutline.create({
+          data: {
+            bibleId: bible.id,
+            chapterId: chapter.id,
+            workingTitle: `Chapitre repère ${String(chapterIds.length)}`,
+            targetWordCount: 2_000,
+            dramaticFunction: "fixture",
+            consequence: "fixture",
+            updatedById: userId,
+          },
+        });
+      }
+    }
+
+    const [opening, , , continued, , closing] = chapterIds;
+    if (opening === undefined || continued === undefined || closing === undefined) {
+      throw new Error("the reorderable plan was seeded short of chapters");
+    }
+
+    const thread = await prisma.thread.create({
+      data: {
+        outlineId: outline.id,
+        bibleId: bible.id,
+        label: "Fil témoin",
+        narrativePromise: "fixture",
+        openingChapterId: opening,
+        closingChapterId: closing,
+        status: "CLOSED",
+        updatedById: userId,
+      },
+    });
+    await prisma.threadContinuation.create({
+      data: { bibleId: bible.id, threadId: thread.id, chapterId: continued },
+    });
+
+    return { projectId: project.id, title, partIds, chapterIds };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * The plan's chapters in reading order, as ids — what the browser cannot see
+ * and the only way to prove a move reached the database rather than the DOM.
+ *
+ * Read by `(part.orderKey, chapter.orderKey)`, which is what reading order *is*
+ * (CAL-019): no number is stored anywhere to sort by.
+ */
+export async function readChapterOrder(projectId: string): Promise<string[]> {
+  const prisma = new PrismaClient();
+
+  try {
+    const parts = await prisma.part.findMany({
+      where: { outline: { projectId } },
+      select: { id: true, chapters: { select: { id: true }, orderBy: { orderKey: "asc" } } },
+      orderBy: { orderKey: "asc" },
+    });
+
+    return parts.flatMap((part) => part.chapters.map((chapter) => chapter.id));
+  } finally {
+    await prisma.$disconnect();
+  }
+}

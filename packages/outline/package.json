@@ -11,6 +11,10 @@
     "./calibration": {
       "types": "./src/target-length/calibration.ts",
       "default": "./src/target-length/calibration.ts"
+    },
+    "./repository": {
+      "types": "./src/repository/index.ts",
+      "default": "./src/repository/index.ts"
     }
   },
   "scripts": {

@@ -4,9 +4,14 @@
  * Overview by parts and chapters, collapsible, with each chapter's dramatic
  * function and consequence, the narrative threads it opens, continues and
  * closes, and the planned length running against the novel's target.
- * Consultation only: reordering (CAL-105), merge/split (CAL-106) and
- * add/delete/lock (CAL-107) are their own tasks, so there is no `actions.ts`
- * beside this page — `bible/page.tsx`'s own reasoning.
+ * Reordering is CAL-105's — `actions.ts` beside this page holds the one
+ * operation the screen performs; merge/split (CAL-106) and add/delete/lock
+ * (CAL-107) are still their own tasks.
+ *
+ * Nothing here changes for a move, and that is the design working: the number
+ * a chapter carries is derived by `resolveOutline` on every read, and the
+ * cumulative lengths are folded in the same pass, so a reordered plan is
+ * re-shaped from the rows rather than patched.
  *
  * **No `<Suspense>` boundary.** The ownership check must resolve before
  * anything renders, `bible/page.tsx`'s documented trap.
@@ -40,6 +45,7 @@ import { chapterStatusLabel } from "@/lib/chapter-status-label";
 import { getCurrentUser } from "@/lib/current-user";
 import { signInDestination } from "@/lib/sign-in-redirect";
 
+import { moveChapterAction } from "./actions";
 import { OutlineSummary } from "./outline-summary";
 import { OutlineTree } from "./outline-tree";
 import styles from "./page.module.css";
@@ -74,13 +80,14 @@ export default async function OutlinePage({ params }: PageProps<"/projects/[proj
           Ce projet n&rsquo;a pas encore de plan&nbsp;: il s&rsquo;écrira une fois la bible validée.
         </p>
       ) : (
-        <OutlinePageData project={found.value} overview={overview} />
+        <OutlinePageData projectId={projectId} project={found.value} overview={overview} />
       )}
     </main>
   );
 }
 
 interface OutlinePageDataProps {
+  readonly projectId: string;
   readonly project: FoundProject;
   readonly overview: OutlineOverview;
 }
@@ -107,7 +114,7 @@ function emptyThreadActions(): MutableThreadActions {
  * everything above is a fetch, everything here turns raw rows into what the
  * client component renders.
  */
-function OutlinePageData({ project, overview }: OutlinePageDataProps) {
+function OutlinePageData({ projectId, project, overview }: OutlinePageDataProps) {
   const resolved = resolveOutline(overview.parts, overview.chapters);
   // `overview.chapters` and `overview.parts` come from the same `Outline` row
   // in the same read, so a chapter naming a part absent from that read cannot
@@ -218,7 +225,13 @@ function OutlinePageData({ project, overview }: OutlinePageDataProps) {
   return (
     <>
       <OutlineSummary summary={summary} />
-      <OutlineTree parts={parts} />
+      {/*
+        The action is bound to the project here rather than imported by the
+        tree: a client component importing a `"use server"` module drags the
+        validated config into its own unit test, and the project id is not a
+        value the client should be trusted to supply anyway.
+      */}
+      <OutlineTree parts={parts} moveChapter={moveChapterAction.bind(null, projectId)} />
     </>
   );
 }

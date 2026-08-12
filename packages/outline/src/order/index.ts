@@ -1,8 +1,9 @@
 /**
  * The ordering of the plan (CAL-019).
  *
- * Three layers: the key algebra (`key.ts`), placing a row among its siblings
- * (`position.ts`), and reading the plan in order with the numbering it derives
+ * Four layers: the key algebra (`key.ts`), placing a row among its siblings
+ * (`position.ts`), moving one chapter to where a gesture pointed (`move.ts`,
+ * CAL-105), and reading the plan in order with the numbering it derives
  * (`resolve.ts`).
  */
 
@@ -13,7 +14,14 @@ export {
   orderKeyBetween,
   orderKeysBetween,
 } from "./key";
-export { moveOrderKey, orderKeyAt } from "./position";
+export {
+  type ChapterMovePlan,
+  type ChapterMoveRequest,
+  chapterMoveRequestSchema,
+  parseChapterMoveRequest,
+  planChapterMove,
+} from "./move";
+export { moveOrderKey, orderKeyAt, STALE_PLAN_MESSAGE } from "./position";
 export { resolveOutline } from "./resolve";
 export type {
   NumberedChapter,
