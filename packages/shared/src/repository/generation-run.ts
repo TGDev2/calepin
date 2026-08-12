@@ -34,6 +34,7 @@
 
 import type { $Enums, Prisma } from "@prisma/client";
 
+import { blockedGenerationError } from "../bible-lock";
 import { getDatabaseClient, type TransactionClient } from "../database/client";
 import { ConflictError, InternalError, NotFoundError } from "../errors/app-error";
 import type { ErrorCategory } from "../errors/categories";
@@ -55,6 +56,7 @@ import {
   WRITE_TARGET_RETRY_DELAY_MS,
 } from "../generation";
 import { logger } from "../logging";
+import { readBibleLocksFor } from "./bible-lock";
 import type { GenerationMission } from "./generation";
 import { PROJECT_OWNER_FIELD } from "./owned-models";
 import { projectNotFound, RollbackSignal } from "./project-lock";
@@ -221,6 +223,15 @@ export async function reserveGeneration(
 
   if (project === null) return fail(projectNotFound());
 
+  // The lock, before anything is opened (CAL-095). Refusing here is what the
+  // specification means by *signaler avant la génération* (§6.5): no row, no
+  // job, no estimate spent, and an author who can lift the lock and ask again
+  // rather than one shown a failure after the fact. The claim checks it a
+  // second time, because a lock can appear between this moment and the worker.
+  const gate = await readBibleLocksFor(client, scope, input.mission, targetId);
+
+  if (gate.blocked) return fail(blockedGenerationError(gate));
+
   try {
     const created = await client.generation.create({
       data: {
@@ -332,6 +343,72 @@ function deferQueuedGeneration(
 }
 
 /**
+ * Whether a locked bible element stands in the way of this generation
+ * (CAL-095).
+ *
+ * `isWriteTargetHeld`'s shape, deliberately: the mission and the target are
+ * read off the row rather than taken from a caller, so nothing outside can
+ * claim to be a mission it is not. A generation nobody owns answers `false` for
+ * the same reason its neighbour does — `runLockedOnGeneration` has already
+ * refused that case, and answering *blocked* to a row that is not there would
+ * turn a `NOT_FOUND` into a lock.
+ */
+async function isBibleElementLocked(
+  tx: TransactionClient,
+  scope: ProjectScope,
+  generationId: string,
+): Promise<boolean> {
+  const own = await tx.generation.findFirst({
+    where: scopedWhere("Generation", scope, { id: generationId }),
+    select: { mission: true, targetId: true },
+  });
+
+  if (own === null) return false;
+
+  const gate = await readBibleLocksFor(tx, scope, own.mission, own.targetId);
+
+  return gate.blocked;
+}
+
+/**
+ * Closes a generation the bible's locks stand in the way of (CAL-095).
+ *
+ * A **stop**, not a wait — which is the whole difference from `target-locked`
+ * beside it. A held write target is released by the generation holding it, so
+ * the row waits and the sweep brings it back; a lock is released by a person,
+ * and a row left `QUEUED` for one would be redelivered every minute until it
+ * ran out of tries. So it lands where a decision can be taken about it: `FAILED`
+ * and `PERMANENT`, which is what puts it in `listFailedGenerations` with a
+ * *Relancer* button, and `replayGeneration` reopens the same row once the author
+ * has lifted the lock.
+ *
+ * **No attempt is opened and no usage column is written**, because nothing was
+ * asked of a provider. That is the same arithmetic `GENERATION_INTERRUPTED`
+ * relies on: a try nobody made sums to nothing.
+ */
+function settleLockedGeneration(
+  tx: TransactionClient,
+  scope: ProjectScope,
+  generationId: string,
+): Promise<number> {
+  return tx.$executeRaw`
+    UPDATE "generations"
+    SET "status" = 'FAILED',
+        "completedAt" = now(),
+        "errorCode" = 'BIBLE_ELEMENT_LOCKED',
+        "errorCategory" = 'CONFLICT',
+        "failureClass" = 'PERMANENT',
+        "nextAttemptAt" = NULL
+    WHERE "id" = ${generationId}
+      AND "status" IN ('QUEUED', 'RUNNING')
+      AND "projectId" IN (
+        SELECT "id" FROM "projects"
+        WHERE "id" = ${scope.projectId} AND "userId" = ${scope.ownerId}
+      )
+  `;
+}
+
+/**
  * Whether another generation of this project is already writing where this one
  * would write (CAL-067).
  *
@@ -429,6 +506,20 @@ export async function claimGenerationAttempt(
       const settled = REFUSAL_BY_STATUS[status];
 
       if (settled !== undefined) return succeed({ kind: "refused", reason: settled } as const);
+
+      // The bible's locks, before the two waits and outside the `QUEUED` branch
+      // (CAL-095). Outside it because a lock must also stop a `RUNNING` row
+      // being resumed after its worker died: the ask was admitted before the
+      // author settled the element, and running it now would rewrite what they
+      // settled — *modifié silencieusement*, which is the one thing the lock
+      // exists to make impossible. Before them because a stop is worth
+      // reporting over a wait, `isWriteTargetHeld`'s own reasoning against the
+      // capacity check.
+      if (await isBibleElementLocked(tx, scope, input.generationId)) {
+        await settleLockedGeneration(tx, scope, input.generationId);
+
+        return succeed({ kind: "refused", reason: "element-locked" } as const);
+      }
 
       // Only a genuinely new admission competes for a slot. A generation that
       // is already `RUNNING` here is being resumed after its lease expired —

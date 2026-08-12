@@ -40,6 +40,14 @@ export {
   validateAnalysis,
 } from "./analysis";
 export {
+  type BibleElementLockInput,
+  type BibleElementLockState,
+  lockBibleElement,
+  readBibleLockGate,
+  type ReadBibleLockGateInput,
+  unlockBibleElement,
+} from "./bible-lock";
+export {
   type CanonicalDirectionSelected,
   type DirectionContentInput,
   type DirectionDiscarded,

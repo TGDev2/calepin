@@ -44,6 +44,7 @@
 
 import type { $Enums } from "@prisma/client";
 
+import { bibleElementLockedError, isBibleElementLocked } from "../bible-lock";
 import { getDatabaseClient } from "../database/client";
 import { ConflictError, NotFoundError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
@@ -239,9 +240,11 @@ export interface RelationshipEdited {
  * the audit block would otherwise move and burn the row's optimistic
  * concurrency token for a submission that changed nothing.
  *
- * A locked edge refuses `CONFLICT`. `lockedAt` is CAL-095's element-level
- * lock, and honouring it in the one statement that could ignore it is cheaper
- * than remembering to check it in every caller.
+ * A locked edge refuses `BIBLE_ELEMENT_LOCKED`. `lockedAt` is CAL-095's
+ * element-level lock, and honouring it in the one statement that could ignore
+ * it is cheaper than remembering to check it in every caller — the predicate
+ * and the sentence are `@calepin/shared/bible-lock`'s since that task, so the
+ * nine models answer alike.
  *
  * Changing an edge's *ends* is not an edit: it is another edge between another
  * pair, and it goes through `writeRelationship` and `deleteRelationship`.
@@ -270,13 +273,8 @@ export async function editRelationship(
       return fail(new NotFoundError({ message: "no such relationship in this project" }));
     }
 
-    if (relationship.lockedAt !== null) {
-      return fail(
-        new ConflictError({
-          message: "a locked relationship cannot be edited",
-          userMessage: "Ce lien est verrouillé : déverrouillez-le pour le modifier.",
-        }),
-      );
+    if (isBibleElementLocked(relationship)) {
+      return fail(bibleElementLockedError("Relationship", "modify"));
     }
 
     if (
@@ -352,13 +350,8 @@ export async function deleteRelationship(
       return fail(new NotFoundError({ message: "no such relationship in this project" }));
     }
 
-    if (relationship.lockedAt !== null) {
-      return fail(
-        new ConflictError({
-          message: "a locked relationship cannot be deleted",
-          userMessage: "Ce lien est verrouillé : déverrouillez-le pour le supprimer.",
-        }),
-      );
+    if (isBibleElementLocked(relationship)) {
+      return fail(bibleElementLockedError("Relationship", "delete"));
     }
 
     await tx.relationship.delete({ where: { id: relationship.id } });

@@ -37,6 +37,15 @@ import type { GenerationFailureClass } from "@calepin/shared/generation";
  * bar `PROJECT_ACTION_ERRORS` sets for its own coarse list.
  */
 const MESSAGE_BY_CODE: Partial<Record<ErrorCode, string>> = {
+  // The one failure a *Relancer* button is not the whole answer to (CAL-095):
+  // relaunching before the lock is lifted lands on the same refusal, so the
+  // sentence names the step that comes first. It deliberately does not tell the
+  // author to lift it — keeping the element settled and asking for something
+  // else is the other legitimate answer, and it is theirs.
+  BIBLE_ELEMENT_LOCKED:
+    "Cette génération réécrirait un élément de la bible que vous avez verrouillé. " +
+    "Rien n'a été demandé au modèle et rien ne vous est compté : levez le verrou " +
+    "avant de relancer.",
   GENERATION_ATTEMPTS_EXHAUSTED:
     "Plusieurs tentatives automatiques ont échoué et Calepin s'est arrêté pour ne pas " +
     "continuer à consommer votre budget. Votre projet est intact.",

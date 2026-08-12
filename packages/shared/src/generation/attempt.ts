@@ -71,18 +71,25 @@ import type { GenerationProgress } from "./progress";
 import type { GenerationRetryPolicy } from "./retry";
 
 /**
- * Why a claim did not open an attempt. Every one of them is an ordinary state
- * of the world under a queue, never a fault: the first three say the task is
- * over, the fourth says someone else is on this generation, and the last two
- * say the work is owed but cannot start yet — no slot is free (CAL-065), or
- * another generation is already writing the chapter, the bible or the plan this
- * one would write (CAL-067).
+ * Why a claim did not open an attempt. None of them is a fault: the first three
+ * say the task is over, the fourth says someone else is on this generation, the
+ * next two say the work is owed but cannot start yet — no slot is free
+ * (CAL-065), or another generation is already writing the chapter, the bible or
+ * the plan this one would write (CAL-067) — and the last says the work must not
+ * start at all until a person decides (CAL-095).
  *
- * **The last two are waits, and the distinction matters to a caller.** The row
- * stays `QUEUED` with a near deadline, nothing is classified as a failure, and
- * the reconciliation sweep offers it again shortly — so a concurrent ask is
- * queued rather than dropped, which is CAL-067's requirement stated as a
- * return value.
+ * **`at-capacity` and `target-locked` are waits, and the distinction matters to
+ * a caller.** The row stays `QUEUED` with a near deadline, nothing is classified
+ * as a failure, and the reconciliation sweep offers it again shortly — so a
+ * concurrent ask is queued rather than dropped, which is CAL-067's requirement
+ * stated as a return value.
+ *
+ * **`element-locked` is a stop, and that is why it is not one of them.** A held
+ * target is released by the generation holding it; a lock is released by the
+ * author, so waiting for one would redeliver the row every minute until it ran
+ * out of tries. The claim closes it `FAILED` and `PERMANENT` instead, with no
+ * attempt opened and no usage recorded, and a replay is what reopens it once
+ * the lock has been lifted.
  */
 export const GENERATION_CLAIM_REFUSALS = [
   "already-succeeded",
@@ -91,6 +98,7 @@ export const GENERATION_CLAIM_REFUSALS = [
   "in-flight",
   "at-capacity",
   "target-locked",
+  "element-locked",
 ] as const;
 
 export type GenerationClaimRefusal = (typeof GENERATION_CLAIM_REFUSALS)[number];
