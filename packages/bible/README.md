@@ -68,4 +68,26 @@ without ever adding to it, over a shape database rows and model answers both
 satisfy, and `describeRelationshipGraph` phrases it in the French the writing
 context and the coherence prompt quote.
 
+The world is the fifth (CAL-092), and the section whose acceptance criterion
+is a shape rather than a check. The specification lists ten items; the contract
+has nine, because the tenth — *les limites de ces éléments* — is the shape of
+the ninth and not a list beside it, which could be empty while capabilities
+existed. There is no `isSupernatural` boolean for a model to lower: the answer
+carries two arrays with different shapes, an ordinary rule with no `limits`
+field to leave empty and an out-of-norm capability with three required,
+non-empty bound lists. `resolveWorldRules` writes the column from which array
+an entry came out of, never from the answer — so *refuse the generation if a
+supernatural element is declared without limits* is not a rule anyone can
+forget to apply, it is a state the type does not have.
+
+`forbids` closes the one gap that split leaves: a power written up as an
+ordinary rule must still say what it cannot do. `verifyWorldBible` deduplicates
+names across **both** arrays, since both become `WorldRule` rows under one
+unique index, and drops a capability whole rather than keep it half-bounded
+when de-duplication empties one of its three lists. `describeWorldBounds`
+phrases what the world permits and what bounds it, ordinary rules before the
+exceptions to them, in the French the writing context and the coherence prompt
+quote — which is where the bounds stop being a declaration and start being what
+makes a resolution by convenience detectable (CAL-114, CAL-159).
+
 Backlog: E09 — CAL-088 to CAL-100. Schemas: CAL-016, CAL-017, CAL-018.

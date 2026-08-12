@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (eighteen since CAL-089), pinned
+- `missions.ts` — the mission identifiers (twenty since CAL-092), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -81,6 +81,8 @@ narrative rule, and never restates a domain schema.
   | `define-novel-identity`       | Opus 5   | high   | 6 k     | 240 s   | bible      | 40 k   | 16 k / 2.5 k    |
   | `define-style`                | Opus 5   | high   | 6 k     | 240 s   | bible      | 40 k   | 16 k / 2 k      |
   | `create-character-sheet`      | Opus 5   | high   | 8 k     | 240 s   | bible      | 40 k   | 12 k / 4 k      |
+  | `relate-characters`           | Opus 5   | high   | 12 k    | 300 s   | bible      | 60 k   | 20 k / 5 k      |
+  | `define-world`                | Opus 5   | high   | 10 k    | 300 s   | bible      | 40 k   | 14 k / 4 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -457,6 +459,28 @@ measured tokens at today's tariff, never replayed from a recorded price.
   (CAL-055). Registry retune: `high`, 240 s, alongside the other bible
   sections — the backlog's Fable/xhigh line describes the design session
   (the CAL-089 reading).
+
+- **The relationship graph filled in** — `relate-characters` (CAL-091), the
+  bible's fourth section and the one a sheet could not be: a sheet is asked
+  of one character, so nothing in its contract has a place for *what the
+  other side does not know*. `prompts/missions/relate-characters.ts` V1 asks
+  the whole cast at once; `write-scene` **V3** and `check-coherence` **V2**
+  read the graph, and the audit's V1 had already been asking for something
+  nothing in its context could answer.
+
+- **The world filled in** — `define-world` (CAL-092), the bible's fifth
+  section. The contract (`@calepin/bible`) makes the forbidden answer
+  unrepresentable rather than detectable: an out-of-norm capability carries
+  three non-empty bound lists and there is no `isSupernatural` flag to
+  lower, so the prompt spends its words on the one thing a shape cannot
+  decide — which array an element belongs in — drawing the boundary by what
+  a thing *does* rather than by whether it reads as supernatural, and naming
+  plainly why the bounds are asked for.
+- `context/` gained `worldBounds`, carried whole and outside the degradation
+  ladder. `write-scene` **V4** and `check-coherence` **V3** read it: a power
+  quoted without its bounds is an open offer to a scene short of an exit,
+  and the audit can now ask of what a character *can do* what it already
+  asked of what they know.
 
 ## What arrives in its own task
 
