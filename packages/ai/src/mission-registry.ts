@@ -502,6 +502,30 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 150_000,
   },
 
+  /**
+   * `xhigh`, `detect-bible-contradictions`' reasoning applied to a production
+   * mission: the découpage is the novel's one global-architecture decision,
+   * and the two defects the backlog names against it — *absence de
+   * progression* and *fin précipitée* — are exactly what degrades silently on
+   * a shallower run, because each part read alone stays plausible and only
+   * the whole length held at once shows the stake failing to move. A small
+   * output cap for a wide read: at most twelve parts and twelve threads come
+   * back, argued in sentences, while the ask carries the direction, the
+   * identity, the cast's arcs and the planned events.
+   */
+  "split-into-parts": {
+    id: "split-into-parts",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "outline" },
+    contextBudgetTokens: 40_000,
+    expectedUsage: { inputTokens: 14_000, outputTokens: 4_000 },
+    expectedDurationMs: 150_000,
+  },
+
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {
     id: "build-chapter-outline",

@@ -47,6 +47,7 @@ import { PROPOSE_DIRECTIONS_PROMPTS } from "./missions/propose-directions";
 import { REGENERATE_ANALYSIS_SECTION_PROMPTS } from "./missions/regenerate-analysis-section";
 import { RELATE_CHARACTERS_PROMPTS } from "./missions/relate-characters";
 import { REPLACE_DIRECTION_PROMPTS } from "./missions/replace-direction";
+import { SPLIT_INTO_PARTS_PROMPTS } from "./missions/split-into-parts";
 import { SUMMARIZE_CHAPTER_PROMPTS } from "./missions/summarize-chapter";
 import { SUMMARIZE_PART_PROMPTS } from "./missions/summarize-part";
 import { WRITE_SCENE_PROMPTS } from "./missions/write-scene";
@@ -75,6 +76,7 @@ export const PROMPT_REGISTRY = {
   "build-timeline": BUILD_TIMELINE_PROMPTS,
   "extract-initial-facts": EXTRACT_INITIAL_FACTS_PROMPTS,
   "detect-bible-contradictions": DETECT_BIBLE_CONTRADICTIONS_PROMPTS,
+  "split-into-parts": SPLIT_INTO_PARTS_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,
   "extract-facts": EXTRACT_FACTS_PROMPTS,

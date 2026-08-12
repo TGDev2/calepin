@@ -2436,6 +2436,7 @@ enum GenerationMission {
   BUILD_TIMELINE // construire la chronologie initiale
   EXTRACT_INITIAL_FACTS // extraire les faits canoniques initiaux
   DETECT_BIBLE_CONTRADICTIONS // repérer les contradictions internes de la bible
+  SPLIT_INTO_PARTS // découper le roman en parties
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène
   EXTRACT_FACTS // extraire les faits

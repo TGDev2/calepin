@@ -89,6 +89,10 @@ export const MISSION_LOCK_SCOPE: Readonly<Record<Mission, readonly BibleLockable
   // contradiction worth reporting.
   DETECT_BIBLE_CONTRADICTIONS: [],
 
+  // The plan missions read the reference bible (CAL-100's savepoint) and
+  // rebuild no bible section: a part is not a bible element, and the threads
+  // the split declares wait for chapters to exist as rows (CAL-102).
+  SPLIT_INTO_PARTS: [],
   BUILD_CHAPTER_OUTLINE: [],
   WRITE_SCENE: [],
   FIX_ISSUE: [],

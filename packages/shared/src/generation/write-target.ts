@@ -125,6 +125,10 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
   EXTRACT_INITIAL_FACTS: "bible",
   EXTRACT_FACTS: "bible",
 
+  // The two plan missions write the project's one outline — the parts are the
+  // frame the chapter plans hang inside, so a chapter outline built while the
+  // parts are being recut would hang off a part nobody kept.
+  SPLIT_INTO_PARTS: "outline",
   BUILD_CHAPTER_OUTLINE: "outline",
 
   // The three that write under one chapter — its text, twice over, and its

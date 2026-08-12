@@ -1734,6 +1734,7 @@ describe("prisma schema", () => {
           "BUILD_TIMELINE", // CAL-093
           "EXTRACT_INITIAL_FACTS", // CAL-094
           "DETECT_BIBLE_CONTRADICTIONS", // CAL-099
+          "SPLIT_INTO_PARTS", // CAL-101
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",
           "EXTRACT_FACTS",

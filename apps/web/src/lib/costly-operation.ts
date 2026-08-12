@@ -56,6 +56,7 @@ export const MISSION_ID_BY_GENERATION_MISSION = {
   BUILD_TIMELINE: "build-timeline",
   EXTRACT_INITIAL_FACTS: "extract-initial-facts",
   DETECT_BIBLE_CONTRADICTIONS: "detect-bible-contradictions",
+  SPLIT_INTO_PARTS: "split-into-parts",
   BUILD_CHAPTER_OUTLINE: "build-chapter-outline",
   WRITE_SCENE: "write-scene",
   EXTRACT_FACTS: "extract-facts",

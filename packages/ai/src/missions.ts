@@ -1,12 +1,12 @@
 /**
- * The twenty mission identifiers (CLAUDE.md §4.2).
+ * The mission identifiers (CLAUDE.md §4.2).
  *
  * They are this layer's vocabulary, and — with the port and the error types —
  * the one thing a domain is allowed to import from here (ADR-001). Kebab-case
  * verbs, per the naming rule; the `GenerationMission` Prisma enum spells the
- * same twenty in SCREAMING_SNAKE because the column follows the schema's
+ * same list in SCREAMING_SNAKE because the column follows the schema's
  * convention, and `missions.test.ts` pins the two lists together so neither
- * can drift.
+ * can drift — the count is deliberately not written here, CAL-094's reason.
  *
  * `summarize-part` is the one CAL-055 added, and it is a separate mission
  * rather than a second use of `summarize-chapter` because §5.4 admits no
@@ -117,6 +117,19 @@
  * What is left is exactly what no key reaches: two statements that oppose each
  * other only in their wording, and two rules of the world that cannot both
  * govern it.
+ *
+ * `split-into-parts` (CAL-101) opens the plan stage, and it is not the first
+ * `build-chapter-outline` call: that one plans **one** chapter inside a part
+ * that already frames it, while this one decides the frame — the whole novel's
+ * parts, argued against each other across the full target length, under a
+ * count gate derived from that length (`partCalibrationForWordCount`) that no
+ * chapter plan carries. Different contract (`partStructureSchema`, judged by
+ * `checkPartStructure`'s calculable gates), different cadence — once per
+ * project, on the project-wide `outline` write target the chapter mission
+ * shares, so the two exclude each other rather than plan past each other. It
+ * also declares the novel's narrative threads: no `Thread` row can exist
+ * before a chapter does, so the answer carries the vocabulary its own parts
+ * cite by index, and the rows wait for CAL-102.
  */
 
 export const MISSION_IDS = [
@@ -136,6 +149,7 @@ export const MISSION_IDS = [
   "build-timeline",
   "extract-initial-facts",
   "detect-bible-contradictions",
+  "split-into-parts",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

@@ -77,12 +77,14 @@ export const COSTLY_OPERATION_REGISTRY = {
   /**
    * The plan of the whole novel, built once and then checked: an outline whose
    * parts contradict the bible is worse than none, because everything written
-   * afterwards inherits the contradiction.
+   * afterwards inherits the contradiction. The split comes first (CAL-101) —
+   * the parts are the frame the chapter plans hang inside.
    */
   "generate-outline": {
     id: "generate-outline",
     unit: "project",
     phases: [
+      { mission: "split-into-parts", kind: "production", callsPerUnit: 1 },
       { mission: "build-chapter-outline", kind: "production", callsPerUnit: 1 },
       { mission: "check-coherence", kind: "control", callsPerUnit: 1 },
     ],
