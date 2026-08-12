@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@calepin/shared": "workspace:*"
+    "@calepin/shared": "workspace:*",
+    "zod": "^4.4.3"
   }
 }
