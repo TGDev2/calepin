@@ -32,6 +32,7 @@
 
 import { sameWords } from "@calepin/shared/text";
 
+import { contentWordsOf, STAKE_OVERLAP_RATIO, stakeOverlap } from "../stake/overlap";
 import { partCalibrationForWordCount } from "../target-length/calibrate";
 
 /**
@@ -54,55 +55,6 @@ export type PartStructureDefectKind = (typeof PART_STRUCTURE_DEFECT_KINDS)[numbe
 export const PART_STRUCTURE_ADVISORY_KINDS = ["similar-stakes", "single-part-thread"] as const;
 
 export type PartStructureAdvisoryKind = (typeof PART_STRUCTURE_ADVISORY_KINDS)[number];
-
-/**
- * Two stakes are worth a look when they share at least this fraction of their
- * content words — `CANON_FACT_NEAR_DUPLICATE_RATIO`'s figure, restated here
- * because a domain may not import a domain (§3.2), exactly as every domain
- * restates `ceilingFor`. The denominator is the *larger* of the two word
- * sets: the strict direction, which under-fires on purpose.
- */
-export const PART_STAKE_OVERLAP_RATIO = 0.75;
-
-/**
- * The words stripped before two stakes are compared — determiners, the
- * high-frequency prepositions and the two coordinations, and nothing else: a
- * conservative closed list, never a verb and never a negation, so what is
- * compared is the words that carry the stake. Being wrong here costs a note,
- * not a refusal — the advisory regime is what buys the wider list.
- */
-export const PART_STAKE_STOP_WORDS = [
-  "le",
-  "la",
-  "les",
-  "l",
-  "un",
-  "une",
-  "des",
-  "du",
-  "de",
-  "d",
-  "au",
-  "aux",
-  "ce",
-  "cet",
-  "cette",
-  "ces",
-  "son",
-  "sa",
-  "ses",
-  "leur",
-  "leurs",
-  "à",
-  "en",
-  "dans",
-  "sur",
-  "pour",
-  "par",
-  "avec",
-  "et",
-  "ou",
-] as const;
 
 /**
  * One finding that refuses the answer. A union rather than one shape with
@@ -195,28 +147,6 @@ export interface PartStructureReport {
   readonly threads: number;
   readonly defects: readonly PartStructureDefect[];
   readonly advisories: readonly PartStructureAdvisory[];
-}
-
-const STOP_WORDS = new Set<string>(PART_STAKE_STOP_WORDS);
-
-/**
- * A stake's distinct content words — `normalizeText`'s reduction restated at
- * the word level (the same fold `createVerbatimMatcher` applies), minus the
- * stop words. Local rather than shared because it is this check's own notion
- * of a content word, `canonFactStatementKey`'s arrangement one epic earlier.
- */
-function contentWordsOf(text: string): ReadonlySet<string> {
-  const words =
-    text
-      .normalize("NFC")
-      .toLowerCase()
-      .match(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu) ?? [];
-
-  return new Set(
-    words
-      .flatMap((word) => word.split(/['’-]/u))
-      .filter((word) => word.length > 0 && !STOP_WORDS.has(word)),
-  );
 }
 
 function checkThreads(
@@ -334,10 +264,9 @@ function checkStakes(parts: readonly PartStructureCheckPart[]): readonly PartStr
 
       if (other === null || other === undefined) continue;
 
-      const words = Math.max(stake.size, other.size);
-      const sharedWords = [...stake].filter((word) => other.has(word)).length;
+      const { sharedWords, words } = stakeOverlap(stake, other);
 
-      if (words > 0 && sharedWords / words >= PART_STAKE_OVERLAP_RATIO) {
+      if (words > 0 && sharedWords / words >= STAKE_OVERLAP_RATIO) {
         advisories.push({ kind: "similar-stakes", partIndex, otherPartIndex, sharedWords, words });
       }
     }

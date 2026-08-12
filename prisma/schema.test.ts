@@ -969,6 +969,18 @@ describe("prisma schema", () => {
       );
     });
 
+    // CAL-102 declares a chapter's period in the same vocabulary — the outline
+    // may not import the bible (§3.2), so the members are restated there and
+    // pinned here, the same carve-out one domain over.
+    it("is mirrored by the vocabulary a chapter period is declared in", () => {
+      expect(enumMembers("TimelinePrecision")).toEqual(
+        workspaceStringUnion(
+          "packages/outline/src/chapters/schema.ts",
+          "CHAPTER_PERIOD_PRECISIONS",
+        ),
+      );
+    });
+
     describe("the two placements", () => {
       // The axis is an integer count of days, not a DateTime: a fictional
       // calendar does not map to the Gregorian one, and an age is computed by

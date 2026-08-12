@@ -1,7 +1,5 @@
 export {
   checkPartStructure,
-  PART_STAKE_OVERLAP_RATIO,
-  PART_STAKE_STOP_WORDS,
   PART_STRUCTURE_ADVISORY_KINDS,
   PART_STRUCTURE_DEFECT_KINDS,
   type PartStructureAdvisory,
