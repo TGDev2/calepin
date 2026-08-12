@@ -264,4 +264,76 @@ const V3 = {
   ].join("\n"),
 } as const satisfies PromptDefinition;
 
-export const WRITE_SCENE_PROMPTS = [V1, V2, V3] as const;
+/**
+ * V4 (CAL-092) adds what the world permits and what bounds it, and the
+ * addition is again one section and one sentence.
+ *
+ * The section carries the world as `describeWorldBounds` phrases it — the
+ * ordinary rules first, then each out-of-norm capability followed by what it
+ * cannot do, what it costs and when it fails. The sentence is what makes it
+ * load-bearing, and it is aimed at one failure specifically: a scene that
+ * needs an exit reaches for the most capable thing in the context, and a power
+ * quoted without its bounds is an open offer. Naming the bounds as *the* place
+ * the scene's difficulty comes from turns the same lines from a restriction
+ * into material.
+ *
+ * Placed with the canon facts and the ties, for V3's own reason: the three
+ * sections are of one kind — what the world already holds and must not be
+ * contradicted — and the world's rules belong before the ties, since who may
+ * do what precedes who holds what about whom.
+ */
+const V4 = {
+  id: "write-scene",
+  version: 4,
+  scope: { kind: "mission", missionId: "write-scene" },
+  variables: [
+    ...V3.variables,
+    {
+      name: "worldBounds",
+      type: "list",
+      description:
+        "The world's rules and, for each out-of-norm capability, what it cannot do, what it costs and when it fails.",
+    },
+  ],
+  system: V3.system,
+  instruction: [
+    "Écris le chapitre planifié ci-dessous, d'environ {{targetWordCount}} mots.",
+    "",
+    "Plan du chapitre :",
+    "{{chapterOutline}}",
+    "",
+    "Consignes de l'auteur :",
+    "{{authorInstructions}}",
+    "",
+    "Style à respecter :",
+    "{{bibleStyle}}",
+    "",
+    "Contraintes de fidélité au texte source :",
+    "{{freedomConstraints}}",
+    "",
+    "Ce que ce monde permet et ce qui l'en empêche. Les règles d'abord, puis, pour chaque élément hors norme, ce qu'il ne peut pas faire, ce qu'il coûte et quand il échoue :",
+    "{{worldBounds}}",
+    "Ces bornes ne sont pas des interdits à contourner : elles sont la matière de la scène. Si un personnage s'en sort grâce à un élément hors norme, il doit en payer le coût déclaré, et cela ne doit pas fonctionner dans les circonstances déclarées comme le faisant échouer. Une difficulté qui se dénoue parce que le pouvoir se trouvait disponible au bon moment n'est pas dénouée.",
+    "",
+    "Faits déjà établis que ce chapitre engage — ne les contredis pas :",
+    "{{canonFacts}}",
+    "",
+    "Liens entre les personnages. Chaque ligne est orientée : elle dit ce que le premier personnage tient du second, et rien de ce que le second tient du premier. Une ligne d'asymétrie signale un lien qu'un seul côté déclare, ou que les deux déclarent différemment :",
+    "{{characterRelations}}",
+    "Un personnage n'agit que sur ce que son propre côté du lien porte. Si l'un sait ce que l'autre ignore, l'autre continue de l'ignorer dans cette scène, quoi que le lecteur en sache — c'est précisément là que la scène a quelque chose à jouer.",
+    "",
+    "Ce que le roman a parcouru jusqu'ici, partie par partie :",
+    "{{partSummaries}}",
+    "",
+    "Résumés des chapitres précédents, du plus ancien au plus récent :",
+    "{{precedingSummaries}}",
+    "",
+    "Extraits antérieurs nécessaires à la continuité :",
+    "{{continuityExcerpts}}",
+    "",
+    "Écris la scène plutôt que de la raconter, et tiens le plan jusqu'au bout : ce qu'il annonce doit être dans le chapitre.",
+    "N'introduis pas de fait nouveau qui contredirait ceux ci-dessus ; si le plan en exige un, écris-le comme un fait nouveau et non comme un rappel.",
+  ].join("\n"),
+} as const satisfies PromptDefinition;
+
+export const WRITE_SCENE_PROMPTS = [V1, V2, V3, V4] as const;

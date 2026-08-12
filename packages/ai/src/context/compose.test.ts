@@ -65,6 +65,13 @@ function chapterTwelveInput(overrides: Partial<SceneContextInput> = {}): SceneCo
       "Personnage A -> Personnage B (famille) : marqueur-lien.",
       "Asymetrie du lien : Personnage A -> Personnage B, marqueur-asymetrie.",
     ],
+    worldBounds: [
+      "Regle du monde : marqueur-regle. Rend impossible : marqueur-interdit.",
+      "Element hors norme (hors norme) — marqueur-pouvoir.",
+      "Ne peut pas : marqueur-limite.",
+      "Coute : marqueur-cout.",
+      "Echoue quand : marqueur-echec.",
+    ],
     canonFacts: [
       {
         id: "fact-named",
@@ -158,6 +165,19 @@ describe("composeSceneContext — the acceptance criterion", () => {
     expect(report.summaries).toEqual({ offered: 11, detailed: 2, brief: 9, dropped: 0 });
     expect(report.excerpts).toEqual({ offered: 2, selected: 2 });
     expect(report.characterRelations).toBe(2);
+    expect(report.worldBounds).toBe(5);
+  });
+
+  it("carries what the world forbids and what bounds a power", () => {
+    const { prompt } = unwrap(composeSceneContext(chapterTwelveInput()));
+
+    // The three bound lines are the point: a power quoted without them is an
+    // open offer, and a scene short of an exit reaches for the most capable
+    // thing in its context (CAL-092).
+    expect(prompt.text).toContain("marqueur-interdit");
+    expect(prompt.text).toContain("marqueur-limite");
+    expect(prompt.text).toContain("marqueur-cout");
+    expect(prompt.text).toContain("marqueur-echec");
   });
 });
 
@@ -390,6 +410,41 @@ describe("composeSceneContext — the part summaries", () => {
     );
 
     expect(failure.code).toBe("CONTEXT_BUDGET_EXCEEDED");
+  });
+
+  // CAL-092, and the sharpest case of the three: these lines exist so that a
+  // resolution leaning on a power can later be told from one that was earned.
+  // A context that shed the line saying what the power cannot do is a context
+  // in which the scene using it anyway was written in good faith.
+  it("carries every world line, and fails rather than drop one", () => {
+    const bounds = Array.from({ length: 40 }, (_, i) => `Ne peut pas : borne-${String(i)}.`);
+
+    const { prompt, report } = unwrap(
+      composeSceneContext(chapterTwelveInput({ worldBounds: bounds })),
+    );
+
+    expect(report.worldBounds).toBe(bounds.length);
+    for (const line of bounds) {
+      expect(prompt.text).toContain(line);
+    }
+
+    const failure = unwrapError(
+      composeSceneContext(
+        chapterTwelveInput({ worldBounds: Array.from({ length: 900 }, () => "b".repeat(390)) }),
+      ),
+    );
+
+    expect(failure.code).toBe("CONTEXT_BUDGET_EXCEEDED");
+  });
+
+  it("refuses a full chapter travelling as a world line", () => {
+    const error = unwrapError(
+      composeSceneContext(chapterTwelveInput({ worldBounds: [fullChapterText(4)] })),
+    );
+
+    expect(error.code).toBe("CONTEXT_ITEM_OVERSIZED");
+    // The path names the kind and the position — never the line (§9).
+    expect(error.fieldPath).toBe("worldBounds.0");
   });
 
   // The same refusal the chapter summaries get, and for the same reason: a

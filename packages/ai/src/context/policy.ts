@@ -31,6 +31,11 @@ export const CONTEXT_ITEM_CEILINGS = {
   // same order of magnitude as a canon fact, because it is the same kind of
   // thing: a statement about the world the writing must not contradict.
   characterRelation: 200,
+  // One line of the world: a rule and what it forbids, or one of a
+  // capability's three bound lists joined. Wider than a relationship line
+  // because a bound list carries up to four entries on one line, and still an
+  // order of magnitude under a chapter, which is what these ceilings refuse.
+  worldBound: 400,
   briefSummary: 400,
   detailedSummary: 1_200,
   // The same as a detailed chapter summary, because they are asked for at the

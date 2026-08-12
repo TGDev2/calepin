@@ -118,6 +118,20 @@ export interface SceneContextInput {
    * one is bounded on its own by `CONTEXT_ITEM_CEILINGS.characterRelation`.
    */
   readonly characterRelations: readonly string[];
+  /**
+   * What the world permits and what bounds it, already phrased by the domain
+   * (`describeWorldBounds` in `@calepin/bible`) — one line per rule, plus a
+   * line each for a capability's limits, its costs and its failure conditions
+   * (CAL-092).
+   *
+   * Carried whole and **never degraded**, and here the reason is the sharpest
+   * of the three that are: these lines exist so that a resolution leaning on a
+   * power can later be told from one that was earned. A context that shed the
+   * line saying what the power cannot do is a context in which the scene using
+   * it anyway was written in good faith — and nothing downstream could then
+   * distinguish the convenience from the intent.
+   */
+  readonly worldBounds: readonly string[];
   readonly canonFacts: readonly CanonFactCandidate[];
   /** The summaries of the parts entirely behind the target chapter (CAL-055). */
   readonly precedingParts: readonly PartSummary[];
@@ -187,6 +201,11 @@ export interface ContextCompositionReport {
    * `partSummaries`' arrangement.
    */
   readonly characterRelations: number;
+  /**
+   * World lines carried. One number, for `characterRelations`' reason: they
+   * are not degradable, so offered and selected are the same by construction.
+   */
+  readonly worldBounds: number;
   /**
    * Part summaries carried. There is no `dropped` counterpart: they are not
    * degradable, so offered and selected are the same number by construction —

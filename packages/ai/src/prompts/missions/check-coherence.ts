@@ -114,4 +114,62 @@ const V2 = {
   ].join("\n"),
 } as const satisfies PromptDefinition;
 
-export const CHECK_COHERENCE_PROMPTS = [V1, V2] as const;
+/**
+ * V3 (CAL-092) gives the audit the world's bounds.
+ *
+ * V2's own line already asked it to flag *ce qu'un personnage sait sans que
+ * rien ne le lui ait appris*, and CAL-091 gave it the ties that answer it.
+ * This is the same move for what a character can *do*: a chapter in which a
+ * power works past its declared limit, without paying its declared cost, or in
+ * the circumstances declared to defeat it, is a contradiction of the bible in
+ * exactly the sense this mission hunts — and until now nothing in its context
+ * could have shown it.
+ */
+const V3 = {
+  id: "check-coherence",
+  version: 3,
+  scope: { kind: "mission", missionId: "check-coherence" },
+  variables: [
+    ...V2.variables,
+    {
+      name: "worldBounds",
+      type: "list",
+      description:
+        "The world's rules and, for each out-of-norm capability, what it cannot do, what it costs and when it fails.",
+    },
+  ],
+  system: V2.system,
+  instruction: [
+    "Cherche dans le chapitre ci-dessous ce qui contredit ce qui a été établi avant lui.",
+    "",
+    "Faits établis :",
+    "{{canonFacts}}",
+    "",
+    "Ce que ce monde permet et ce qui l'en empêche. Les règles d'abord, puis, pour chaque élément hors norme, ce qu'il ne peut pas faire, ce qu'il coûte et quand il échoue :",
+    "{{worldBounds}}",
+    "",
+    "Liens entre les personnages. Chaque ligne est orientée : elle dit ce que le premier personnage tient du second, et rien de ce que le second tient du premier. Une ligne d'asymétrie signale un lien qu'un seul côté déclare, ou que les deux déclarent différemment :",
+    "{{characterRelations}}",
+    "",
+    "Chapitres précédents :",
+    "{{precedingSummaries}}",
+    "",
+    "Plan du chapitre :",
+    "{{chapterOutline}}",
+    "",
+    "Bible :",
+    "{{bibleIdentity}}",
+    "",
+    "Pour chaque problème, cite le passage du chapitre concerné et l'élément établi avec lequel il entre en contradiction. Un problème sans passage cité n'est pas exploitable.",
+    "Signale aussi ce que le chapitre annonçait dans son plan et n'a pas tenu, et ce qu'un personnage sait sans que rien ne le lui ait appris — un personnage qui agit sur ce que seul l'autre côté du lien porte est exactement ce cas, et les lignes d'asymétrie ci-dessus disent lesquels.",
+    "Signale de même tout usage d'un élément hors norme qui dépasse ce qu'il ne peut pas faire, qui n'en paie pas le coût déclaré, ou qui réussit dans une circonstance déclarée comme le faisant échouer. Une difficulté que le chapitre dénoue de cette façon est à signaler même si le récit ne se contredit nulle part ailleurs.",
+    "Ne signale pas ce qui est seulement inhabituel, incomplet ou perfectible : seulement ce qui est contradictoire.",
+    "",
+    "Chapitre :",
+    "{{chapterText}}",
+    "",
+    "Réponds uniquement par l'objet JSON demandé, sans texte avant ni après.",
+  ].join("\n"),
+} as const satisfies PromptDefinition;
+
+export const CHECK_COHERENCE_PROMPTS = [V1, V2, V3] as const;

@@ -16,6 +16,15 @@
  * scene must not contradict when it has one character act on what another
  * knows. Carried whole, never degraded, for the reason facts are not.
  *
+ * CAL-092 added the world's rules and the bounds on what it permits, beside
+ * both. Like the graph it is a second reading of the same ingredient — the
+ * relevant bible section — rather than a new one, and it is not degradable for
+ * the sharpest version of that reason: the bound lines exist so that a
+ * resolution leaning on a power can later be told from one that was earned
+ * (CAL-114, CAL-159). Shedding the line that says what the power cannot do
+ * would buy room by removing the very constraint the room was for, and would
+ * leave the scene that used it anyway indistinguishable from an honest one.
+ *
  * CAL-055 added a second resolution of the fifth: the preceding *parts'*
  * summaries, carried beside the chapters' and never degraded. It is not an
  * eighth ingredient so much as the coarse end of one — and it is what makes
@@ -111,6 +120,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
       authorInstructions: input.authorInstructions,
       freedomConstraints: input.freedomConstraints,
       characterRelations: input.characterRelations,
+      worldBounds: input.worldBounds,
       canonFacts: facts.map((fact) => fact.statement),
       partSummaries,
       precedingSummaries: keptSummaries.map((chapter) =>
@@ -135,6 +145,7 @@ export function composeSceneContext(input: SceneContextInput): Result<ComposedSc
           degradationStepsApplied: step,
           facts: { offered: input.canonFacts.length, selected: facts.length },
           characterRelations: input.characterRelations.length,
+          worldBounds: input.worldBounds.length,
           partSummaries: parts.length,
           summaries: {
             offered: input.precedingChapters.length,
@@ -180,6 +191,11 @@ function findOversizedItem(input: SceneContextInput): string | undefined {
     ...input.characterRelations.map((text, index) => ({
       kind: "characterRelation" as const,
       path: `characterRelations.${index}`,
+      text,
+    })),
+    ...input.worldBounds.map((text, index) => ({
+      kind: "worldBound" as const,
+      path: `worldBounds.${index}`,
       text,
     })),
     ...input.canonFacts.map((fact) => ({
