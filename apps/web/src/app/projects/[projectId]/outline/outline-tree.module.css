@@ -1,0 +1,175 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * colours/spacing outside them — CAL-181 owns the real token system.
+ * Deliberately dense: fifty chapters have to stay legible, so every row is
+ * one compact line by default and only a chapter the reader opens costs a
+ * paragraph.
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.controls {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.controlButton {
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+}
+
+.controlButton:hover {
+  background: var(--color-background);
+}
+
+.tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.partItem {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+}
+
+.partItem:focus-visible,
+.chapterItem:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
+}
+
+.partRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.disclosureIcon {
+  flex: none;
+  width: 1em;
+  color: var(--color-text-muted);
+}
+
+.partTitle {
+  font-weight: 600;
+}
+
+.partMeta {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.partSubtitle {
+  margin: 0 var(--space-2) var(--space-1) calc(var(--space-2) + 1.5em);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.chapterGroup {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border);
+}
+
+.chapterItem {
+  padding: 0.4rem var(--space-2) 0.4rem calc(var(--space-2) + 1.25rem);
+  border-top: 1px solid var(--color-border);
+}
+
+.chapterItem:first-child {
+  border-top: none;
+}
+
+.chapterRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.chapterNumber {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.chapterTitle {
+  font-weight: 600;
+}
+
+.chapterStatus {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.chapterPreview {
+  margin: 0.15rem 0 0 1.65rem;
+  overflow: hidden;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+}
+
+.previewLabel {
+  color: var(--color-text);
+}
+
+.chapterMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0 1.65rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.threadCounts {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.threadBadge {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.detail {
+  margin: var(--space-1) 0 0 1.65rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.fact {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.fact dt {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.fact dd {
+  margin: 0;
+  font-size: 0.9rem;
+}

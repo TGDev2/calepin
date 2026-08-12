@@ -244,6 +244,19 @@ async function ProjectDetails({ scope, project, error }: ProjectDetailsProps) {
         </Link>
       </section>
 
+      <section className={styles.action} aria-labelledby="outline-heading">
+        <h3 className={styles.actionTitle} id="outline-heading">
+          Plan
+        </h3>
+        <p className={styles.actionNote}>
+          Le découpage en parties et en chapitres&nbsp;: fonction dramatique, conséquence, fils
+          narratifs ouverts et fermés, et la longueur planifiée face à la longueur cible.
+        </p>
+        <Link className={styles.actionLink} href={`/projects/${project.id}/outline`}>
+          Voir le plan…
+        </Link>
+      </section>
+
       <section className={styles.action} aria-labelledby="duplicate-heading">
         <h3 className={styles.actionTitle} id="duplicate-heading">
           Dupliquer

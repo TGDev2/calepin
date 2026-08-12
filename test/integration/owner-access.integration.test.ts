@@ -38,6 +38,7 @@ import {
   getBibleOverview,
   getDirectionsForComparison,
   getGenerationContextForProject,
+  getOutlineOverview,
   getProjectForOwner,
   getProjectTargetLength,
   getSourceText,
@@ -159,6 +160,7 @@ const ENTRY_POINTS = [
   "getCharacterForEdit",
   "getDirectionsForComparison",
   "getGenerationContextForProject",
+  "getOutlineOverview",
   "getProjectForOwner",
   "getProjectTargetLength",
   "getReferenceBibleVersion",
@@ -1124,6 +1126,48 @@ describe("owner access policy", () => {
       expect(mine?.characters.map((c) => c.id)).toContain(alice.rows.Character);
 
       const theirs = await getBibleOverview(forgedScope(bob.ownerId, alice.projectId));
+      expect(theirs).toBeNull();
+    });
+
+    // CAL-104's plan screen. The fixture graph seeds one part of two chapters
+    // and one thread opening at the first and continued at the second — a
+    // chapter outline with no prose filled in yet (a hand-added row, before
+    // any mission has run), one present character and one fact, which is
+    // enough to prove every nested read is scoped without a second fixture.
+    it("getOutlineOverview refuses another owner's project", async () => {
+      const mine = await getOutlineOverview(aliceScope);
+
+      expect(mine).toMatchObject({
+        id: alice.rows.Outline,
+        parts: [{ id: alice.rows.Part, title: "owner-access-alice-part" }],
+        chapters: [
+          {
+            id: alice.rows.Chapter,
+            partId: alice.rows.Part,
+            status: "PLANNED",
+            chapterOutline: {
+              workingTitle: null,
+              dramaticFunction: null,
+              characters: [{ characterId: alice.rows.Character }],
+              facts: [{ factId: alice.rows.CanonFact }],
+            },
+          },
+          { partId: alice.rows.Part, chapterOutline: null },
+        ],
+        threads: [
+          {
+            id: alice.rows.Thread,
+            label: "owner-access-alice-thread",
+            status: "OPEN",
+            openingChapterId: alice.rows.Chapter,
+            closingChapterId: null,
+          },
+        ],
+      });
+      expect(mine?.chapters).toHaveLength(2);
+      expect(mine?.threads[0]?.continuationChapterIds).toEqual([mine?.chapters[1]?.id]);
+
+      const theirs = await getOutlineOverview(forgedScope(bob.ownerId, alice.projectId));
       expect(theirs).toBeNull();
     });
 

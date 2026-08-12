@@ -178,6 +178,16 @@ export {
   type UpdateGenerationProgressInput,
 } from "./generation-run";
 export {
+  getOutlineOverview,
+  type OutlineChapterOutlineCharacterRow,
+  type OutlineChapterOutlineFactRow,
+  type OutlineChapterOutlineRow,
+  type OutlineChapterRow,
+  type OutlineOverview,
+  type OutlinePartRow,
+  type OutlineThreadRow,
+} from "./outline";
+export {
   delegateName,
   isProjectOwnedModel,
   PROJECT_OWNED_MODEL_NAMES,
