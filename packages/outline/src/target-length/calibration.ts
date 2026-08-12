@@ -14,8 +14,11 @@
  */
 
 export {
+  CHAPTER_TARGET_WORD_COUNT_RANGE,
+  chapterCalibrationForPartWordCount,
   estimateChapterCalibration,
   estimatePartCalibration,
+  PART_CHAPTER_COUNT_RANGE,
   PART_COUNT_RANGE,
   partCalibrationForWordCount,
   resolveNovelTargetWordCount,
@@ -25,6 +28,7 @@ export {
   type ChapterCalibration,
   type NovelLengthChoice,
   type PartCalibration,
+  type PartChapterCalibration,
   TARGET_LENGTHS,
   type TargetLength,
   type TargetLengthRange,

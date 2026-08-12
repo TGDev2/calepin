@@ -1,5 +1,10 @@
 import { TARGET_LENGTH_RANGES } from "./ranges";
-import type { ChapterCalibration, NovelLengthChoice, PartCalibration } from "./types";
+import type {
+  ChapterCalibration,
+  NovelLengthChoice,
+  PartCalibration,
+  PartChapterCalibration,
+} from "./types";
 
 /**
  * A contemporary novel's chapter runs roughly 2 500 to 3 500 words; this is
@@ -86,4 +91,53 @@ export function estimateChapterCalibration(choice: NovelLengthChoice): ChapterCa
 /** The part-count range a novel-length choice implies (CAL-101). */
 export function estimatePartCalibration(choice: NovelLengthChoice): PartCalibration {
   return partCalibrationForWordCount(resolveNovelTargetWordCount(choice));
+}
+
+/**
+ * The envelope every part's chapter batch stays inside whatever the part's
+ * word target (CAL-102): below two chapters a part carries no arc of its own,
+ * and `chapterOutlineBatchSchema` needs a static bound the structured-output
+ * subset can carry, so the ceiling is stated here once and the schema reuses
+ * it — `PART_COUNT_RANGE`'s arrangement one level down.
+ */
+export const PART_CHAPTER_COUNT_RANGE = { min: 2, max: 20 } as const;
+
+/**
+ * The envelope a single chapter's declared target stays inside (CAL-102).
+ * Below a thousand words a chapter is a scene fragment, above eight thousand
+ * it is a part; CAL-103's manual adjustment can still move a chapter, but a
+ * generated plan never proposes outside this band. The schema and the checker
+ * both read it — the checker re-holds it for rows, because
+ * `chapter_outlines_target_word_count_check` only guarantees a positive
+ * number.
+ */
+export const CHAPTER_TARGET_WORD_COUNT_RANGE = { min: 1_000, max: 8_000 } as const;
+
+/**
+ * The admissible chapter counts for a part of `partTargetWordCount` words —
+ * `partCalibrationForWordCount`'s arithmetic applied to the batch
+ * `build-chapter-outline` answers (CAL-102). One function serves three
+ * readers — the schema's static envelope, the prompt's
+ * `{{minChapters}}`/`{{maxChapters}}` variables and the checker's gate — so
+ * the ask and the refusal cannot disagree; the ask carries only the part's
+ * word target, because a stored range would be a second answer able to
+ * disagree with it.
+ *
+ * No `estimate*` wrapper: a part's word count is not a `NovelLengthChoice`,
+ * so there is nothing to resolve.
+ */
+export function chapterCalibrationForPartWordCount(
+  partTargetWordCount: number,
+): PartChapterCalibration {
+  const count = Math.round(partTargetWordCount / CHAPTER_WORD_COUNT_BASELINE);
+  const minChapters = Math.min(
+    Math.max(count - 1, PART_CHAPTER_COUNT_RANGE.min),
+    PART_CHAPTER_COUNT_RANGE.max,
+  );
+  const maxChapters = Math.max(
+    Math.min(count + 1, PART_CHAPTER_COUNT_RANGE.max),
+    PART_CHAPTER_COUNT_RANGE.min,
+  );
+
+  return { partTargetWordCount, minChapters, maxChapters };
 }

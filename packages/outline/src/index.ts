@@ -75,14 +75,18 @@ export {
   verifyPartStructure,
 } from "./parts";
 export {
+  CHAPTER_TARGET_WORD_COUNT_RANGE,
   type ChapterCalibration,
+  chapterCalibrationForPartWordCount,
   CUSTOM_TARGET_WORD_COUNT_RANGE,
   estimateChapterCalibration,
   estimatePartCalibration,
   getPlanGenerationContext,
   type NovelLengthChoice,
+  PART_CHAPTER_COUNT_RANGE,
   PART_COUNT_RANGE,
   type PartCalibration,
+  type PartChapterCalibration,
   partCalibrationForWordCount,
   type PlanGenerationContext,
   resolveNovelTargetWordCount,

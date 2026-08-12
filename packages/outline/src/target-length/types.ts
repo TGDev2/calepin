@@ -51,3 +51,15 @@ export interface PartCalibration {
   readonly minParts: number;
   readonly maxParts: number;
 }
+
+/**
+ * What a part's word target is worth in chapters (CAL-102). A range for
+ * `PartCalibration`'s reason — how many chapters a part takes is itself a
+ * dramatic decision: the mission chooses within the range, and the checker
+ * refuses a batch outside it.
+ */
+export interface PartChapterCalibration {
+  readonly partTargetWordCount: number;
+  readonly minChapters: number;
+  readonly maxChapters: number;
+}

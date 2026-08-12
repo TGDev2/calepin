@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CHAPTER_TARGET_WORD_COUNT_RANGE,
+  chapterCalibrationForPartWordCount,
   estimateChapterCalibration,
   estimatePartCalibration,
+  PART_CHAPTER_COUNT_RANGE,
   PART_COUNT_RANGE,
   partCalibrationForWordCount,
   resolveNovelTargetWordCount,
@@ -180,6 +183,92 @@ describe("partCalibrationForWordCount", () => {
       expect(current.minParts).toBeGreaterThanOrEqual(previous.minParts);
       expect(current.maxParts).toBeGreaterThanOrEqual(previous.maxParts);
       previous = current;
+    }
+  });
+});
+
+describe("chapterCalibrationForPartWordCount", () => {
+  // CAL-102's adaptation gate at the source: distinct part word targets
+  // resolve to distinct chapter-count ranges, so a batch acceptable for a
+  // short part is refusable for a long one before any model is asked
+  // anything — partCalibrationForWordCount's bar, one level down.
+  it("derives a distinct chapter-count range across part sizes", () => {
+    expect(chapterCalibrationForPartWordCount(3_000)).toEqual({
+      partTargetWordCount: 3_000,
+      minChapters: 2,
+      maxChapters: 2,
+    });
+    expect(chapterCalibrationForPartWordCount(6_000)).toEqual({
+      partTargetWordCount: 6_000,
+      minChapters: 2,
+      maxChapters: 3,
+    });
+    expect(chapterCalibrationForPartWordCount(10_000)).toEqual({
+      partTargetWordCount: 10_000,
+      minChapters: 2,
+      maxChapters: 4,
+    });
+    // The baseline part: 18 000 words is five to seven baseline chapters.
+    expect(chapterCalibrationForPartWordCount(18_000)).toEqual({
+      partTargetWordCount: 18_000,
+      minChapters: 5,
+      maxChapters: 7,
+    });
+    expect(chapterCalibrationForPartWordCount(30_000)).toEqual({
+      partTargetWordCount: 30_000,
+      minChapters: 9,
+      maxChapters: 11,
+    });
+    // Past the ceiling the range collapses instead of leaving the envelope.
+    expect(chapterCalibrationForPartWordCount(66_000)).toEqual({
+      partTargetWordCount: 66_000,
+      minChapters: 20,
+      maxChapters: 20,
+    });
+  });
+
+  it("never leaves the envelope, and never proposes an empty range", () => {
+    for (let words = 2_000; words <= 70_000; words += 500) {
+      const { minChapters, maxChapters } = chapterCalibrationForPartWordCount(words);
+
+      expect(minChapters).toBeGreaterThanOrEqual(PART_CHAPTER_COUNT_RANGE.min);
+      expect(maxChapters).toBeLessThanOrEqual(PART_CHAPTER_COUNT_RANGE.max);
+      expect(minChapters).toBeLessThanOrEqual(maxChapters);
+    }
+  });
+
+  it("scales monotonically: more words never allow fewer chapters", () => {
+    let previous = chapterCalibrationForPartWordCount(2_000);
+
+    for (let words = 2_500; words <= 70_000; words += 500) {
+      const current = chapterCalibrationForPartWordCount(words);
+
+      expect(current.minChapters).toBeGreaterThanOrEqual(previous.minChapters);
+      expect(current.maxChapters).toBeGreaterThanOrEqual(previous.maxChapters);
+      previous = current;
+    }
+  });
+
+  // The word-budget gate (sum within 10% of the part's target) must stay
+  // satisfiable by SOME batch inside the count range and the per-chapter
+  // envelope, for every part size a novel can produce (largest preset part:
+  // LONG 110 000 over 2 parts). Otherwise the checker would refuse every
+  // honest answer for a part size the calibration itself allows.
+  it("keeps the ±10% budget window reachable inside the envelope, at every part size", () => {
+    for (let words = 2_000; words <= 55_000; words += 500) {
+      const { minChapters, maxChapters } = chapterCalibrationForPartWordCount(words);
+      const floor = words * 0.9;
+      const ceiling = words * 1.1;
+
+      let reachable = false;
+      for (let count = minChapters; count <= maxChapters; count += 1) {
+        const lowest = count * CHAPTER_TARGET_WORD_COUNT_RANGE.min;
+        const highest = count * CHAPTER_TARGET_WORD_COUNT_RANGE.max;
+
+        if (lowest <= ceiling && highest >= floor) reachable = true;
+      }
+
+      expect(reachable).toBe(true);
     }
   });
 });
