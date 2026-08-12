@@ -233,6 +233,7 @@ describe("audit fields", () => {
           narrativePromise: "fixture",
           centralQuestion: "fixture",
           endingNature: "fixture",
+          origin: "GENERATED",
         },
       });
 

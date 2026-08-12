@@ -310,10 +310,10 @@ describe("outline schema", () => {
       const plan = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const character = await prisma.character.create({
-        data: { bibleId: plan.bibleId, name: "fixture character" },
+        data: { bibleId: plan.bibleId, name: "fixture character", origin: "GENERATED" },
       });
       const place = await prisma.place.create({
-        data: { bibleId: plan.bibleId, name: "fixture place" },
+        data: { bibleId: plan.bibleId, name: "fixture place", origin: "GENERATED" },
       });
 
       const stored = await prisma.chapterOutline.create({
@@ -554,7 +554,7 @@ describe("outline schema", () => {
       const other = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const foreign = await prisma.character.create({
-        data: { bibleId: other.bibleId, name: "foreign character" },
+        data: { bibleId: other.bibleId, name: "foreign character", origin: "GENERATED" },
       });
 
       await expect(
@@ -569,7 +569,7 @@ describe("outline schema", () => {
       const other = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const foreign = await prisma.place.create({
-        data: { bibleId: other.bibleId, name: "foreign place" },
+        data: { bibleId: other.bibleId, name: "foreign place", origin: "GENERATED" },
       });
 
       await expect(
@@ -603,7 +603,7 @@ describe("outline schema", () => {
         data: { bibleId: plan.bibleId, chapterId: chapter.id },
       });
       const foreign = await prisma.character.create({
-        data: { bibleId: other.bibleId, name: "foreign character" },
+        data: { bibleId: other.bibleId, name: "foreign character", origin: "GENERATED" },
       });
 
       await expect(
@@ -647,7 +647,7 @@ describe("outline schema", () => {
         data: { bibleId: plan.bibleId, chapterId: chapter.id },
       });
       const character = await prisma.character.create({
-        data: { bibleId: plan.bibleId, name: "fixture character" },
+        data: { bibleId: plan.bibleId, name: "fixture character", origin: "GENERATED" },
       });
       const presence = {
         bibleId: plan.bibleId,
@@ -699,7 +699,7 @@ describe("outline schema", () => {
       const plan = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const character = await prisma.character.create({
-        data: { bibleId: plan.bibleId, name: "fixture character" },
+        data: { bibleId: plan.bibleId, name: "fixture character", origin: "GENERATED" },
       });
       const chapterOutline = await prisma.chapterOutline.create({
         data: { bibleId: plan.bibleId, chapterId: chapter.id, focalCharacterId: character.id },
@@ -736,7 +736,7 @@ describe("outline schema", () => {
       const plan = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const character = await prisma.character.create({
-        data: { bibleId: plan.bibleId, name: "fixture character" },
+        data: { bibleId: plan.bibleId, name: "fixture character", origin: "GENERATED" },
       });
       await prisma.chapterOutline.create({
         data: {
@@ -759,7 +759,7 @@ describe("outline schema", () => {
       const plan = await createPlanFixture();
       const chapter = await createChapter(plan, "i");
       const place = await prisma.place.create({
-        data: { bibleId: plan.bibleId, name: "fixture place" },
+        data: { bibleId: plan.bibleId, name: "fixture place", origin: "GENERATED" },
       });
       await prisma.chapterOutline.create({
         data: { bibleId: plan.bibleId, chapterId: chapter.id, placeId: place.id },
@@ -779,7 +779,7 @@ describe("outline schema", () => {
         data: { bibleId: plan.bibleId, chapterId: chapter.id },
       });
       const character = await prisma.character.create({
-        data: { bibleId: plan.bibleId, name: "fixture character" },
+        data: { bibleId: plan.bibleId, name: "fixture character", origin: "GENERATED" },
       });
       const fact = await prisma.canonFact.create({
         data: {

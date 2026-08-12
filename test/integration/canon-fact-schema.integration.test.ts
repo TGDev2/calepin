@@ -37,16 +37,23 @@ describe("canon fact schema", () => {
   }
 
   async function createCharacter(bibleId: string, name: string) {
-    return prisma.character.create({ data: { bibleId, name } });
+    return prisma.character.create({ data: { bibleId, name, origin: "GENERATED" } });
   }
 
   async function createPlace(bibleId: string, name: string) {
-    return prisma.place.create({ data: { bibleId, name } });
+    return prisma.place.create({ data: { bibleId, name, origin: "GENERATED" } });
   }
 
   async function createDatedEvent(bibleId: string, name: string, absoluteDay: number) {
     return prisma.timelineEvent.create({
-      data: { bibleId, name, category: "BACKSTORY", absoluteDay, datePrecision: "DAY" },
+      data: {
+        bibleId,
+        name,
+        category: "BACKSTORY",
+        absoluteDay,
+        datePrecision: "DAY",
+        origin: "GENERATED",
+      },
     });
   }
 

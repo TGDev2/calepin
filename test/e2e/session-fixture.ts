@@ -897,7 +897,13 @@ export async function seedProjectWithRelationships(
 
     for (const name of names) {
       const character = await prisma.character.create({
-        data: { bibleId: bible.id, name, importance: "MAIN", updatedById: userId },
+        data: {
+          bibleId: bible.id,
+          name,
+          importance: "MAIN",
+          origin: "GENERATED",
+          updatedById: userId,
+        },
       });
       ids.push(character.id);
     }
@@ -937,6 +943,7 @@ export async function seedProjectWithRelationships(
           type: tie.type,
           label: tie.label,
           description: tie.description,
+          origin: "GENERATED",
           updatedById: userId,
         },
       });

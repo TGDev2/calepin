@@ -376,7 +376,11 @@ describe("bible element locking (CAL-095)", () => {
       const locked = fixture.graph.rows.Character;
 
       const other = await prisma.character.create({
-        data: { bibleId: fixture.graph.rows.Bible, name: `bible-lock-${sequence}-other` },
+        data: {
+          bibleId: fixture.graph.rows.Bible,
+          name: `bible-lock-${sequence}-other`,
+          origin: "GENERATED",
+        },
         select: { id: true },
       });
 

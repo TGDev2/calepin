@@ -108,6 +108,7 @@ describe("project duplication (CAL-035)", () => {
         precedingEventId: graph.rows.TimelineEvent,
         daysAfterPreceding: 3,
         durationPrecision: "DAY",
+        origin: "GENERATED",
       },
     });
 

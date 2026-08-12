@@ -16,6 +16,7 @@ const VALIDATION_CHECK = /bibles_validation_check/;
  */
 const COMPLETE_SHEET = {
   name: "fixture character",
+  origin: "GENERATED",
   age: 40,
   role: "fixture role",
   importance: "MAIN",
@@ -56,7 +57,7 @@ describe("bible schema", () => {
   }
 
   async function createCharacterFixture(bibleId: string, name: string) {
-    return prisma.character.create({ data: { bibleId, name } });
+    return prisma.character.create({ data: { bibleId, name, origin: "GENERATED" } });
   }
 
   async function rawQuery(sql: string, values: unknown[] = []) {
@@ -112,14 +113,16 @@ describe("bible schema", () => {
       const { bibleId } = await createBibleFixture();
 
       await expect(
-        prisma.character.create({ data: { bibleId, name: "fixture negative", age: -1 } }),
+        prisma.character.create({
+          data: { bibleId, name: "fixture negative", age: -1, origin: "GENERATED" },
+        }),
       ).rejects.toThrow(AGE_CHECK);
 
       const stored = await prisma.character.createManyAndReturn({
         data: [
-          { bibleId, name: "fixture unknown age", age: null },
-          { bibleId, name: "fixture newborn", age: 0 },
-          { bibleId, name: "fixture ancient", age: 800 },
+          { bibleId, name: "fixture unknown age", age: null, origin: "GENERATED" },
+          { bibleId, name: "fixture newborn", age: 0, origin: "GENERATED" },
+          { bibleId, name: "fixture ancient", age: 800, origin: "GENERATED" },
         ],
       });
 
@@ -189,10 +192,20 @@ describe("bible schema", () => {
     it("finds the characters whose given field is locked, in one query", async () => {
       const { bibleId } = await createBibleFixture();
       await prisma.character.create({
-        data: { bibleId, name: "fixture secret locked", lockedFields: ["SECRET"] },
+        data: {
+          bibleId,
+          name: "fixture secret locked",
+          lockedFields: ["SECRET"],
+          origin: "GENERATED",
+        },
       });
       await prisma.character.create({
-        data: { bibleId, name: "fixture past locked", lockedFields: ["PAST"] },
+        data: {
+          bibleId,
+          name: "fixture past locked",
+          lockedFields: ["PAST"],
+          origin: "GENERATED",
+        },
       });
 
       const found = await prisma.character.findMany({
@@ -236,6 +249,7 @@ describe("bible schema", () => {
           counterThemes: ["fixture counter-theme"],
           centralQuestion: "fixture question",
           endingNature: "fixture ending",
+          origin: "GENERATED",
           lockedAt,
         },
       });
@@ -251,14 +265,21 @@ describe("bible schema", () => {
           dialogueBalance: "fixture dialogue balance",
           recurringMotifs: ["fixture motif"],
           elementsToAvoid: ["fixture element to avoid"],
+          origin: "GENERATED",
           lockedAt,
         },
       });
       const place = await prisma.place.create({
-        data: { bibleId, name: "fixture place", lockedAt },
+        data: { bibleId, name: "fixture place", origin: "GENERATED", lockedAt },
       });
       const rule = await prisma.worldRule.create({
-        data: { bibleId, name: "fixture rule", statement: "fixture statement", lockedAt },
+        data: {
+          bibleId,
+          name: "fixture rule",
+          statement: "fixture statement",
+          origin: "GENERATED",
+          lockedAt,
+        },
       });
       const from = await createCharacterFixture(bibleId, "fixture relation source");
       const to = await createCharacterFixture(bibleId, "fixture relation target");
@@ -269,6 +290,7 @@ describe("bible schema", () => {
           toCharacterId: to.id,
           type: "FAMILY",
           label: "fixture tie",
+          origin: "GENERATED",
           lockedAt,
         },
       });
@@ -301,6 +323,7 @@ describe("bible schema", () => {
           type: "FAMILY",
           label: "fixture forward tie",
           description: "fixture forward asymmetry",
+          origin: "GENERATED",
         },
       });
       await prisma.relationship.create({
@@ -311,6 +334,7 @@ describe("bible schema", () => {
           type: "HOSTILITY",
           label: "fixture reverse tie",
           description: "fixture reverse asymmetry",
+          origin: "GENERATED",
         },
       });
 
@@ -338,6 +362,7 @@ describe("bible schema", () => {
           toCharacterId: to.id,
           type: "MENTORSHIP",
           label: "fixture one-sided tie",
+          origin: "GENERATED",
         },
       });
 
@@ -358,6 +383,7 @@ describe("bible schema", () => {
           toCharacterId: to.id,
           type: "RIVALRY",
           label: "fixture incoming tie",
+          origin: "GENERATED",
         },
       });
 
@@ -381,6 +407,7 @@ describe("bible schema", () => {
           toCharacterId: to.id,
           type: "FAMILY",
           label: "fixture family tie",
+          origin: "GENERATED",
         },
       });
 
@@ -392,6 +419,7 @@ describe("bible schema", () => {
             toCharacterId: to.id,
             type: "RIVALRY",
             label: "fixture rivalry tie",
+            origin: "GENERATED",
           },
         }),
       ).resolves.toMatchObject({ type: "RIVALRY" });
@@ -404,6 +432,7 @@ describe("bible schema", () => {
             toCharacterId: to.id,
             type: "FAMILY",
             label: "fixture duplicate tie",
+            origin: "GENERATED",
           },
         }),
       ).rejects.toMatchObject({ code: "P2002" });
@@ -420,6 +449,7 @@ describe("bible schema", () => {
             toCharacterId: from.id,
             type: "OTHER",
             label: "fixture self tie",
+            origin: "GENERATED",
           },
         }),
       ).rejects.toThrow(DISTINCT_CHARACTERS_CHECK);
@@ -442,6 +472,7 @@ describe("bible schema", () => {
               toCharacterId: outsider.id,
               type: "OTHER",
               label: "fixture cross-bible tie",
+              origin: "GENERATED",
             },
           }),
         ).rejects.toMatchObject({ code: "P2003" });
@@ -459,6 +490,7 @@ describe("bible schema", () => {
               toCharacterId: to.id,
               type: "OTHER",
               label: "fixture lying tie",
+              origin: "GENERATED",
             },
           }),
         ).rejects.toMatchObject({ code: "P2003" });
@@ -475,6 +507,7 @@ describe("bible schema", () => {
             toCharacterId: to.id,
             type: "FAMILY",
             label: "fixture outgoing tie",
+            origin: "GENERATED",
           },
           {
             bibleId,
@@ -482,6 +515,7 @@ describe("bible schema", () => {
             toCharacterId: from.id,
             type: "FAMILY",
             label: "fixture incoming tie",
+            origin: "GENERATED",
           },
         ],
       });
@@ -505,6 +539,7 @@ describe("bible schema", () => {
             statement: "fixture statement",
             isSupernatural: true,
             limits: [],
+            origin: "GENERATED",
           },
         }),
       ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
@@ -525,6 +560,7 @@ describe("bible schema", () => {
             name: "fixture unmentioned limits",
             statement: "fixture statement",
             isSupernatural: true,
+            origin: "GENERATED",
           },
         }),
       ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
@@ -567,6 +603,7 @@ describe("bible schema", () => {
           limits: ["fixture limit"],
           costs: ["fixture cost"],
           failureConditions: ["fixture failure condition"],
+          origin: "GENERATED",
         },
       });
 
@@ -580,7 +617,12 @@ describe("bible schema", () => {
 
       await expect(
         prisma.worldRule.create({
-          data: { bibleId, name: "fixture ordinary rule", statement: "fixture statement" },
+          data: {
+            bibleId,
+            name: "fixture ordinary rule",
+            statement: "fixture statement",
+            origin: "GENERATED",
+          },
         }),
       ).resolves.toMatchObject({ isSupernatural: false, limits: [] });
     });
@@ -599,10 +641,16 @@ describe("bible schema", () => {
           limits: ["fixture limit"],
           costs: ["fixture cost"],
           failureConditions: ["fixture failure condition"],
+          origin: "GENERATED",
         },
       });
       const ordinary = await prisma.worldRule.create({
-        data: { bibleId, name: "fixture rule to promote", statement: "fixture statement" },
+        data: {
+          bibleId,
+          name: "fixture rule to promote",
+          statement: "fixture statement",
+          origin: "GENERATED",
+        },
       });
 
       await expect(
@@ -632,8 +680,8 @@ describe("bible schema", () => {
               isSupernatural: true,
               limits: ["fixture limit"],
               costs: bound === "costs" ? [] : ["fixture cost"],
-              failureConditions:
-                bound === "failureConditions" ? [] : ["fixture failure condition"],
+              failureConditions: bound === "failureConditions" ? [] : ["fixture failure condition"],
+              origin: "GENERATED",
             },
           }),
         ).rejects.toThrow(SUPERNATURAL_BOUNDS_CHECK);
@@ -698,12 +746,13 @@ describe("bible schema", () => {
           descriptiveDensity: "fixture density",
           pacing: "fixture pacing",
           dialogueBalance: "fixture dialogue balance",
+          origin: "GENERATED",
         },
       });
       await prisma.character.createMany({
         data: [
-          { bibleId, name: "fixture unread a" },
-          { bibleId, name: "fixture unread b" },
+          { bibleId, name: "fixture unread a", origin: "GENERATED" },
+          { bibleId, name: "fixture unread b", origin: "GENERATED" },
         ],
       });
 
@@ -717,9 +766,15 @@ describe("bible schema", () => {
       const { bibleId } = await createBibleFixture();
       await prisma.character.createMany({
         data: [
-          { bibleId, name: "fixture main", importance: "MAIN", secret: "fixture secret" },
-          { bibleId, name: "fixture secondary", importance: "SECONDARY" },
-          { bibleId, name: "fixture minor", importance: "MINOR" },
+          {
+            bibleId,
+            name: "fixture main",
+            importance: "MAIN",
+            secret: "fixture secret",
+            origin: "GENERATED",
+          },
+          { bibleId, name: "fixture secondary", importance: "SECONDARY", origin: "GENERATED" },
+          { bibleId, name: "fixture minor", importance: "MINOR", origin: "GENERATED" },
         ],
       });
 
@@ -737,9 +792,9 @@ describe("bible schema", () => {
       const lockedAt = new Date();
       await prisma.character.createMany({
         data: [
-          { bibleId, name: "fixture locked sheet", lockedAt },
-          { bibleId, name: "fixture locked field", lockedFields: ["SECRET"] },
-          { bibleId, name: "fixture open sheet" },
+          { bibleId, name: "fixture locked sheet", lockedAt, origin: "GENERATED" },
+          { bibleId, name: "fixture locked field", lockedFields: ["SECRET"], origin: "GENERATED" },
+          { bibleId, name: "fixture open sheet", origin: "GENERATED" },
         ],
       });
 
@@ -770,11 +825,19 @@ describe("bible schema", () => {
           toCharacterId: to.id,
           type: "FRIENDSHIP",
           label: "fixture doomed tie",
+          origin: "GENERATED",
         },
       });
-      await prisma.place.create({ data: { bibleId, name: "fixture doomed place" } });
+      await prisma.place.create({
+        data: { bibleId, name: "fixture doomed place", origin: "GENERATED" },
+      });
       await prisma.worldRule.create({
-        data: { bibleId, name: "fixture doomed rule", statement: "fixture statement" },
+        data: {
+          bibleId,
+          name: "fixture doomed rule",
+          statement: "fixture statement",
+          origin: "GENERATED",
+        },
       });
       await prisma.bibleStyle.create({
         data: {
@@ -786,6 +849,7 @@ describe("bible schema", () => {
           descriptiveDensity: "fixture density",
           pacing: "fixture pacing",
           dialogueBalance: "fixture dialogue balance",
+          origin: "GENERATED",
         },
       });
 
