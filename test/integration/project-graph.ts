@@ -142,6 +142,7 @@ export async function createProjectGraph(
       narrativePromise: "fixture",
       centralQuestion: "fixture",
       endingNature: "fixture",
+      origin: "GENERATED",
     },
   });
   const style = await prisma.bibleStyle.create({
@@ -154,6 +155,7 @@ export async function createProjectGraph(
       descriptiveDensity: "fixture",
       pacing: "fixture",
       dialogueBalance: "fixture",
+      origin: "GENERATED",
     },
   });
   const world = await prisma.bibleWorld.create({
@@ -161,14 +163,15 @@ export async function createProjectGraph(
       bibleId: bible.id,
       era: "fixture",
       socialContext: "fixture",
+      origin: "GENERATED",
     },
   });
 
   const character = await prisma.character.create({
-    data: { bibleId: bible.id, name: `${label}-first` },
+    data: { bibleId: bible.id, name: `${label}-first`, origin: "GENERATED" },
   });
   const secondCharacter = await prisma.character.create({
-    data: { bibleId: bible.id, name: `${label}-second` },
+    data: { bibleId: bible.id, name: `${label}-second`, origin: "GENERATED" },
   });
   const relationship = await prisma.relationship.create({
     data: {
@@ -177,11 +180,14 @@ export async function createProjectGraph(
       toCharacterId: secondCharacter.id,
       type: "FAMILY",
       label: "fixture",
+      origin: "GENERATED",
     },
   });
-  const place = await prisma.place.create({ data: { bibleId: bible.id, name: `${label}-place` } });
+  const place = await prisma.place.create({
+    data: { bibleId: bible.id, name: `${label}-place`, origin: "GENERATED" },
+  });
   const worldRule = await prisma.worldRule.create({
-    data: { bibleId: bible.id, name: `${label}-rule`, statement: "fixture" },
+    data: { bibleId: bible.id, name: `${label}-rule`, statement: "fixture", origin: "GENERATED" },
   });
 
   const event = await prisma.timelineEvent.create({
@@ -193,6 +199,7 @@ export async function createProjectGraph(
       category: "BACKSTORY",
       absoluteDay: -1,
       datePrecision: "DAY",
+      origin: "GENERATED",
     },
   });
   const participant = await prisma.timelineEventParticipant.create({

@@ -37,7 +37,14 @@ describe("timeline schema", () => {
   /** A dated event, the shape most of the assertions below build on. */
   async function createDatedEvent(bibleId: string, name: string, absoluteDay: number) {
     return prisma.timelineEvent.create({
-      data: { bibleId, name, category: "NARRATED", absoluteDay, datePrecision: "DAY" },
+      data: {
+        bibleId,
+        name,
+        category: "NARRATED",
+        absoluteDay,
+        datePrecision: "DAY",
+        origin: "GENERATED",
+      },
     });
   }
 
@@ -73,6 +80,7 @@ describe("timeline schema", () => {
           absoluteDay: -7000,
           datePrecision: "YEAR",
           dateLabel: "fixture date label",
+          origin: "GENERATED",
         },
       });
 
@@ -94,6 +102,7 @@ describe("timeline schema", () => {
           precedingEventId: root.id,
           daysAfterPreceding: 180,
           durationPrecision: "MONTH",
+          origin: "GENERATED",
         },
       });
 
@@ -109,7 +118,13 @@ describe("timeline schema", () => {
       const root = await createDatedEvent(bibleId, "root", 0);
 
       const created = await prisma.timelineEvent.create({
-        data: { bibleId, name: "after", category: "PLANNED", precedingEventId: root.id },
+        data: {
+          bibleId,
+          name: "after",
+          category: "PLANNED",
+          precedingEventId: root.id,
+          origin: "GENERATED",
+        },
       });
 
       expect(created.daysAfterPreceding).toBeNull();
@@ -134,6 +149,7 @@ describe("timeline schema", () => {
           precedingEventId: root.id,
           daysAfterPreceding: 500,
           durationPrecision: "DAY",
+          origin: "GENERATED",
         },
       });
 
@@ -161,7 +177,7 @@ describe("timeline schema", () => {
 
         await expect(
           prisma.timelineEvent.create({
-            data: { bibleId, name: "unplaced", category: "NARRATED" },
+            data: { bibleId, name: "unplaced", category: "NARRATED", origin: "GENERATED" },
           }),
         ).rejects.toThrow(PLACEMENT_CHECK);
       });
@@ -201,7 +217,13 @@ describe("timeline schema", () => {
 
         await expect(
           prisma.timelineEvent.create({
-            data: { bibleId, name: "imprecise", category: "NARRATED", absoluteDay: 5 },
+            data: {
+              bibleId,
+              name: "imprecise",
+              category: "NARRATED",
+              absoluteDay: 5,
+              origin: "GENERATED",
+            },
           }),
         ).rejects.toThrow(ABSOLUTE_DATE_CHECK);
       });
@@ -218,6 +240,7 @@ describe("timeline schema", () => {
               category: "NARRATED",
               precedingEventId: root.id,
               datePrecision: "YEAR",
+              origin: "GENERATED",
             },
           }),
         ).rejects.toThrow(ABSOLUTE_DATE_CHECK);
@@ -256,6 +279,7 @@ describe("timeline schema", () => {
               datePrecision: "DAY",
               daysAfterPreceding: 10,
               durationPrecision: "DAY",
+              origin: "GENERATED",
             },
           }),
         ).rejects.toThrow(RELATIVE_DATE_CHECK);
@@ -273,6 +297,7 @@ describe("timeline schema", () => {
               category: "NARRATED",
               precedingEventId: root.id,
               daysAfterPreceding: 10,
+              origin: "GENERATED",
             },
           }),
         ).rejects.toThrow(RELATIVE_DATE_CHECK);
@@ -293,6 +318,7 @@ describe("timeline schema", () => {
             precedingEventId: root.id,
             daysAfterPreceding: 10,
             durationPrecision: "DAY",
+            origin: "GENERATED",
           },
         });
 
@@ -319,6 +345,7 @@ describe("timeline schema", () => {
               precedingEventId: root.id,
               daysAfterPreceding: -1,
               durationPrecision: "DAY",
+              origin: "GENERATED",
             },
           }),
         ).rejects.toThrow(DURATION_SIGN_CHECK);
@@ -337,6 +364,7 @@ describe("timeline schema", () => {
             precedingEventId: root.id,
             daysAfterPreceding: 0,
             durationPrecision: "DAY",
+            origin: "GENERATED",
           },
         });
 
@@ -366,7 +394,7 @@ describe("timeline schema", () => {
         const { bibleId } = await createBibleFixture();
         const event = await createDatedEvent(bibleId, "event", 0);
         const character = await prisma.character.create({
-          data: { bibleId, name: "fixture character" },
+          data: { bibleId, name: "fixture character", origin: "GENERATED" },
         });
 
         await expect(
@@ -382,7 +410,7 @@ describe("timeline schema", () => {
 
         for (const [index, declaredAge] of [null, 0, 800].entries()) {
           const character = await prisma.character.create({
-            data: { bibleId, name: `fixture character ${index}` },
+            data: { bibleId, name: `fixture character ${index}`, origin: "GENERATED" },
           });
           const participant = await prisma.timelineEventParticipant.create({
             data: { bibleId, eventId: event.id, characterId: character.id, declaredAge },
@@ -407,6 +435,7 @@ describe("timeline schema", () => {
             name: "cross-bible",
             category: "NARRATED",
             precedingEventId: foreignRoot.id,
+            origin: "GENERATED",
           },
         }),
       ).rejects.toThrow(/Foreign key constraint|P2003/);
@@ -417,7 +446,7 @@ describe("timeline schema", () => {
       const second = await createBibleFixture();
       const event = await createDatedEvent(first.bibleId, "event", 0);
       const foreignCharacter = await prisma.character.create({
-        data: { bibleId: second.bibleId, name: "fixture character" },
+        data: { bibleId: second.bibleId, name: "fixture character", origin: "GENERATED" },
       });
 
       await expect(
@@ -447,7 +476,7 @@ describe("timeline schema", () => {
       const { bibleId } = await createBibleFixture();
       const event = await createDatedEvent(bibleId, "event", 0);
       const character = await prisma.character.create({
-        data: { bibleId, name: "fixture character" },
+        data: { bibleId, name: "fixture character", origin: "GENERATED" },
       });
 
       await prisma.timelineEventParticipant.create({
@@ -485,7 +514,7 @@ describe("timeline schema", () => {
       const { bibleId } = await createBibleFixture();
       const event = await createDatedEvent(bibleId, "event", 730);
       const character = await prisma.character.create({
-        data: { bibleId, name: "fixture character", age: 30 },
+        data: { bibleId, name: "fixture character", age: 30, origin: "GENERATED" },
       });
       await prisma.timelineEventParticipant.create({
         data: { bibleId, eventId: event.id, characterId: character.id, declaredAge: 32 },
@@ -511,7 +540,13 @@ describe("timeline schema", () => {
       const { bibleId } = await createBibleFixture();
       const root = await createDatedEvent(bibleId, "root", 0);
       await prisma.timelineEvent.create({
-        data: { bibleId, name: "anchored", category: "NARRATED", precedingEventId: root.id },
+        data: {
+          bibleId,
+          name: "anchored",
+          category: "NARRATED",
+          precedingEventId: root.id,
+          origin: "GENERATED",
+        },
       });
 
       await expect(prisma.timelineEvent.delete({ where: { id: root.id } })).rejects.toThrow(
@@ -525,13 +560,25 @@ describe("timeline schema", () => {
       const { projectId, bibleId } = await createBibleFixture();
       const root = await createDatedEvent(bibleId, "root", 0);
       const middle = await prisma.timelineEvent.create({
-        data: { bibleId, name: "middle", category: "NARRATED", precedingEventId: root.id },
+        data: {
+          bibleId,
+          name: "middle",
+          category: "NARRATED",
+          precedingEventId: root.id,
+          origin: "GENERATED",
+        },
       });
       await prisma.timelineEvent.create({
-        data: { bibleId, name: "leaf", category: "PLANNED", precedingEventId: middle.id },
+        data: {
+          bibleId,
+          name: "leaf",
+          category: "PLANNED",
+          precedingEventId: middle.id,
+          origin: "GENERATED",
+        },
       });
       const character = await prisma.character.create({
-        data: { bibleId, name: "fixture character" },
+        data: { bibleId, name: "fixture character", origin: "GENERATED" },
       });
       await prisma.timelineEventParticipant.create({
         data: { bibleId, eventId: root.id, characterId: character.id },
@@ -547,7 +594,7 @@ describe("timeline schema", () => {
       const { bibleId } = await createBibleFixture();
       const event = await createDatedEvent(bibleId, "event", 0);
       const character = await prisma.character.create({
-        data: { bibleId, name: "fixture character" },
+        data: { bibleId, name: "fixture character", origin: "GENERATED" },
       });
       await prisma.timelineEventParticipant.create({
         data: { bibleId, eventId: event.id, characterId: character.id },

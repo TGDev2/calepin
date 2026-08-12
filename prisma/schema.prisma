@@ -859,6 +859,15 @@ model BibleIdentity {
   /// CreativeDirection already uses for the same concept one stage earlier.
   endingNature     String
 
+  /// Who authored the wording that is there now — CAL-073's pattern, added to
+  /// the bible by CAL-096. No default: exactly as AnalysisElement.origin,
+  /// every writer states it rather than inheriting one. `reviewedByAuthor` for
+  /// `resolveProvenanceState` is the bible's own `validatedAt`, since a bible
+  /// element has no enclosing revision the way an analysis section does —
+  /// there is no separate VALIDATED member for the same reason ContentOrigin's
+  /// own comment gives: being validated is not an authorship.
+  origin ContentOrigin
+
   /// The lock. A timestamp is the state — there is no isLocked boolean beside
   /// it able to disagree. CAL-095 makes it bite before a generation runs.
   lockedAt DateTime?
@@ -894,6 +903,9 @@ model BibleStyle {
   dialogueBalance    String // place du dialogue
   recurringMotifs    String[] @default([]) // motifs récurrents
   elementsToAvoid    String[] @default([]) // éléments stylistiques à éviter
+
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
 
   lockedAt DateTime?
 
@@ -940,6 +952,9 @@ model BibleWorld {
   technologies     String[] @default([]) // technologies
   institutions     String[] @default([]) // institutions
   constraints      String[] @default([]) // contraintes
+
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
 
   lockedAt DateTime?
 
@@ -1044,6 +1059,9 @@ model Character {
   /// interchangeable — a declaration no mechanism reads would be decoration.
   elementsToPreserve String[]            @default([])
 
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
+
   /// The whole sheet is locked when this is set.
   lockedAt     DateTime?
   /// The fields locked individually (CAL-097). An enum array rather than a
@@ -1138,6 +1156,11 @@ model Relationship {
   /// CAL-018's per-character knowledge of an atomic fact.
   description     String?
 
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin. Set by
+  /// writeRelationship/editRelationship, the one bible write path that already
+  /// exists (CAL-091).
+  origin ContentOrigin
+
   lockedAt DateTime?
 
   createdAt   DateTime @default(now())
@@ -1171,6 +1194,9 @@ model Place {
 
   name        String // nom
   description String?
+
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
 
   lockedAt DateTime?
 
@@ -1218,6 +1244,9 @@ model WorldRule {
   limits            String[] @default([]) // limites — non-empty whenever isSupernatural
   costs             String[] @default([]) // coûts
   failureConditions String[] @default([]) // conditions d'échec
+
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
 
   lockedAt DateTime?
 
@@ -1327,6 +1356,9 @@ model TimelineEvent {
   /// Set if and only if daysAfterPreceding is —
   /// timeline_events_relative_date_check.
   durationPrecision  TimelinePrecision?
+
+  /// The traceability marker (CAL-096) — see BibleIdentity.origin.
+  origin ContentOrigin
 
   /// The lock, same convention as every other bible element (CAL-095).
   lockedAt DateTime?

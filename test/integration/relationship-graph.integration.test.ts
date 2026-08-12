@@ -94,7 +94,7 @@ describe("the relationship graph (CAL-091)", () => {
     for (const name of CAST) {
       const character = await runWithActor(userId, async () =>
         prisma.character.create({
-          data: { bibleId: bible.id, name, importance: "MAIN" },
+          data: { bibleId: bible.id, name, importance: "MAIN", origin: "GENERATED" },
           select: { id: true },
         }),
       );

@@ -537,6 +537,7 @@ describe("prisma schema", () => {
     const NON_SHEET_CHARACTER_FIELDS = [
       "id",
       "bibleId",
+      "origin",
       "lockedAt",
       "lockedFields",
       "createdAt",
@@ -779,6 +780,30 @@ describe("prisma schema", () => {
       it("keeps no boolean able to disagree with the lock timestamp", () => {
         for (const model of LOCKABLE_MODELS) {
           expect(modelBlock(model)).not.toMatch(/^\s*(isLocked|locked)\s/m);
+        }
+      });
+    });
+
+    // CAL-096: the traceability pattern ContentOrigin's own comment says was
+    // "written to be reused as is by the bible". CanonFact is deliberately
+    // excluded — it already carries source and status, and a third column
+    // able to disagree with those two is what CAL-012 records as a lesson.
+    describe("element-level provenance", () => {
+      const PROVENANCE_MODELS = BIBLE_LOCKABLE_MODELS.filter((model) => model !== "CanonFact");
+
+      it("makes every bible element but the canon fact carry its own origin", () => {
+        for (const model of PROVENANCE_MODELS) {
+          expect(modelBlock(model)).toMatch(/^\s*origin\s+ContentOrigin(?!\?)/m);
+        }
+      });
+
+      it("leaves the canon fact's provenance to source and status alone", () => {
+        expect(modelBlock("CanonFact")).not.toMatch(/^\s*origin\s+ContentOrigin/m);
+      });
+
+      it("defaults no origin, so every writer states it rather than inheriting one", () => {
+        for (const model of PROVENANCE_MODELS) {
+          expect(modelBlock(model)).not.toMatch(/^\s*origin\s+ContentOrigin\s+@default/m);
         }
       });
     });

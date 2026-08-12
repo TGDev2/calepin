@@ -263,7 +263,12 @@ async function seedRelationshipGraph(projectId: string) {
     const character = await prisma.character.upsert({
       where: { bibleId_name: { bibleId: bible.id, name: member.name } },
       update: {},
-      create: { bibleId: bible.id, name: member.name, importance: member.importance },
+      create: {
+        bibleId: bible.id,
+        name: member.name,
+        importance: member.importance,
+        origin: "GENERATED",
+      },
       select: { id: true },
     });
 
@@ -329,6 +334,7 @@ async function seedRelationshipGraph(projectId: string) {
         type: tie.type,
         label: tie.label,
         description: tie.description,
+        origin: "GENERATED",
       },
     });
   }
