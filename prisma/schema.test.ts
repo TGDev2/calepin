@@ -10,6 +10,7 @@ import {
   AUDITED_MODELS,
   UNAUDITED_MUTABLE_MODELS,
 } from "@calepin/shared/audit";
+import { BIBLE_LOCKABLE_MODELS, CHARACTER_LOCK_FIELDS } from "@calepin/shared/bible-lock";
 import {
   DUPLICATED_MODEL_NAMES,
   DUPLICATION_PLAN,
@@ -749,28 +750,25 @@ describe("prisma schema", () => {
         expect(modelBlock("Character")).toMatch(/lockedFields\s+CharacterField\[\]/);
         expect(modelBlock("Character")).not.toMatch(/lockedFields\s+String\[\]/);
       });
+
+      it("is mirrored by the vocabulary the repository validates a field against", () => {
+        // The enum is unstorable-by-construction inside PostgreSQL; this is the
+        // same closure one layer up, so a field arriving from a form is refused
+        // before a statement is built rather than by a constraint violation
+        // naming an index (CAL-095).
+        expect([...CHARACTER_LOCK_FIELDS]).toEqual(enumMembers("CharacterField"));
+      });
     });
 
     // A timestamp is the lock state. A boolean beside it could disagree with
     // it, which is the same reason Analysis has no status enum and
     // AnalysisSectionRevision has no isCurrent flag.
     describe("element-level locking", () => {
-      const LOCKABLE_MODELS = [
-        "BibleIdentity",
-        "BibleStyle",
-        "BibleWorld",
-        "Character",
-        "Relationship",
-        "Place",
-        "WorldRule",
-        // CAL-095 names a timeline event among the elements a lock must stop a
-        // generation from contradicting, so it follows the same convention
-        // (CAL-017).
-        "TimelineEvent",
-        // The backlog's own words for CAL-018: a lock preventing any automatic
-        // modification. Same convention; CAL-095 makes it bite.
-        "CanonFact",
-      ];
+      // Read off the registry rather than restated here since CAL-095: the code
+      // that reads a lock and the test that proves the column exists have to
+      // agree about which models carry one, and two lists eventually do not.
+      // The registry's own test proves the membership in the other direction.
+      const LOCKABLE_MODELS = BIBLE_LOCKABLE_MODELS;
 
       it("makes every bible element lockable on its own row", () => {
         for (const model of LOCKABLE_MODELS) {

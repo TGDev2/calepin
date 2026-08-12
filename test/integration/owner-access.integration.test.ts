@@ -46,10 +46,12 @@ import {
   listRecentGenerations,
   listRunningGenerations,
   listSourceTextVersions,
+  lockBibleElement,
   openProjectScope,
   PROJECT_OWNED_MODEL_NAMES,
   type ProjectOwnedModelName,
   type ProjectScope,
+  readBibleLockGate,
   readGenerationForRun,
   readMissionMeasurements,
   readProjectCostSummary,
@@ -60,6 +62,7 @@ import {
   requireOwnedRow,
   reserveGeneration,
   scopedWhere,
+  unlockBibleElement,
   updateAnalysisAnnotation,
   updateGenerationProgress,
   updateProject,
@@ -102,6 +105,12 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * `relationship-graph.integration.test.ts`: they need a cast of three and both
  * directions of a pair before a one-sided tie can be told from an absent one,
  * which the shared graph's single relationship cannot show.
+ * `lockBibleElement`, `unlockBibleElement` and `readBibleLockGate` are tested
+ * here *and* in `bible-lock.integration.test.ts`: the isolation half belongs
+ * below because they are the one place a caller names a Prisma model by hand,
+ * so `scopedWhere` is all that stands between a lock written by name and
+ * another author's row; the behaviour half needs a generation to block, which
+ * the shared graph is not arranged to produce.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -133,7 +142,9 @@ const ENTRY_POINTS = [
   "listRecentGenerations",
   "listRunningGenerations",
   "listSourceTextVersions",
+  "lockBibleElement",
   "openProjectScope",
+  "readBibleLockGate",
   "readCanonicalDirectionObsolescence",
   "readMissionMeasurements",
   "readProjectCostSummary",
@@ -149,6 +160,7 @@ const ENTRY_POINTS = [
   "reserveGeneration",
   "restoreProject",
   "selectCanonicalDirection",
+  "unlockBibleElement",
   "updateAnalysisAnnotation",
   "updateGenerationProgress",
   "updateProject",
@@ -1220,6 +1232,55 @@ describe("owner access policy", () => {
           where: scopedWhere("SourceText", aliceScope, { projectId: created.id }),
         }),
       ).toBe(0);
+    });
+
+    // CAL-095. The three lock entry points are the only place in this layer
+    // where a caller names a Prisma model by hand, so the delegate they reach
+    // is chosen at runtime and `scopedWhere` is the whole of what keeps a lock
+    // written by name off another author's row.
+    it("lockBibleElement and unlockBibleElement refuse another owner's element", async () => {
+      const target = { model: "WorldRule", id: alice.rows.WorldRule, field: null } as const;
+
+      const stolen = await runWithActor(bob.ownerId, () =>
+        lockBibleElement(forgedScope(bob.ownerId, alice.projectId), target),
+      );
+      expect(stolen.ok).toBe(false);
+      if (!stolen.ok) expect(stolen.error.code).toBe("NOT_FOUND");
+
+      // Alice's own row is reachable, so the refusal above is isolation and not
+      // a lock that never works.
+      const mine = await runWithActor(alice.ownerId, () => lockBibleElement(aliceScope, target));
+      expect(mine.ok).toBe(true);
+
+      const unstolen = await runWithActor(bob.ownerId, () =>
+        unlockBibleElement(forgedScope(bob.ownerId, alice.projectId), target),
+      );
+      expect(unstolen.ok).toBe(false);
+      if (!unstolen.ok) expect(unstolen.error.code).toBe("NOT_FOUND");
+
+      const lifted = await runWithActor(alice.ownerId, () =>
+        unlockBibleElement(aliceScope, target),
+      );
+      expect(lifted.ok).toBe(true);
+    });
+
+    it("readBibleLockGate sees no lock of another owner's bible", async () => {
+      const target = { model: "CanonFact", id: alice.rows.CanonFact, field: null } as const;
+
+      await runWithActor(alice.ownerId, () => lockBibleElement(aliceScope, target));
+
+      const mine = await readBibleLockGate(aliceScope, { mission: "EXTRACT_INITIAL_FACTS" });
+      expect(mine.ok && mine.value.blocked).toBe(true);
+
+      const theirs = await readBibleLockGate(forgedScope(bob.ownerId, alice.projectId), {
+        mission: "EXTRACT_INITIAL_FACTS",
+      });
+      expect(theirs.ok && theirs.value.blocked).toBe(false);
+
+      const bobs = await readBibleLockGate(bobScope, { mission: "EXTRACT_INITIAL_FACTS" });
+      expect(bobs.ok && bobs.value.blocked).toBe(false);
+
+      await runWithActor(alice.ownerId, () => unlockBibleElement(aliceScope, target));
     });
 
     // An owner id that never got established would query the projects of
