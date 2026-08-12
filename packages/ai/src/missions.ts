@@ -89,6 +89,14 @@
  * durée incompatible*. It also runs last of the six on purpose — a chronology
  * needs the cast to place and the era to be dated against, so it is the one
  * bible mission with two upstream sections inside the same stage.
+ *
+ * `extract-initial-facts` (CAL-094) closes the bible stage, and it is a mission
+ * of its own rather than a second run of `extract-facts` for the reason the
+ * enum's migration records: that one is given one written chapter and proposes
+ * what it established, this one is given the whole validated bible and the
+ * source text and opens the canon. Different inputs, a different citable
+ * corpus, a different cost — and CLAUDE.md §5.4's rule that one mission gets
+ * one treatment.
  */
 
 export const MISSION_IDS = [
@@ -106,6 +114,7 @@ export const MISSION_IDS = [
   "relate-characters",
   "define-world",
   "build-timeline",
+  "extract-initial-facts",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

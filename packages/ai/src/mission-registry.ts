@@ -444,6 +444,33 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 180_000,
   },
 
+  /**
+   * `xhigh`, beside the chronology and for a related reason: the discipline the
+   * backlog asks for is a *decomposition*, and deciding that a sentence carries
+   * two assertions rather than one is judgement exercised eighty times in a row
+   * without drifting. A weaker run does not fail loudly here — it returns
+   * plausible composite facts, and every detector downstream inherits them.
+   *
+   * The largest context budget of the seven bible missions, because this one is
+   * the only pass that reads **all** of them at once plus the source text; and
+   * the largest output cap, because the answer is a long list of short entries
+   * each carrying a quotation. Distinct from `extract-facts` on every line: that
+   * one is one chapter on a cheap model at `low`, and it runs after every
+   * chapter, where this one runs once.
+   */
+  "extract-initial-facts": {
+    id: "extract-initial-facts",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 16_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 26_000, outputTokens: 8_000 },
+    expectedDurationMs: 200_000,
+  },
+
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {
     id: "build-chapter-outline",

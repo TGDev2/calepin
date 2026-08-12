@@ -118,6 +118,11 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
   RELATE_CHARACTERS: "bible",
   DEFINE_WORLD: "bible",
   BUILD_TIMELINE: "bible",
+  // The canon is a section of the same document, and the initial pass earns
+  // the exclusion the same way the identity does: it quotes every other
+  // section, so a fact extracted while one of them is being rewritten would
+  // rest on a passage nobody ended up keeping (CAL-094).
+  EXTRACT_INITIAL_FACTS: "bible",
   EXTRACT_FACTS: "bible",
 
   BUILD_CHAPTER_OUTLINE: "outline",

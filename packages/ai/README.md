@@ -7,7 +7,7 @@ narrative rule, and never restates a domain schema.
 
 ## What exists (CAL-048)
 
-- `missions.ts` — the mission identifiers (twenty-one since CAL-093), pinned
+- `missions.ts` — the mission identifiers (twenty-two since CAL-094), pinned
   against the `GenerationMission` Prisma enum.
 - `capabilities.ts` — the explicit capability sheet of every model this layer
   may route to. No pricing: `pricing.ts` (CAL-056) owns the configurable
@@ -84,6 +84,7 @@ narrative rule, and never restates a domain schema.
   | `relate-characters`           | Opus 5   | high   | 12 k    | 300 s   | bible      | 60 k   | 20 k / 5 k      |
   | `define-world`                | Opus 5   | high   | 10 k    | 300 s   | bible      | 40 k   | 14 k / 4 k      |
   | `build-timeline`              | Opus 5   | xhigh  | 14 k    | 300 s   | bible      | 50 k   | 18 k / 6 k      |
+  | `extract-initial-facts`       | Opus 5   | xhigh  | 16 k    | 300 s   | bible      | 60 k   | 26 k / 8 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -492,6 +493,18 @@ measured tokens at today's tariff, never replayed from a recorded price.
   trente ans*) rather than instructing the model to be careful. It is the one
   mission at `xhigh` in the bible stage, for the reason the backlog gives:
   cross-checking a chronology is reasoning rather than writing.
+
+- **The initial canon** — `extract-initial-facts` (CAL-094), the bible's
+  seventh section and the one thing no checker can supply for the prompt: a
+  composite statement can be refused afterwards, but nothing downstream can
+  write the elementary facts it should have been broken into. So the
+  instruction spends its length on the decomposition and on the three lists
+  that carry the temporal scope out of the prose, and passes every closed
+  vocabulary — the citable corpus, the cast, the places, the chronology, the
+  belief states, the constructions a statement may not carry — as a variable
+  rather than retyping it. `xhigh` beside the chronology, and the largest
+  context budget of the seven, because this is the only pass that reads all of
+  them at once alongside the source text.
 
 ## What arrives in its own task
 

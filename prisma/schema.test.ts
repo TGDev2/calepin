@@ -1097,6 +1097,22 @@ describe("prisma schema", () => {
       );
     });
 
+    // CAL-094 turned the type aliases CAL-018 left in @calepin/bible into
+    // declared lists, because the mission's contract needs the members as
+    // values and because a bare union is invisible to this pin. The three that
+    // follow are what stops a member being added on one side alone.
+    it("mirrors the three temporal shapes @calepin/bible reasons over", () => {
+      expect(enumMembers("CanonFactValidity")).toEqual(
+        workspaceStringUnion("packages/bible/src/canon-fact/types.ts", "CANON_FACT_VALIDITIES"),
+      );
+    });
+
+    it("mirrors the four provenances @calepin/bible resolves into", () => {
+      expect(enumMembers("CanonFactSource")).toEqual(
+        workspaceStringUnion("packages/bible/src/canon-fact/types.ts", "CANON_FACT_SOURCES"),
+      );
+    });
+
     it("declares the four provenances and the three lifecycle states", () => {
       expect(enumMembers("CanonFactSource")).toEqual([
         "SOURCE_TEXT", // extrait du texte source
@@ -1177,6 +1193,15 @@ describe("prisma schema", () => {
         ]);
         expect(modelBlock("CanonFactBelief")).toMatch(/state\s+CanonFactBeliefState(?!\?)/);
         expect(modelBlock("CanonFactBelief")).not.toMatch(/^\s*(knows|isAccurate|isKnown)\w*\s/m);
+      });
+
+      it("mirrors the three belief states @calepin/bible derives knowing from", () => {
+        expect(enumMembers("CanonFactBeliefState")).toEqual(
+          workspaceStringUnion(
+            "packages/bible/src/canon-fact/types.ts",
+            "CANON_FACT_BELIEF_STATES",
+          ),
+        );
       });
 
       it("holds one stance per character per fact, and indexes a point of view", () => {
@@ -1660,10 +1685,10 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The twenty-one of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The twenty-two of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
       // touching generation is a group-by on this column.
-      it("declares the twenty-one missions of the registry, and only those", () => {
+      it("declares the twenty-two missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
@@ -1679,6 +1704,7 @@ describe("prisma schema", () => {
           "RELATE_CHARACTERS", // CAL-091
           "DEFINE_WORLD", // CAL-092
           "BUILD_TIMELINE", // CAL-093
+          "EXTRACT_INITIAL_FACTS", // CAL-094
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",
           "EXTRACT_FACTS",

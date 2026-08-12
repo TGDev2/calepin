@@ -149,6 +149,7 @@ describe("missionsWritingTo", () => {
       "DEFINE_STYLE",
       "DEFINE_WORLD",
       "EXTRACT_FACTS",
+      "EXTRACT_INITIAL_FACTS",
       "RELATE_CHARACTERS",
     ]);
     expect(missionsWritingTo("directions").sort()).toEqual([

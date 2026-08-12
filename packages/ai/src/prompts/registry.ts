@@ -40,6 +40,7 @@ import { DEFINE_WORLD_PROMPTS } from "./missions/define-world";
 import { DETECT_CLICHE_RISKS_PROMPTS } from "./missions/detect-cliche-risks";
 import { EVALUATE_DIRECTION_PROMPTS } from "./missions/evaluate-direction";
 import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
+import { EXTRACT_INITIAL_FACTS_PROMPTS } from "./missions/extract-initial-facts";
 import { FIX_ISSUE_PROMPTS } from "./missions/fix-issue";
 import { PROPOSE_DIRECTIONS_PROMPTS } from "./missions/propose-directions";
 import { REGENERATE_ANALYSIS_SECTION_PROMPTS } from "./missions/regenerate-analysis-section";
@@ -71,6 +72,7 @@ export const PROMPT_REGISTRY = {
   "relate-characters": RELATE_CHARACTERS_PROMPTS,
   "define-world": DEFINE_WORLD_PROMPTS,
   "build-timeline": BUILD_TIMELINE_PROMPTS,
+  "extract-initial-facts": EXTRACT_INITIAL_FACTS_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,
   "extract-facts": EXTRACT_FACTS_PROMPTS,

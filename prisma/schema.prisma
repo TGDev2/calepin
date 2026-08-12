@@ -2277,13 +2277,15 @@ model ThreadContinuation {
   @@map("thread_continuations")
 }
 
-/// The eighteen missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
-/// registry owns. An enum rather than free text because every indicator of
-/// specification §17 that touches generation is a group-by on this column: a
-/// typo would open a silent nineteenth category and put a hole in the numbers,
-/// where an enum makes it a write error. Adding a mission is one member and one
-/// migration, owned by the task that adds the mission — the same trade
-/// CanonFactValidity records.
+/// The missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+/// registry owns, in the order the novel is built in. An enum rather than free
+/// text because every indicator of specification §17 that touches generation is
+/// a group-by on this column: a typo would open a silent extra category and put
+/// a hole in the numbers, where an enum makes it a write error. Adding a mission
+/// is one member and one migration, owned by the task that adds the mission —
+/// the same trade CanonFactValidity records. The count is deliberately not
+/// written here: MISSION_IDS is the list, packages/ai/src/missions.ts pins the
+/// two together, and a number in a comment is a copy able to drift (CAL-094).
 enum GenerationMission {
   ANALYZE_SOURCE_TEXT // analyser le texte source
   DETECT_CLICHE_RISKS // détecter les risques de clichés
@@ -2299,6 +2301,7 @@ enum GenerationMission {
   RELATE_CHARACTERS // relier les personnages entre eux
   DEFINE_WORLD // définir la bible du monde
   BUILD_TIMELINE // construire la chronologie initiale
+  EXTRACT_INITIAL_FACTS // extraire les faits canoniques initiaux
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène
   EXTRACT_FACTS // extraire les faits

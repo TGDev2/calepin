@@ -1,0 +1,13 @@
+-- CAL-094: the initial canon becomes the seventh and last mission of the bible
+-- stage. Placed after BUILD_TIMELINE because the enum's order mirrors the order
+-- the novel is built in, and a canonical fact is drawn from sections that must
+-- already exist: it names characters and places, it quotes the world and the
+-- identity, and its temporal bounds sit on the axis the chronology has just
+-- laid down.
+--
+-- A separate member rather than a reuse of EXTRACT_FACTS, which is taken and is
+-- not the same ask: that one reads one written chapter and proposes what it
+-- established, this one reads the whole validated bible and the source text and
+-- opens the canon. They differ in what they are given, in what they may cite,
+-- and in what they cost.
+ALTER TYPE "generation_mission" ADD VALUE 'EXTRACT_INITIAL_FACTS' AFTER 'BUILD_TIMELINE';
