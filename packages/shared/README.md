@@ -14,6 +14,7 @@ them; an import in the other direction is a cycle.
 | `@calepin/shared`            | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS`                                                                                                   |
 | `@calepin/shared/audit`      | the audited-model registry, the actor scope and the Prisma extension that fills `updatedById` and `version` (CAL-022)                                        |
 | `@calepin/shared/auth`       | the Auth.js persistence adapter over the client seam, the session lifetimes (CAL-024), the email sign-in provider and its five-per-hour rate limit (CAL-025), the Google and GitHub providers and their shared verified-email account linking (CAL-026, CAL-027) |
+| `@calepin/shared/bible-lock` | the lock on one element of the bible — what can be locked, what each mission would rebuild, the gate that stops a generation before it runs, and the predicates a write path composes (CAL-095) |
 | `@calepin/shared/config`     | the Zod environment schema and the single validated `process.env` read (CAL-006)                                                                             |
 | `@calepin/shared/database`   | the client seam — the process shell registers a `PrismaClient` here and the repository layer reads it (CAL-023). **Only a process shell may import it**      |
 | `@calepin/shared/repository` | the owner access policy: the ownership registry, `ProjectScope`, the scoped `where` builder and the project repository (CAL-023)                             |

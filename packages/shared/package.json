@@ -16,6 +16,10 @@
       "types": "./src/audit/index.ts",
       "default": "./src/audit/index.ts"
     },
+    "./bible-lock": {
+      "types": "./src/bible-lock/index.ts",
+      "default": "./src/bible-lock/index.ts"
+    },
     "./auth": {
       "types": "./src/auth/index.ts",
       "default": "./src/auth/index.ts"

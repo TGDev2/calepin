@@ -99,6 +99,21 @@ export const ERROR_CODES = [
    * analysis produces, and the remedy is an action the author takes.
    */
   "ANALYSIS_NOT_VALIDATED",
+  /**
+   * A write, or a generation about to run, would have changed an element of the
+   * bible the author locked (CAL-095). `conflict` for `ANALYSIS_NOT_VALIDATED`'s
+   * reason: the request is well formed and nothing about it needs correcting —
+   * the element is simply settled, and the remedy is a decision the author
+   * takes, which is exactly what the specification asks for in §6.5 (*demander
+   * si le verrou doit être levé*).
+   *
+   * Its own code rather than a bare `CONFLICT`, `OBSOLESCENCE_NOT_ACKNOWLEDGED`'s
+   * reasoning one epic later: the interface answers it by naming what stands in
+   * the way and offering to lift it, which is a different screen from every
+   * other refusal here — and a generation closed under it is the one failure a
+   * *Relancer* button is not the whole answer to.
+   */
+  "BIBLE_ELEMENT_LOCKED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -278,6 +293,7 @@ export const CATEGORY_BY_CODE = {
   OPERATION_NOT_CONFIRMED: "conflict",
   OBSOLESCENCE_NOT_ACKNOWLEDGED: "conflict",
   ANALYSIS_NOT_VALIDATED: "conflict",
+  BIBLE_ELEMENT_LOCKED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",
