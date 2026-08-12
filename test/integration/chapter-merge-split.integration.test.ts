@@ -695,6 +695,13 @@ describe("merging and splitting the chapters of a plan", () => {
     expect(await readCensus()).toEqual(census);
   });
 
+  /**
+   * Isolated on purpose: everything else about this redistribution is valid, so
+   * the refusal can only be the conservation rule. A probe that disabled
+   * `checkConservation` while the halves were also missing their focal
+   * character passed, which is a test proving a refusal rather than proving
+   * *this* refusal.
+   */
   it("refuses a redistribution that drops a reference, and writes nothing", async () => {
     const census = await readCensus();
     const ids = await readChapterIds();
@@ -702,28 +709,26 @@ describe("merging and splitting the chapters of a plan", () => {
     if (source === undefined) throw new Error("plan too short");
 
     const half = await readHalf(source);
+    const target = Math.round((half.targetWordCount ?? 2_000) / 2);
     const refused = await split({
       chapterId: source,
-      first: {
-        ...half,
-        characterIds: [],
-        factIds: [],
-        opensThreadIds: [],
-        continuesThreadIds: [],
-        closesThreadIds: [],
-      },
+      first: { ...half, targetWordCount: target, factIds: [] },
       second: {
         ...half,
-        characterIds: [],
+        targetWordCount: target,
         factIds: [],
         opensThreadIds: [],
-        continuesThreadIds: [],
         closesThreadIds: [],
       },
     });
 
     expect(refused.ok).toBe(false);
-    if (!refused.ok) expect(refused.error.code).toBe("CHAPTER_SPLIT_REFUSED");
+    if (!refused.ok) {
+      expect(refused.error.code).toBe("CHAPTER_SPLIT_REFUSED");
+      // The kinds travel in `fieldPath`, which is the loggable half (§7) — and
+      // asserting them is what makes this the conservation rule's own test.
+      expect(refused.error.fieldPath).toBe("dropped-fact");
+    }
     expect(await readCensus()).toEqual(census);
   });
 
