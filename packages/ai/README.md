@@ -85,6 +85,7 @@ narrative rule, and never restates a domain schema.
   | `define-world`                | Opus 5   | high   | 10 k    | 300 s   | bible      | 40 k   | 14 k / 4 k      |
   | `build-timeline`              | Opus 5   | xhigh  | 14 k    | 300 s   | bible      | 50 k   | 18 k / 6 k      |
   | `extract-initial-facts`       | Opus 5   | xhigh  | 16 k    | 300 s   | bible      | 60 k   | 26 k / 8 k      |
+  | `detect-bible-contradictions` | Opus 5   | xhigh  | 8 k     | 300 s   | bible      | 60 k   | 24 k / 3 k      |
   | `build-chapter-outline`       | Opus 5   | high   | 16 k    | 300 s   | outline    | 60 k   | 20 k / 6 k      |
   | `write-scene`                 | Opus 5   | high   | 32 k    | 600 s   | **prose**  | 80 k   | 30 k / 12 k     |
   | `extract-facts`               | Sonnet 5 | low    | 8 k     | 180 s   | bible      | 60 k   | 15 k / 4 k      |
@@ -505,6 +506,19 @@ measured tokens at today's tariff, never replayed from a recorded price.
   rather than retyping it. `xhigh` beside the chronology, and the largest
   context budget of the seven, because this is the only pass that reads all of
   them at once alongside the source text.
+
+- **The bible’s contradictions** — `detect-bible-contradictions` (CAL-099),
+  and its whole design problem is silence. The four calculable checks already
+  hold the ages, the dates, the missing reciprocities and two facts recorded
+  with opposite truth values, so what is left is narrow — and a model given a
+  narrow ask and two open lists fills them. The instruction therefore says
+  twice that two empty lists are the good answer, and enumerates what is *not*
+  a contradiction before what is: periods that do not meet, a character who
+  believes something false (`CanonFactBelief`’s entire reason for existing),
+  and a rule with a declared exception. `xhigh` because these findings block a
+  write — an author cannot validate their bible while one stands — and a large
+  input budget against a small output cap, because a contradiction is named
+  rather than narrated.
 
 ## What arrives in its own task
 

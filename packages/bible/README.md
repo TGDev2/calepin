@@ -139,4 +139,34 @@ when one character is given two stances (that is a contradiction, and CAL-099
 arbitrates), reports a near-duplicate without ever merging it, and drops what
 `knownFacts` already holds — which is why `CanonFactStatus` keeps rejected rows.
 
+## Coherence (CAL-099)
+
+The bible read against itself, before it can be validated. Four calculable
+checks live in `src/coherence/checks/`, and each one is mostly the redemption
+of a decision an earlier task made on its behalf: the arithmetic is
+`checkTimelineArithmetic` re-run over rows instead of a model answer, the
+missing reciprocity is the `one-sided` pair `resolveRelationshipGraph`
+deliberately never completes, and two facts recorded with opposite truth values
+is what `CanonFact`’s affirmative-statement-plus-`isTrue` shape exists to make
+visible. The fourth reads prose — a conservative proper-noun scan for names the
+bible never declares — and is `MAJOR` and never blocking, because its residue
+is real and a dismissal sticks forever after.
+
+The engine itself is `@calepin/shared/coherence`; what is here is everything
+that needs to know what a chronology, a tie and a canonical fact mean. Findings
+are anchored on **row ids**, never on the indexes the arithmetic works in: an
+index moves when an unrelated event is inserted, and the author’s arbitration
+would move with it.
+
+`detect-bible-contradictions` is the half no key reaches — two statements that
+oppose each other only in their wording, two rules that cannot both govern. It
+names an index and never an id, carries no severity for a model to lower, and
+both of its lists may be empty: a bible that holds together is the common case,
+and a floor would teach the model to invent one.
+
+`validateBible` lives in `@calepin/bible/repository`, the package’s second
+entry point. Everything that opens a transaction is there and nothing in the
+root barrel is, because a client component importing this package for a ceiling
+would otherwise pull `node:async_hooks` into its bundle.
+
 Backlog: E09 — CAL-088 to CAL-100. Schemas: CAL-016, CAL-017, CAL-018.
