@@ -8,20 +8,18 @@
 import { describe, expect, it } from "vitest";
 
 import type { OrderedChapter } from "../order/types";
+import { CHAPTER_PROSE_COLUMNS, type ChapterCutOutline, type ChapterCutSource } from "./cut";
 import {
   CHAPTER_MERGE_CONNECTOR,
   CHAPTER_MERGE_DEFECT_KINDS,
   CHAPTER_MERGE_LOSS_KINDS,
   CHAPTER_MERGE_TITLE_CONNECTOR,
-  CHAPTER_PROSE_COLUMNS,
   type ChapterMergeOutcome,
-  type MergeableChapter,
-  type MergeableChapterOutline,
   parseChapterMergeRequest,
   planChapterMerge,
 } from "./merge";
 
-function anOutline(overrides: Partial<MergeableChapterOutline> = {}): MergeableChapterOutline {
+function anOutline(overrides: Partial<ChapterCutOutline> = {}): ChapterCutOutline {
   return {
     workingTitle: "title-a",
     targetWordCount: 3_000,
@@ -45,7 +43,7 @@ function anOutline(overrides: Partial<MergeableChapterOutline> = {}): MergeableC
   };
 }
 
-function aChapter(overrides: Partial<MergeableChapter> = {}): MergeableChapter {
+function aChapter(overrides: Partial<ChapterCutSource> = {}): ChapterCutSource {
   return {
     id: "chapter-1",
     partId: "part-1",
@@ -61,9 +59,9 @@ function aChapter(overrides: Partial<MergeableChapter> = {}): MergeableChapter {
 
 /** The two chapters of the default pair, adjacent in one part. */
 function aPair(
-  first: Partial<MergeableChapter> = {},
-  second: Partial<MergeableChapter> = {},
-): { first: MergeableChapter; second: MergeableChapter; siblings: OrderedChapter[] } {
+  first: Partial<ChapterCutSource> = {},
+  second: Partial<ChapterCutSource> = {},
+): { first: ChapterCutSource; second: ChapterCutSource; siblings: OrderedChapter[] } {
   const one = aChapter({ id: "chapter-1", orderKey: "i", ...first });
   const two = aChapter({
     id: "chapter-2",

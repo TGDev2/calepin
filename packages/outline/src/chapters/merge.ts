@@ -52,6 +52,12 @@ import { z } from "zod";
 
 import { compareOrderKeys } from "../order/key";
 import type { OrderedChapter } from "../order/types";
+import {
+  type ChapterCutOutline,
+  type ChapterCutSource,
+  type ChapterProseColumn,
+  unionIds,
+} from "./cut";
 import { CHAPTER_PERIOD_PRECISIONS, type ChapterPeriodPrecision } from "./schema";
 
 /**
@@ -94,24 +100,6 @@ export const CHAPTER_MERGE_LOSS_KINDS = ["place", "focal-character", "period-pre
 
 export type ChapterMergeLossKind = (typeof CHAPTER_MERGE_LOSS_KINDS)[number];
 
-/**
- * The seven prose columns a merge joins rather than picks between. Named once
- * so the join, the split's redistribution and their tests read one list; the
- * working title and the period label are headings and take the other
- * connector.
- */
-export const CHAPTER_PROSE_COLUMNS = [
-  "dramaticFunction",
-  "immediateGoal",
-  "obstacle",
-  "decision",
-  "revelation",
-  "consequence",
-  "detailedSummary",
-] as const;
-
-export type ChapterProseColumn = (typeof CHAPTER_PROSE_COLUMNS)[number];
-
 /** One finding that refuses the merge. */
 export type ChapterMergeDefect =
   | { readonly kind: "same-chapter" }
@@ -138,45 +126,6 @@ export type ChapterMergeLoss =
       readonly keptPrecision: ChapterPeriodPrecision;
       readonly droppedPrecision: ChapterPeriodPrecision;
     };
-
-/**
- * A chapter's plan as the merge reads it — the `ChapterOutline` columns' own
- * spellings and their own nullability, plus the two link tables as id lists.
- */
-export interface MergeableChapterOutline {
-  readonly workingTitle: string | null;
-  readonly targetWordCount: number | null;
-  readonly focalCharacterId: string | null;
-  readonly placeId: string | null;
-  readonly periodStartDay: number | null;
-  readonly periodEndDay: number | null;
-  readonly periodPrecision: ChapterPeriodPrecision | null;
-  readonly periodLabel: string | null;
-  readonly dramaticFunction: string | null;
-  readonly immediateGoal: string | null;
-  readonly obstacle: string | null;
-  readonly decision: string | null;
-  readonly revelation: string | null;
-  readonly consequence: string | null;
-  readonly detailedSummary: string | null;
-  readonly lockedAt: Date | null;
-  readonly characterIds: readonly string[];
-  readonly factIds: readonly string[];
-}
-
-/** A chapter as the merge reads it — the spine, its plan and its thread actions. */
-export interface MergeableChapter {
-  readonly id: string;
-  readonly partId: string;
-  readonly orderKey: string;
-  /** How many revisions the chapter already holds — non-zero refuses the merge. */
-  readonly revisionCount: number;
-  /** Null for a chapter with no plan row yet. */
-  readonly outline: MergeableChapterOutline | null;
-  readonly opensThreadIds: readonly string[];
-  readonly continuesThreadIds: readonly string[];
-  readonly closesThreadIds: readonly string[];
-}
 
 /** The merged `ChapterOutline` column values. */
 export interface MergedChapterOutline {
@@ -254,22 +203,6 @@ function joinText(first: string | null, second: string | null, connector: string
   return `${first} ${connector} ${second}`;
 }
 
-function unionIds(...lists: readonly (readonly string[])[]): readonly string[] {
-  const seen = new Set<string>();
-  const union: string[] = [];
-
-  for (const list of lists) {
-    for (const id of list) {
-      if (seen.has(id)) continue;
-
-      seen.add(id);
-      union.push(id);
-    }
-  }
-
-  return union;
-}
-
 /** Later in `CHAPTER_PERIOD_PRECISIONS` is coarser — the enum's own order. */
 function coarser(
   first: ChapterPeriodPrecision,
@@ -287,8 +220,8 @@ function coarser(
  * instead of being read as absent.
  */
 function mergePeriod(
-  first: MergeableChapterOutline | null,
-  second: MergeableChapterOutline | null,
+  first: ChapterCutOutline | null,
+  second: ChapterCutOutline | null,
 ): Pick<
   MergedChapterOutline,
   "periodStartDay" | "periodEndDay" | "periodPrecision" | "periodLabel"
@@ -323,8 +256,8 @@ function mergePeriod(
 }
 
 function findDefects(
-  first: MergeableChapter,
-  second: MergeableChapter,
+  first: ChapterCutSource,
+  second: ChapterCutSource,
   siblings: readonly OrderedChapter[],
 ): readonly ChapterMergeDefect[] {
   const defects: ChapterMergeDefect[] = [];
@@ -376,8 +309,8 @@ function findDefects(
 }
 
 function findLosses(
-  first: MergeableChapterOutline | null,
-  second: MergeableChapterOutline | null,
+  first: ChapterCutOutline | null,
+  second: ChapterCutOutline | null,
 ): readonly ChapterMergeLoss[] {
   const losses: ChapterMergeLoss[] = [];
 
@@ -429,8 +362,8 @@ function findLosses(
  * own discipline: adjacency is decided here, from the order that exists.
  */
 export function planChapterMerge(
-  first: MergeableChapter,
-  second: MergeableChapter,
+  first: ChapterCutSource,
+  second: ChapterCutSource,
   siblings: readonly OrderedChapter[],
 ): ChapterMergeOutcome {
   const defects = findDefects(first, second, siblings);
