@@ -526,18 +526,30 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 150_000,
   },
 
-  /** Structural work: what this chapter does to the threads around it. */
+  /**
+   * One part's chapter plans in one call (CAL-102) — the batch the backlog's
+   * *par lots cohérents à l'échelle de la partie* demands, because its four
+   * bars (function and consequence everywhere, no repeated stake, every
+   * revelation prepared, every thread closed on schedule) are properties of a
+   * sequence no per-chapter call could hold. `xhigh` for `split-into-parts`'
+   * reasoning one level down: a repeated stake or an unprepared revelation is
+   * exactly what degrades silently on a shallower run — each chapter read
+   * alone stays plausible. The output cap covers the worst batch (twenty
+   * chapters of ~800 tokens of fields, before JSON overhead); 16 k was sized
+   * for one chapter's plan. The context budget carries the part's frame, the
+   * threads, the cast, the facts and the preceding parts' digests.
+   */
   "build-chapter-outline": {
     id: "build-chapter-outline",
     model: "claude-opus-5",
     fallbackModel: "anthropic.claude-opus-5",
-    effort: "high",
-    maxOutputTokens: 16_000,
+    effort: "xhigh",
+    maxOutputTokens: 20_000,
     timeoutMs: 300_000,
     output: { kind: "structured", schemaOwner: "outline" },
     contextBudgetTokens: 60_000,
-    expectedUsage: { inputTokens: 20_000, outputTokens: 6_000 },
-    expectedDurationMs: 150_000,
+    expectedUsage: { inputTokens: 24_000, outputTokens: 6_000 },
+    expectedDurationMs: 180_000,
   },
 
   /**

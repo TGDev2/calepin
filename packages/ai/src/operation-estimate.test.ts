@@ -43,8 +43,13 @@ describe("estimateOperation without history", () => {
 
       expect(phase.basis).toBe("theoretical");
       expect(phase.sampleCount).toBe(0);
-      expect(phase.usage).toEqual(mission.expectedUsage);
-      expect(phase.durationMs).toBe(mission.expectedDurationMs);
+      // A phase's figures total over its calls — `build-chapter-outline`
+      // runs once per part (CAL-102), so one unit is already several calls.
+      expect(phase.usage).toEqual({
+        inputTokens: mission.expectedUsage.inputTokens * phase.callCount,
+        outputTokens: mission.expectedUsage.outputTokens * phase.callCount,
+      });
+      expect(phase.durationMs).toBe(mission.expectedDurationMs * phase.callCount);
     }
   });
 

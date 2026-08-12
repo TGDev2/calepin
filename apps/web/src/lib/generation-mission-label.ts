@@ -4,8 +4,8 @@ import type { GenerationMission } from "@calepin/shared/repository";
  * The French label for a generation mission, same shape as
  * `project-status-label.ts`. Order matches the mission identifiers CLAUDE.md's
  * glossary lists (CAL-051, CAL-055, CAL-075, CAL-076, CAL-077, CAL-083,
- * CAL-084, CAL-088, CAL-089, CAL-101) — the count is deliberately not written
- * here, CAL-094's reason.
+ * CAL-084, CAL-088, CAL-089, CAL-101, CAL-102) — the count is deliberately not
+ * written here, CAL-094's reason.
  *
  * Presentation only: what a mission actually does belongs to the mission
  * registry (`@calepin/ai`, CAL-051), not here.
@@ -28,7 +28,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   EXTRACT_INITIAL_FACTS: "Extraction des faits canoniques initiaux",
   DETECT_BIBLE_CONTRADICTIONS: "Contrôle de cohérence de la bible",
   SPLIT_INTO_PARTS: "Découpage en parties",
-  BUILD_CHAPTER_OUTLINE: "Construction d'un plan de chapitre",
+  BUILD_CHAPTER_OUTLINE: "Plans de chapitre d'une partie",
   WRITE_SCENE: "Rédaction d'une scène",
   EXTRACT_FACTS: "Extraction des faits",
   CHECK_COHERENCE: "Contrôle de cohérence",

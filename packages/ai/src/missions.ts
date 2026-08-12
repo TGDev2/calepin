@@ -119,8 +119,8 @@
  * govern it.
  *
  * `split-into-parts` (CAL-101) opens the plan stage, and it is not the first
- * `build-chapter-outline` call: that one plans **one** chapter inside a part
- * that already frames it, while this one decides the frame — the whole novel's
+ * `build-chapter-outline` call: that one plans the chapters of **one** part a
+ * frame already holds, while this one decides the frame — the whole novel's
  * parts, argued against each other across the full target length, under a
  * count gate derived from that length (`partCalibrationForWordCount`) that no
  * chapter plan carries. Different contract (`partStructureSchema`, judged by
@@ -130,6 +130,23 @@
  * also declares the novel's narrative threads: no `Thread` row can exist
  * before a chapter does, so the answer carries the vocabulary its own parts
  * cite by index, and the rows wait for CAL-102.
+ *
+ * `build-chapter-outline` (CAL-102) plans one part's chapters **as a batch** —
+ * the backlog's own delivery constraint (*génère par lots cohérents à
+ * l'échelle de la partie*), and not a convenience: the four bars the command
+ * sets — a dramatic function and a consequence on every chapter, no stake
+ * repeated, every revelation prepared, no thread left open without a planned
+ * closing chapter — are properties of a *sequence*, unstatable of one chapter.
+ * The answer is judged by `checkChapterOutlineBatch`'s calculable gates: a
+ * thread choreography walked under the part structure's own assignment plan,
+ * a count gate from `chapterCalibrationForPartWordCount` over the ask's own
+ * part target, a word budget summed against it. The project-wide `outline`
+ * write target serializes the batches, and that is load-bearing rather than
+ * incidental — batch N's ask carries digests of batches 1..N−1, which is how
+ * *no repeated stake* and *prepared by an earlier chapter* stay askable at
+ * all. Re-proposing **one** chapter against locked neighbours is CAL-111's
+ * own mission, the `regenerate-analysis-section`/`replace-direction`
+ * precedent: a different ask, not this one rendered narrow.
  */
 
 export const MISSION_IDS = [

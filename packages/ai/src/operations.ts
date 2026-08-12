@@ -85,7 +85,11 @@ export const COSTLY_OPERATION_REGISTRY = {
     unit: "project",
     phases: [
       { mission: "split-into-parts", kind: "production", callsPerUnit: 1 },
-      { mission: "build-chapter-outline", kind: "production", callsPerUnit: 1 },
+      // One call per part (CAL-102); 4 is the STANDARD midpoint's own part
+      // count (round(65 000 ÷ 18 000)) — a consumption profile of the typical
+      // project, never a workflow. The real count is the project's parts, and
+      // the measured estimate replaces this the first time the mission runs.
+      { mission: "build-chapter-outline", kind: "production", callsPerUnit: 4 },
       { mission: "check-coherence", kind: "control", callsPerUnit: 1 },
     ],
   },
