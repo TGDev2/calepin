@@ -115,6 +115,11 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * `editCharacter` is isolated in `character-editing.integration.test.ts`: it
  * needs a locked field, a locked row and a name collision to prove its own
  * refusals, none of which the shared graph is arranged to hold.
+ * `writeCanonFact`, `editCanonFact`, `setCanonFactStatus` and
+ * `deleteCanonFact` are isolated in `canon-fact-editing.integration.test.ts`:
+ * they need the three temporal shapes, a timeline event to end a fact, an
+ * extracted fact beside a hand-written one and a chapter plan citing one before
+ * their refusals mean anything — the shared graph holds one permanent fact.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -126,11 +131,13 @@ const ENTRY_POINTS = [
   "createProject",
   "createProjectWithSourceText",
   "deleteAnalysisAnnotation",
+  "deleteCanonFact",
   "deleteRelationship",
   "deleteProject",
   "discardDirection",
   "duplicateProject",
   "editAnalysisSection",
+  "editCanonFact",
   "editCharacter",
   "editDirection",
   "editRelationship",
@@ -167,6 +174,7 @@ const ENTRY_POINTS = [
   "reserveGeneration",
   "restoreProject",
   "selectCanonicalDirection",
+  "setCanonFactStatus",
   "unlockBibleElement",
   "updateAnalysisAnnotation",
   "updateGenerationProgress",
@@ -176,6 +184,7 @@ const ENTRY_POINTS = [
   "withProjectAggregates",
   "withProjectStatus",
   "withProjectTransaction",
+  "writeCanonFact",
   "writeRelationship",
   "writeUserDirection",
 ];

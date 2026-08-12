@@ -63,6 +63,21 @@ export {
   unlockBibleElement,
 } from "./bible-lock";
 export {
+  type CanonFactBeliefRow,
+  type CanonFactBoundRow,
+  type CanonFactContentInput,
+  type CanonFactEdited,
+  type CanonFactSubjectRow,
+  type CanonFactWritten,
+  deleteCanonFact,
+  editCanonFact,
+  type EditCanonFactInput,
+  setCanonFactStatus,
+  type SetCanonFactStatusInput,
+  writeCanonFact,
+  type WriteCanonFactInput,
+} from "./canon-fact";
+export {
   type CharacterContentInput,
   type CharacterEdited,
   type CharacterEditHistoryEntry,
