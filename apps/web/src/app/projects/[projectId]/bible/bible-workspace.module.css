@@ -1,0 +1,189 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. The two-column layout is the point: a sidebar that stays in view
+ * while the six sections scroll is what makes "find one fact in under ten
+ * seconds" (CAL-096) possible without hunting through the whole page first.
+ */
+
+.workspace {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 48rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  position: sticky;
+  top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (max-width: 48rem) {
+  .sidebar {
+    position: static;
+  }
+}
+
+.notice {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.validated {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* --- Section navigation --- */
+
+.nav {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-2);
+}
+
+.navList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.navLink {
+  display: block;
+  padding: 0.4rem var(--space-1);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.navLink:hover {
+  background: var(--color-background);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
+}
+
+/*
+ * "Current section" is never colour alone: the active entry also gets a
+ * heavier left border and bold text, so it survives a monochrome print and a
+ * colorblind eye the way `ProvenanceBadge`'s variants do.
+ */
+.navLink[aria-current="location"] {
+  border-left: 3px solid var(--color-text);
+  padding-left: calc(var(--space-1) - 3px);
+  font-weight: 700;
+  background: var(--color-background);
+}
+
+/* --- Search --- */
+
+.search {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-2);
+}
+
+.searchLabel {
+  display: block;
+  margin: 0 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.4rem var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.searchInput:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 1px;
+}
+
+.searchResults {
+  margin-top: var(--space-2);
+}
+
+.searchEmpty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.searchResultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.searchResultLink {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem var(--space-1);
+  border-radius: var(--radius-1);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.searchResultLink:hover {
+  background: var(--color-background);
+}
+
+.searchResultLink:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
+}
+
+.searchResultSection {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.searchResultTitle {
+  font-size: 0.9rem;
+}

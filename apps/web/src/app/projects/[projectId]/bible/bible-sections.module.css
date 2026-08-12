@@ -1,0 +1,139 @@
+/*
+ * Built from the placeholder tokens in `app/globals.css`. No hard-coded
+ * values — CAL-181 owns the real token system and will replace them in one
+ * place. Shared by the six section components: one layout for a scalar
+ * section (identity, style, world) and one for a list of cards (characters,
+ * places, world rules, timeline, canon facts), rather than six near-identical
+ * stylesheets.
+ */
+
+.section {
+  scroll-margin-top: var(--space-2);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.sectionLink {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.empty {
+  color: var(--color-text-muted);
+}
+
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+/* --- Scalar sections: a definition list of fields --- */
+
+.facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.fact dt {
+  margin: 0 0 0.15rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.fact dd {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.plainList {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.subsection {
+  margin-top: var(--space-3);
+}
+
+.subsectionTitle {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+
+/* --- List sections: a card per row --- */
+
+.cardList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.card {
+  scroll-margin-top: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+}
+
+/* A rejected canon fact stays readable — never hidden — but visibly set
+   apart, `provenance-badge`'s "shape and weight, not only colour" rule
+   applied to a whole card: a dashed border rather than a solid one. */
+.cardRejected {
+  composes: card;
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.cardSummary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.cardSummary:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+.cardSummaryTitle {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+.cardSummaryMeta {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.cardBody {
+  margin: 0.35rem 0 0;
+  line-height: 1.6;
+}
