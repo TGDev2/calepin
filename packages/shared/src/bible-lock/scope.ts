@@ -82,6 +82,13 @@ export const MISSION_LOCK_SCOPE: Readonly<Record<Mission, readonly BibleLockable
   // fact into a stopped novel.
   EXTRACT_FACTS: [],
 
+  // The same reasoning one epic later: CAL-099's contradiction pass builds no
+  // section either. It reads the whole bible and proposes findings the author
+  // arbitrates, so naming a model here would stop the coherence check at the
+  // first locked fact — and a locked fact is exactly the kind that ends up in a
+  // contradiction worth reporting.
+  DETECT_BIBLE_CONTRADICTIONS: [],
+
   BUILD_CHAPTER_OUTLINE: [],
   WRITE_SCENE: [],
   FIX_ISSUE: [],

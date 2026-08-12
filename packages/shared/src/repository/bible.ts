@@ -21,7 +21,7 @@
 
 import type { $Enums } from "@prisma/client";
 
-import { getDatabaseClient } from "../database/client";
+import { getDatabaseClient, type TransactionClient } from "../database/client";
 import type { BibleRelationship } from "./relationship";
 import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
 
@@ -192,11 +192,20 @@ export interface BibleOverview {
  * locked alone" shape), so there is no join between them to make atomic, and
  * a flat `Promise.all` is what lets Postgres run all nine at once instead of
  * one connection walking them in sequence.
+ *
+ * `client` is the seam a caller already inside a transaction reaches for —
+ * `openProjectScope`'s own arrangement. CAL-099's validation gate runs the
+ * coherence checks over this read and stamps `validatedAt` in one statement
+ * chain, and a gate reading outside its own transaction would decide on a
+ * bible other than the one it validates.
  */
-export async function getBibleOverview(scope: ProjectScope): Promise<BibleOverview | null> {
+export async function getBibleOverview(
+  scope: ProjectScope,
+  client?: TransactionClient,
+): Promise<BibleOverview | null> {
   assertProjectScope(scope);
 
-  const database = getDatabaseClient();
+  const database = client ?? getDatabaseClient();
 
   const bible = await database.bible.findFirst({
     where: scopedWhere("Bible", scope),

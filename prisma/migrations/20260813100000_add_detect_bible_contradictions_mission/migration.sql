@@ -1,0 +1,12 @@
+-- CAL-099: the coherence check of the bible gets its model half.
+--
+-- Placed after EXTRACT_INITIAL_FACTS because the enum's order mirrors the order
+-- the novel is built in, and this mission reads the whole bible the seven
+-- preceding ones produced — including the canon the last of them opened.
+--
+-- A separate member rather than a reuse of CHECK_COHERENCE, which is taken and
+-- is not the same ask: that one reads written chapters against the narrative
+-- memory, this one reads the bible against itself before a single chapter
+-- exists. They differ in what they are given, in what they may conclude, and in
+-- what a finding of theirs is attached to.
+ALTER TYPE "generation_mission" ADD VALUE 'DETECT_BIBLE_CONTRADICTIONS' AFTER 'EXTRACT_INITIAL_FACTS';

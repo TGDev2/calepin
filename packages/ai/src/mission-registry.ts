@@ -471,6 +471,37 @@ export const MISSION_REGISTRY = {
     expectedDurationMs: 200_000,
   },
 
+  /**
+   * `xhigh`, and it is the effort level the acceptance criterion buys rather
+   * than a habit. This mission's findings **block a write**: an author cannot
+   * validate their bible while one stands unarbitrated. A run that misses an
+   * opposition lets a contradiction become the reference every later generation
+   * reads, and a run that invents one makes the author dismiss the check — and
+   * the second failure is the worse of the two, because it is the one that
+   * teaches them to stop reading. Holding both at once, over a canon of up to
+   * three hundred statements, is exactly the sustained comparison a weaker run
+   * degrades on silently.
+   *
+   * A large input budget and a small output cap, which is the shape of the ask:
+   * it reads the whole canon and the whole world, and answers with at most
+   * thirty-two pairs of indexes and their arguments. `contextBudgetTokens` is
+   * the bible stage's largest for the same reason `extract-initial-facts`'
+   * was — both passes read everything — and the output ceiling is a quarter of
+   * it, because a contradiction is named, not narrated.
+   */
+  "detect-bible-contradictions": {
+    id: "detect-bible-contradictions",
+    model: "claude-opus-5",
+    fallbackModel: "anthropic.claude-opus-5",
+    effort: "xhigh",
+    maxOutputTokens: 8_000,
+    timeoutMs: 300_000,
+    output: { kind: "structured", schemaOwner: "bible" },
+    contextBudgetTokens: 60_000,
+    expectedUsage: { inputTokens: 24_000, outputTokens: 3_000 },
+    expectedDurationMs: 150_000,
+  },
+
   /** Structural work: what this chapter does to the threads around it. */
   "build-chapter-outline": {
     id: "build-chapter-outline",

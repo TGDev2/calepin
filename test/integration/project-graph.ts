@@ -324,6 +324,7 @@ export async function createProjectGraph(
       category: "STRUCTURE",
       severity: "MINOR",
       checkId: "fixture-check",
+      fingerprint: "0100000000000000000000000000000000000000000000000000000000000000",
       explanation: "fixture",
     },
   });

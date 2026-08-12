@@ -2393,6 +2393,7 @@ enum GenerationMission {
   DEFINE_WORLD // définir la bible du monde
   BUILD_TIMELINE // construire la chronologie initiale
   EXTRACT_INITIAL_FACTS // extraire les faits canoniques initiaux
+  DETECT_BIBLE_CONTRADICTIONS // repérer les contradictions internes de la bible
   BUILD_CHAPTER_OUTLINE // construire un plan de chapitre
   WRITE_SCENE // rédiger une scène
   EXTRACT_FACTS // extraire les faits
@@ -2854,6 +2855,24 @@ model QualityIssue {
   /// and what makes a check's false-positive rate measurable.
   checkId String
 
+  /// What this issue is *about*, as a digest — `coherenceFingerprint` in
+  /// @calepin/shared/coherence, over the check's identifier and the rows the
+  /// finding names (CAL-099).
+  ///
+  /// It exists so an arbitration survives the next run. A deterministic check
+  /// recomputes its findings from the rows every time, so without a stable
+  /// identity a second run would insert a new DETECTED row beside the one the
+  /// author had already accepted, and the contradiction they ruled on would
+  /// block the validation forever. `checkId` cannot carry that on its own — one
+  /// check reports several findings — and `explanation` must not, since
+  /// rewording a sentence would orphan a decision.
+  ///
+  /// A digest rather than a rendering, for `Generation.idempotencyKey`'s
+  /// reason: an anchor is made of row ids today, but a check added later could
+  /// reach for a statement, and a column holding one would put literary content
+  /// where §9 forbids it. Hashing makes that impossible rather than discouraged.
+  fingerprint String
+
   /// Why it is a problem, in the project's language. The specification forbids
   /// a bare verdict: every remark is argued and tied to a precise element.
   explanation String
@@ -2879,6 +2898,10 @@ model QualityIssue {
 
   passages QualityIssuePassage[]
 
+  // One row per finding, per check, per project. It is what makes a re-run an
+  // update rather than a second row, and it is the arbiter rather than a hint:
+  // two passes racing one project collide here instead of both inserting.
+  @@unique([projectId, checkId, fingerprint])
   // The screen's own filter (CAL-142), and the count indicator §17.6 reads.
   @@index([projectId, status, severity])
   // The same list filtered by family, and the per-family audit summary.

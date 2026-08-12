@@ -29,6 +29,16 @@ export const CANON_FACT_SOURCES = ["SOURCE_TEXT", "BIBLE", "CHAPTER", "USER"] as
 export type CanonFactSource = (typeof CANON_FACT_SOURCES)[number];
 
 /**
+ * Where a fact stands with the author. Mirrored here from CAL-018's column for
+ * `CANON_FACT_SOURCES`'s reason: the coherence check reads the canon and has to
+ * say which rows *are* canon, and `CONFIRMED` is that answer. `REJECTED` rows
+ * stay — that is what stops an extraction proposing the same statement forever.
+ */
+export const CANON_FACT_STATUSES = ["PROPOSED", "CONFIRMED", "REJECTED"] as const;
+
+export type CanonFactStatus = (typeof CANON_FACT_STATUSES)[number];
+
+/**
  * What deciding whether a fact is in force needs, and nothing else.
  *
  * The bounds mirror the row: a day on the timeline's axis, and the author's

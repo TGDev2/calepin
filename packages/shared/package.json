@@ -20,6 +20,10 @@
       "types": "./src/bible-lock/index.ts",
       "default": "./src/bible-lock/index.ts"
     },
+    "./coherence": {
+      "types": "./src/coherence/index.ts",
+      "default": "./src/coherence/index.ts"
+    },
     "./auth": {
       "types": "./src/auth/index.ts",
       "default": "./src/auth/index.ts"

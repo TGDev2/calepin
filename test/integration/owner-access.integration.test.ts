@@ -120,6 +120,15 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * they need the three temporal shapes, a timeline event to end a fact, an
  * extracted fact beside a hand-written one and a chapter plan citing one before
  * their refusals mean anything — the shared graph holds one permanent fact.
+ *
+ * The five `quality-issue` functions are isolated in
+ * `bible-coherence.integration.test.ts` for the same reason: an issue only
+ * exists once a check has produced one, so proving that another owner cannot
+ * read, close or arbitrate one needs a bible that actually contradicts itself.
+ * `listQualityIssuesWithin` and `reconcileQualityIssuesWithin` are in this list
+ * rather than among the helpers because they issue statements — taking the
+ * transaction client as an argument changes who holds the connection, not
+ * whether the statement names an owner.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -153,6 +162,8 @@ const ENTRY_POINTS = [
   "listProjectDashboardRows",
   "listProjectsForOwner",
   "listFailedGenerations",
+  "listQualityIssues",
+  "listQualityIssuesWithin",
   "listRecentGenerations",
   "listRunningGenerations",
   "listSourceTextVersions",
@@ -164,6 +175,8 @@ const ENTRY_POINTS = [
   "readProjectCostSummary",
   "readProjectProgress",
   "readSourceTextObsolescence",
+  "reconcileQualityIssues",
+  "reconcileQualityIssuesWithin",
   "reconcileProjectAggregates",
   "reconcileProjectStatus",
   "refreshProjectStatus",
@@ -175,6 +188,7 @@ const ENTRY_POINTS = [
   "restoreProject",
   "selectCanonicalDirection",
   "setCanonFactStatus",
+  "setQualityIssueStatus",
   "unlockBibleElement",
   "updateAnalysisAnnotation",
   "updateGenerationProgress",

@@ -112,9 +112,11 @@ export {
   CANON_FACT_BELIEF_STATE_LABELS,
   CANON_FACT_BELIEF_STATES,
   CANON_FACT_SOURCES,
+  CANON_FACT_STATUSES,
   CANON_FACT_VALIDITIES,
   type CanonFactBeliefState,
   type CanonFactSource,
+  type CanonFactStatus,
   type CanonFactValidity,
   type CanonFactWindow,
 } from "./types";

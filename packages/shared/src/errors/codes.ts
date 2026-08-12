@@ -114,6 +114,19 @@ export const ERROR_CODES = [
    * *Relancer* button is not the whole answer to.
    */
   "BIBLE_ELEMENT_LOCKED",
+  /**
+   * The bible holds a contradiction the author has not ruled on, and validating
+   * it would make that contradiction the reference every later generation reads
+   * (CAL-099). `conflict` for `BIBLE_ELEMENT_LOCKED`'s reason, and its own code
+   * for the same one: the interface answers it by showing what stands in the
+   * way, which is a screen rather than a sentence.
+   *
+   * The remedy is never *proceed anyway*. The author accepts the contradiction,
+   * sets it aside, or changes the bible — three writes attributed by the audit
+   * block, which is `unlockBibleElement`'s doctrine applied to a finding: a box
+   * to tick would go stale, a decision on file cannot.
+   */
+  "BIBLE_NOT_COHERENT",
 
   // rate_limit
   "RATE_LIMITED",
@@ -294,6 +307,7 @@ export const CATEGORY_BY_CODE = {
   OBSOLESCENCE_NOT_ACKNOWLEDGED: "conflict",
   ANALYSIS_NOT_VALIDATED: "conflict",
   BIBLE_ELEMENT_LOCKED: "conflict",
+  BIBLE_NOT_COHERENT: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

@@ -54,12 +54,16 @@ describe("MISSION_QUEUE", () => {
     expect(fast).toEqual(["EXTRACT_FACTS", "SUMMARIZE_CHAPTER", "SUMMARIZE_PART"]);
   });
 
-  it("gives the coherence audit its own lane, alone", () => {
+  it("gives the coherence audits a lane of their own, and only them", () => {
+    // Two members since CAL-099, and the rule is unchanged: the lane holds what
+    // reads a whole project to report on it. They share the `audit` write
+    // target, so the claim already stops them running at once.
     const audit = Object.entries(MISSION_QUEUE)
       .filter(([, queue]) => queue === "generation-audit")
-      .map(([mission]) => mission);
+      .map(([mission]) => mission)
+      .sort();
 
-    expect(audit).toEqual(["CHECK_COHERENCE"]);
+    expect(audit).toEqual(["CHECK_COHERENCE", "DETECT_BIBLE_CONTRADICTIONS"]);
   });
 
   it("puts fix-issue beside write-scene, not beside extract-facts", () => {

@@ -9,9 +9,14 @@
  * **The grouping is read off `@calepin/ai/mission-registry.ts`'s own data**,
  * not invented: `EXTRACT_FACTS`, `SUMMARIZE_CHAPTER` and `SUMMARIZE_PART` are
  * the only three on Sonnet at `low` effort with `expectedDurationMs` at or
- * under a minute — the fast lane. `CHECK_COHERENCE` is the one mission the
- * glossary itself names as the audit (*contrôle de cohérence* →
- * `CoherenceAudit`), so it gets a lane of its own. Everything else is Opus at
+ * under a minute — the fast lane. The audit lane holds what the glossary names
+ * a *contrôle de cohérence*: `CHECK_COHERENCE` over the written chapters, and
+ * since CAL-099 `DETECT_BIBLE_CONTRADICTIONS` over the bible. Both read a whole
+ * project to report on it rather than to add to it, and both must be able to
+ * run while the author is doing something else — which is the whole reason the
+ * lane exists, and why a second member does not weaken it: they write
+ * `QualityIssue` rows and hold the same `audit` write target, so the claim
+ * already serialises them against each other. Everything else is Opus at
  * medium effort or above, 90 to 600
  * seconds — including `FIX_ISSUE`, whose own registry comment says it "stays
  * where `write-scene` is" rather than beside `extract-facts`.
@@ -36,6 +41,7 @@ export const MISSION_QUEUE: Readonly<Record<Mission, GenerationQueueName>> = {
   SUMMARIZE_PART: "generation-fast",
 
   CHECK_COHERENCE: "generation-audit",
+  DETECT_BIBLE_CONTRADICTIONS: "generation-audit",
 
   ANALYZE_SOURCE_TEXT: "generation-slow",
   DETECT_CLICHE_RISKS: "generation-slow",

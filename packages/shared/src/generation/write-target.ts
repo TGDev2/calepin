@@ -135,7 +135,12 @@ export const MISSION_WRITE_TARGET_KIND: Readonly<Record<Mission, GenerationWrite
 
   SUMMARIZE_PART: "part",
 
+  // The two that read a project and write findings about it rather than
+  // narrative content. `DETECT_BIBLE_CONTRADICTIONS` reads the bible and writes
+  // `QualityIssue` rows (CAL-099), so holding `bible` would stop a generation
+  // it never competes with — what it must not run beside is a second audit.
   CHECK_COHERENCE: "audit",
+  DETECT_BIBLE_CONTRADICTIONS: "audit",
 };
 
 /**

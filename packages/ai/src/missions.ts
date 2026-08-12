@@ -97,6 +97,26 @@
  * source text and opens the canon. Different inputs, a different citable
  * corpus, a different cost — and CLAUDE.md §5.4's rule that one mission gets
  * one treatment.
+ *
+ * `detect-bible-contradictions` (CAL-099) is the bible's own coherence pass,
+ * and it is not `check-coherence` under another name. That one is given written
+ * chapters and the narrative memory built from them, and asks whether the prose
+ * respects what the bible established; this one runs **before a single chapter
+ * exists**, is given the bible alone, and asks whether the bible can be true of
+ * itself. They differ in what they read, in what a finding of theirs is
+ * attached to — a passage of a chapter there, a pair of bible rows here — and
+ * in when they can run at all. It is also the one mission of the two whose
+ * findings block a write, which is what makes conflating them expensive: a
+ * prompt tuned to be generous about a chapter would stop an author validating
+ * their bible.
+ *
+ * It is deliberately narrow. The four calculable checks of CAL-099 already hold
+ * the ages, the dates, the missing symmetric relations and two facts recorded
+ * with opposite truth values; asking a model those questions again would pay
+ * for an answer arithmetic already gives, and give it a chance to disagree.
+ * What is left is exactly what no key reaches: two statements that oppose each
+ * other only in their wording, and two rules of the world that cannot both
+ * govern it.
  */
 
 export const MISSION_IDS = [
@@ -115,6 +135,7 @@ export const MISSION_IDS = [
   "define-world",
   "build-timeline",
   "extract-initial-facts",
+  "detect-bible-contradictions",
   "build-chapter-outline",
   "write-scene",
   "extract-facts",

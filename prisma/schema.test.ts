@@ -1711,10 +1711,12 @@ describe("prisma schema", () => {
   // what it found wrong, and what left the product as a file or a public page.
   describe("operations", () => {
     describe("the generation", () => {
-      // The twenty-two of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
+      // The missions of CLAUDE.md §4.2, whose kebab-case identifiers CAL-051's
       // registry owns. An enum and not free text because every §17 indicator
-      // touching generation is a group-by on this column.
-      it("declares the twenty-two missions of the registry, and only those", () => {
+      // touching generation is a group-by on this column. The count is
+      // deliberately not written here or in the name: MISSION_IDS is the list,
+      // and a number in a test name is a copy able to drift (CAL-094).
+      it("declares the missions of the registry, and only those", () => {
         expect(enumMembers("GenerationMission")).toEqual([
           "ANALYZE_SOURCE_TEXT",
           "DETECT_CLICHE_RISKS", // CAL-075
@@ -1731,6 +1733,7 @@ describe("prisma schema", () => {
           "DEFINE_WORLD", // CAL-092
           "BUILD_TIMELINE", // CAL-093
           "EXTRACT_INITIAL_FACTS", // CAL-094
+          "DETECT_BIBLE_CONTRADICTIONS", // CAL-099
           "BUILD_CHAPTER_OUTLINE",
           "WRITE_SCENE",
           "EXTRACT_FACTS",
@@ -1944,6 +1947,22 @@ describe("prisma schema", () => {
         ]);
       });
 
+      // CAL-099. The engine may not import a domain and `packages/shared` may
+      // not import Prisma's enum as a value list, so the three vocabularies are
+      // restated there — the arrangement MISSION_LOCK_SCOPE already uses. These
+      // three assertions are what stop the copy drifting from the column.
+      it("mirrors the three quality vocabularies @calepin/shared/coherence restates", () => {
+        expect(enumMembers("QualityIssueCategory")).toEqual(
+          sharedStringUnion("coherence/vocabulary.ts", "QUALITY_ISSUE_CATEGORIES"),
+        );
+        expect(enumMembers("QualityIssueSeverity")).toEqual(
+          sharedStringUnion("coherence/vocabulary.ts", "QUALITY_ISSUE_SEVERITIES"),
+        );
+        expect(enumMembers("QualityIssueStatus")).toEqual(
+          sharedStringUnion("coherence/vocabulary.ts", "QUALITY_ISSUE_STATUSES"),
+        );
+      });
+
       // The acceptance criterion of CAL-021, verbatim: détecté, accepté,
       // à corriger, corrigé, ignoré.
       it("carries the five statuses of the specification, and starts detected", () => {
@@ -1972,6 +1991,11 @@ describe("prisma schema", () => {
         expect(issue).toMatch(/^\s*proposedFix\s+String\?/m);
         expect(issue).toMatch(/^\s*checkId\s+String\s*$/m);
         expect(issue).toMatch(/^\s*detectedByGenerationId\s+String\?/m);
+        // CAL-099. The identity that outlives the run, so an arbitration is not
+        // lost the next time the same check recomputes the same finding. NOT
+        // NULL: a row nobody can reconcile is a row whose decision is gone.
+        expect(issue).toMatch(/^\s*fingerprint\s+String\s*$/m);
+        expect(issue).toMatch(/@@unique\(\[projectId, checkId, fingerprint\]\)/);
       });
 
       // Structure and originality judge the manuscript as a whole, and CAL-099

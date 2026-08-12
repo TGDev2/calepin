@@ -206,6 +206,18 @@ export {
   withProjectStatus,
 } from "./project-status";
 export {
+  listQualityIssues,
+  type ListQualityIssuesInput,
+  listQualityIssuesWithin,
+  type QualityIssueReconciliationReport,
+  type QualityIssueRow,
+  reconcileQualityIssues,
+  type ReconcileQualityIssuesInput,
+  reconcileQualityIssuesWithin,
+  setQualityIssueStatus,
+  type SetQualityIssueStatusInput,
+} from "./quality-issue";
+export {
   type BibleCastMember,
   type BibleRelationship,
   type BibleRelationshipGraph,

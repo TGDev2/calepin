@@ -25,6 +25,7 @@ const GENERATION_MISSION_LABELS: Record<GenerationMission, string> = {
   DEFINE_WORLD: "Définition de la bible du monde",
   BUILD_TIMELINE: "Construction de la chronologie",
   EXTRACT_INITIAL_FACTS: "Extraction des faits canoniques initiaux",
+  DETECT_BIBLE_CONTRADICTIONS: "Contrôle de cohérence de la bible",
   BUILD_CHAPTER_OUTLINE: "Construction d'un plan de chapitre",
   WRITE_SCENE: "Rédaction d'une scène",
   EXTRACT_FACTS: "Extraction des faits",

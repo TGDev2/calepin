@@ -37,6 +37,7 @@ import { CREATE_CHARACTER_SHEET_PROMPTS } from "./missions/create-character-shee
 import { DEFINE_NOVEL_IDENTITY_PROMPTS } from "./missions/define-novel-identity";
 import { DEFINE_STYLE_PROMPTS } from "./missions/define-style";
 import { DEFINE_WORLD_PROMPTS } from "./missions/define-world";
+import { DETECT_BIBLE_CONTRADICTIONS_PROMPTS } from "./missions/detect-bible-contradictions";
 import { DETECT_CLICHE_RISKS_PROMPTS } from "./missions/detect-cliche-risks";
 import { EVALUATE_DIRECTION_PROMPTS } from "./missions/evaluate-direction";
 import { EXTRACT_FACTS_PROMPTS } from "./missions/extract-facts";
@@ -73,6 +74,7 @@ export const PROMPT_REGISTRY = {
   "define-world": DEFINE_WORLD_PROMPTS,
   "build-timeline": BUILD_TIMELINE_PROMPTS,
   "extract-initial-facts": EXTRACT_INITIAL_FACTS_PROMPTS,
+  "detect-bible-contradictions": DETECT_BIBLE_CONTRADICTIONS_PROMPTS,
   "build-chapter-outline": BUILD_CHAPTER_OUTLINE_PROMPTS,
   "write-scene": WRITE_SCENE_PROMPTS,
   "extract-facts": EXTRACT_FACTS_PROMPTS,

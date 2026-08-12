@@ -341,6 +341,7 @@ describe("operations schema", () => {
           category: "STYLE",
           severity: "MINOR",
           checkId: "fixture-check",
+          fingerprint: "0200000000000000000000000000000000000000000000000000000000000000",
           explanation: "fixture explanation",
         },
       });
@@ -385,6 +386,7 @@ describe("operations schema", () => {
           category: "FACTUAL_CONTINUITY",
           severity: "CRITICAL",
           checkId: "fixture-check",
+          fingerprint: "0300000000000000000000000000000000000000000000000000000000000000",
           explanation: "fixture explanation",
         },
       });
@@ -467,6 +469,7 @@ describe("operations schema", () => {
             severity: "MAJOR",
             status,
             checkId: `fixture-check-${index}`,
+            fingerprint: `04${String(index).padStart(62, "0")}`,
             explanation: "fixture explanation",
             proposedFix: "fixture fix",
           },
@@ -485,6 +488,7 @@ describe("operations schema", () => {
           category: "STRUCTURE",
           severity: "MINOR",
           checkId: "fixture-check",
+          fingerprint: "0500000000000000000000000000000000000000000000000000000000000000",
           explanation: "fixture explanation",
         },
       });
@@ -507,6 +511,7 @@ describe("operations schema", () => {
           category: "ORIGINALITY",
           severity: "MAJOR",
           checkId: "fixture-check",
+          fingerprint: "0600000000000000000000000000000000000000000000000000000000000000",
           explanation: "fixture explanation",
         },
       });
@@ -620,6 +625,7 @@ describe("operations schema", () => {
           category: "STYLE",
           severity: "MINOR",
           checkId: "fixture-check",
+          fingerprint: "0700000000000000000000000000000000000000000000000000000000000000",
           explanation: "fixture explanation",
           detectedByGenerationId: generation.id,
         },
