@@ -15,6 +15,9 @@ importers:
       '@calepin/ai':
         specifier: workspace:*
         version: link:packages/ai
+      '@calepin/analysis':
+        specifier: workspace:*
+        version: link:packages/analysis
       '@calepin/bible':
         specifier: workspace:*
         version: link:packages/bible

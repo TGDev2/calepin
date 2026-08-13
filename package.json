@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@calepin/ai": "workspace:*",
+    "@calepin/analysis": "workspace:*",
     "@calepin/bible": "workspace:*",
     "@calepin/manuscript": "workspace:*",
     "@calepin/outline": "workspace:*",
