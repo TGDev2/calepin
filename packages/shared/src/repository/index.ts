@@ -31,6 +31,8 @@ export {
   deleteAnalysisAnnotation,
   editAnalysisSection,
   type EditAnalysisSectionInput,
+  type GeneratedAnalysisSection,
+  type GeneratedAnalysisWritten,
   getAnalysis,
   regenerateAnalysisSection,
   type RegenerateAnalysisSectionInput,
@@ -38,6 +40,8 @@ export {
   updateAnalysisAnnotation,
   type UpdateAnalysisAnnotationInput,
   validateAnalysis,
+  type WriteGeneratedAnalysisInput,
+  writeGeneratedAnalysisWithin,
 } from "./analysis";
 export {
   type BibleCanonFactBeliefRow,

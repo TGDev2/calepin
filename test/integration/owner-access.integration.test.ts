@@ -130,6 +130,13 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * rather than among the helpers because they issue statements — taking the
  * transaction client as an argument changes who holds the connection, not
  * whether the statement names an owner.
+ * `writeGeneratedAnalysisWithin` is isolated in
+ * `analysis-generation.integration.test.ts`: it takes a transaction client, so
+ * it needs one open around it, and it needs a source text version and a
+ * generation of the project before it can accept or refuse anything — the same
+ * position `listQualityIssuesWithin` is in, and it is in this list for the same
+ * reason as those two, since taking the client as an argument changes who holds
+ * the connection, not whether the statement names an owner.
  * `mintBibleVersion` and `getReferenceBibleVersion` (CAL-100) are isolated in
  * `bible-coherence.integration.test.ts` too, for the same reason as the
  * quality-issue functions: a `BibleVersion` only exists once a bible has been
@@ -207,6 +214,7 @@ const ENTRY_POINTS = [
   "withProjectStatus",
   "withProjectTransaction",
   "writeCanonFact",
+  "writeGeneratedAnalysisWithin",
   "writeRelationship",
   "writeUserDirection",
 ];

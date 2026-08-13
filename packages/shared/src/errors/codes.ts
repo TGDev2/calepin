@@ -172,6 +172,19 @@ export const ERROR_CODES = [
    * never read. The remedy is to ask again, which is a new ask by construction.
    */
   "SOURCE_TEXT_VERSION_SUPERSEDED",
+  /**
+   * A new diagnostic was asked of, or written into, an analysis the author has
+   * already validated (CAL-209). `conflict` for `ANALYSIS_NOT_VALIDATED`'s
+   * reason read the other way round: the request is well formed and the
+   * analysis is simply settled, so nothing about the ask needs correcting.
+   *
+   * Its own code rather than the bare `CONFLICT` the two section-level writers
+   * raise, `BIBLE_ELEMENT_LOCKED`'s reasoning: this one is decided **before**
+   * the model is called (§6.5, *signaler avant la génération*) as well as at the
+   * write, so the interface answers it by saying what stands in the way instead
+   * of offering a *Relancer* that would be refused again.
+   */
+  "ANALYSIS_ALREADY_VALIDATED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -357,6 +370,7 @@ export const CATEGORY_BY_CODE = {
   CHAPTER_MERGE_LOSS_NOT_ACKNOWLEDGED: "conflict",
   CHAPTER_SPLIT_REFUSED: "conflict",
   SOURCE_TEXT_VERSION_SUPERSEDED: "conflict",
+  ANALYSIS_ALREADY_VALIDATED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

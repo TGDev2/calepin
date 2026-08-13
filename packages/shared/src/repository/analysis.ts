@@ -1,14 +1,13 @@
 /**
  * The narrative diagnostic — read back (CAL-072), edited and annotated
- * (CAL-073).
+ * (CAL-073), and written by the mission that produces it (CAL-209).
  *
- * `getAnalysis` reads as a bare nullable rather than a `Result`: a project with
- * no analysis is a legitimate, expected state (no executor is registered for
- * `analyze-source-text`, CLAUDE.md §13), not a failure. That is
- * `readGenerationForRun`'s convention rather than `getSourceText`'s — every
- * project is guaranteed a source text at creation and none is guaranteed an
- * analysis. The write paths below are `Result`s, because every way they can
- * refuse is a sentence the author has to be shown.
+ * `getAnalysis` reads as a bare nullable rather than a `Result`: a project whose
+ * source text has never been analysed is a legitimate, expected state, not a
+ * failure. That is `readGenerationForRun`'s convention rather than
+ * `getSourceText`'s — every project is guaranteed a source text at creation and
+ * none is guaranteed an analysis. The write paths below are `Result`s, because
+ * every way they can refuse is a sentence the author has to be shown.
  *
  * **Editing appends.** `AnalysisSectionRevision` is append-only, so saving a
  * section writes a new revision and leaves every earlier one exactly as it was
@@ -21,17 +20,17 @@
  * **The domain owns what a section may say, and it is applied by the caller.**
  * The element counts, the ceilings and the five fixed kinds live in
  * `@calepin/analysis` (`parseAnalysisSectionEdit`), which `@calepin/shared` may
- * not import (§3.2). So `apps/web` parses and then persists, and the other
- * write path — a future executor — parses the same schema at the mission
- * boundary before it ever reaches a store (§6). One schema, applied at each
- * caller's own layer, rather than a second copy here that could disagree with
- * it.
+ * not import (§3.2). So `apps/web` parses and then persists, and the generated
+ * path parses the same schema at the mission boundary before anything reaches a
+ * store (§6), then hands `writeGeneratedAnalysisWithin` plain rows through
+ * `resolveSourceTextAnalysis`. One schema, applied at each caller's own layer,
+ * rather than a second copy here that could disagree with it.
  */
 
 import type { $Enums, Prisma } from "@prisma/client";
 
-import { getDatabaseClient } from "../database/client";
-import { ConflictError, NotFoundError, ValidationError } from "../errors/app-error";
+import { getDatabaseClient, type TransactionClient } from "../database/client";
+import { ConflictError, InternalError, NotFoundError, ValidationError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
 import {
   carryProvenance,
@@ -501,6 +500,254 @@ export async function regenerateAnalysisSection(
       elementCount: input.elements.length,
       orphanedAnnotationCount,
     });
+  });
+}
+
+/** One section of a generated diagnostic, as the mission answered it. */
+export interface GeneratedAnalysisSection {
+  readonly section: $Enums.AnalysisSection;
+  /**
+   * Empty is legal here and refused by `regenerateAnalysisSection`, and the
+   * difference is what each is asked. There, one section *is* the ask, so an
+   * empty answer is a failed one; here the ask is the seventeen-section
+   * contract, four of whose sections may legitimately hold nothing
+   * (`ANALYSIS_ELEMENT_COUNTS` in `@calepin/analysis`) — and a section that
+   * *became* empty must be recorded as empty, or the previous revision stays on
+   * screen as this analysis's answer.
+   */
+  readonly elements: readonly RegeneratedAnalysisElement[];
+}
+
+export interface WriteGeneratedAnalysisInput {
+  readonly sections: readonly GeneratedAnalysisSection[];
+  /**
+   * The version the diagnostic was produced against — the one the ask named,
+   * never a fresh read of the current one. The column means exactly that, and
+   * an edit that landed while the generation ran must leave the analysis in
+   * `SourceTextObsolescence`'s doubt rather than be papered over.
+   */
+  readonly sourceTextVersionId: string;
+  /** The generation this answer came from — ADR-001's link. Null for a fixture. */
+  readonly generationId: string | null;
+}
+
+export interface GeneratedAnalysisWritten {
+  readonly analysisId: string;
+  readonly sectionCount: number;
+  readonly elementCount: number;
+  /** As `AnalysisSectionRegeneration`'s, and for the same reason. */
+  readonly orphanedAnnotationCount: number;
+}
+
+/**
+ * Writes a whole generated diagnostic, inside a transaction the caller holds
+ * (CAL-209).
+ *
+ * The first write path for a generated result, and the third member of a family
+ * whose other two are just above. What it shares with `regenerateAnalysisSection`
+ * is everything that makes an answer a *proposal*: `origin: GENERATED` on the
+ * revision and on every element, the revision naming its `Generation`, no
+ * lineage carried — §6 forbids trusting a model with an identifier, and matching
+ * by position would move the author's note about one theme onto another — and
+ * no identical-answer short circuit, because an answer that happens to match is
+ * still one somebody paid for.
+ *
+ * Three things are its own:
+ *
+ * - **It takes the caller's transaction rather than opening one.** The write has
+ *   to land in the statement that completes the attempt (§7: *succeed is a
+ *   single atomic operation*), so `GenerationProduct.append` hands it the client
+ *   `completeGenerationAttempt` is already holding, under the generation's own
+ *   row lock. `…Within` is `listQualityIssuesWithin`'s name for that, and it is
+ *   what makes *never a partial write* structural: a refusal here rolls the
+ *   revision, the elements, the attempt and the generation back together.
+ * - **It creates the `Analysis` row when there is none.** Nothing else ever has
+ *   — every other `analysis.create` in the repository is a seed or a fixture —
+ *   so a project's first diagnostic would otherwise have nowhere to go. There is
+ *   no filter to put on a create; what proves the project is the caller's is the
+ *   `FOR UPDATE` join on project and owner that `runLockedOnGeneration` already
+ *   holds, and a race for the row cannot happen because
+ *   `MISSION_WRITE_TARGET_KIND` maps all four analysis missions to one target
+ *   and the claim refuses the second of them.
+ * - **It writes every section it is given, in one statement each.** Seventeen
+ *   revisions by `createManyAndReturn`, keyed back **by section** rather than by
+ *   the order the rows came back in — Prisma promises no such order — then one
+ *   `createMany` for every element of every section.
+ *
+ * A validated analysis is refused, as in both twins: the lock is true for every
+ * writer or it is true for none. The executor refuses it before calling a model
+ * too (§6.5), so reaching this branch means the author validated while the
+ * generation was in flight — rare, and the answer is still to keep their lock.
+ *
+ * The caller must be inside `runWithActor`: the `Analysis` row carries the audit
+ * block, and the sentinel default the column would otherwise take is refused by
+ * its foreign key at commit.
+ */
+export async function writeGeneratedAnalysisWithin(
+  client: TransactionClient,
+  scope: ProjectScope,
+  input: WriteGeneratedAnalysisInput,
+): Promise<Result<GeneratedAnalysisWritten>> {
+  assertProjectScope(scope);
+
+  if (input.sections.length === 0) {
+    return fail(
+      new ValidationError({
+        message: "a generated analysis holds no section",
+        userMessage: "L'analyse produite ne contient aucune section.",
+        fieldPath: "sections",
+      }),
+    );
+  }
+
+  const sections = input.sections.map((entry) => entry.section);
+
+  // Named twice, one revision number, two rows: the unique index would catch it
+  // as a raw P2002 halfway through the write. Refusing here is the same answer,
+  // with a sentence and before anything is written.
+  if (new Set(sections).size !== sections.length) {
+    return fail(
+      new ValidationError({
+        message: "a generated analysis names one section twice",
+        userMessage: "L'analyse produite décrit deux fois la même section.",
+        fieldPath: "sections",
+      }),
+    );
+  }
+
+  // Both identifiers are resolved through the scope and through **this** client:
+  // a foreign key proves the row exists and nothing else proves it belongs to
+  // this project (§3.5), and `requireOwnedRow` holds the global client, so it
+  // would read outside the transaction this write has to stay inside.
+  const version = await client.sourceTextVersion.count({
+    where: scopedWhere("SourceTextVersion", scope, { id: input.sourceTextVersionId }),
+  });
+
+  if (version === 0) {
+    return fail(new NotFoundError({ message: "no such source text version in this project" }));
+  }
+
+  if (input.generationId !== null) {
+    const generation = await client.generation.count({
+      where: scopedWhere("Generation", scope, { id: input.generationId }),
+    });
+
+    if (generation === 0) {
+      return fail(new NotFoundError({ message: "no such generation in this project" }));
+    }
+  }
+
+  const existing = await client.analysis.findFirst({
+    where: scopedWhere("Analysis", scope),
+    select: { id: true, validatedAt: true },
+  });
+
+  if (existing !== null && existing.validatedAt !== null) {
+    return fail(
+      new ConflictError({
+        code: "ANALYSIS_ALREADY_VALIDATED",
+        message: "the analysis is validated and no longer replaceable",
+        userMessage:
+          "Cette analyse est validée : elle ne peut plus être remplacée par une nouvelle analyse.",
+      }),
+    );
+  }
+
+  const analysisId =
+    existing?.id ??
+    (
+      await client.analysis.create({
+        data: { projectId: scope.projectId },
+        select: { id: true },
+      })
+    ).id;
+
+  // The current revision of each section, and the lineages it holds — one read
+  // for both, folded the way `getAnalysis` folds: ordered ascending, last one
+  // seen per section wins. That rule lives in one place or it lives in none.
+  const previous = await client.analysisSectionRevision.findMany({
+    where: { analysisId, section: { in: sections } },
+    orderBy: { revisionNumber: "asc" },
+    select: { section: true, revisionNumber: true, elements: { select: { lineageId: true } } },
+  });
+
+  const replaced = new Map<
+    $Enums.AnalysisSection,
+    { revisionNumber: number; lineages: string[] }
+  >();
+
+  for (const revision of previous) {
+    replaced.set(revision.section, {
+      revisionNumber: revision.revisionNumber,
+      lineages: revision.elements.map((element) => element.lineageId),
+    });
+  }
+
+  const replacedLineages = [...replaced.values()].flatMap((entry) => entry.lineages);
+
+  // Counted before the append and never modified by it — a `count`, not an
+  // `updateMany`, exactly as in a targeted regeneration.
+  const orphanedAnnotationCount =
+    replacedLineages.length === 0
+      ? 0
+      : await client.analysisAnnotation.count({
+          where: { analysisId, lineageId: { in: replacedLineages } },
+        });
+
+  const revisions = await client.analysisSectionRevision.createManyAndReturn({
+    data: input.sections.map((entry) => ({
+      analysisId,
+      section: entry.section,
+      revisionNumber: (replaced.get(entry.section)?.revisionNumber ?? 0) + 1,
+      origin: "GENERATED" as const,
+      sourceTextVersionId: input.sourceTextVersionId,
+      generationId: input.generationId,
+      createdById: scope.ownerId,
+    })),
+    select: { id: true, section: true },
+  });
+
+  const revisionBySection = new Map(revisions.map((row) => [row.section, row.id]));
+
+  const elements: Prisma.AnalysisElementCreateManyInput[] = [];
+
+  for (const entry of input.sections) {
+    const sectionRevisionId = revisionBySection.get(entry.section);
+
+    if (sectionRevisionId === undefined) {
+      // Not a state: the insert above was given this section and the map is
+      // built from what it returned. A throw, because it is a bug (§7).
+      throw new InternalError({ message: "a section revision is missing from its own insert" });
+    }
+
+    for (const [index, element] of entry.elements.entries()) {
+      elements.push({
+        sectionRevisionId,
+        position: index + 1,
+        // No `lineageId`: the column's cuid default mints one per element, so
+        // nothing here has to know how an identifier is made.
+        origin: "GENERATED",
+        kind: element.kind,
+        label: element.label,
+        statement: element.statement,
+        evidence: element.evidence,
+      });
+    }
+  }
+
+  if (elements.length > 0) {
+    await client.analysisElement.createMany({ data: elements });
+  }
+
+  // Empty data on purpose, as in both twins: `@updatedAt` and the CAL-022
+  // extension are the whole point of the statement.
+  await client.analysis.update({ where: { id: analysisId }, data: {} });
+
+  return succeed({
+    analysisId,
+    sectionCount: input.sections.length,
+    elementCount: elements.length,
+    orphanedAnnotationCount,
   });
 }
 
