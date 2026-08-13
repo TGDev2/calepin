@@ -1,7 +1,9 @@
 # Calepin — Backlog de réalisation, affectation des modèles Claude et commandes Claude Code
 
-> Document de pilotage dérivé du cahier des charges *Calepin* (v1).
-> Chaque tâche est un incrément livrable en une session Claude Code, avec le modèle Claude recommandé, le niveau d'effort, la justification du choix et la commande exacte à exécuter.
+> **Version 2 — 13 août 2026.** Document de pilotage dérivé du cahier des charges *Calepin* (v1), **mis à jour d'après l'état réel du dépôt**.
+> Chaque tâche est un incrément livrable en une session Claude Code, avec son état d'avancement, le modèle Claude recommandé, le niveau d'effort, la justification du choix et la commande exacte à exécuter.
+>
+> **Ce qui a changé depuis la version 1 :** 106 tâches marquées faites (dont 20 partielles) · un epic ajouté, **E21 Mise en service des générations** (CAL-208 → CAL-217), placé sur le chemin critique avant E11 · jalons réordonnés · une convention de livraison amendée (§C.7). Aucun identifiant n'a été renuméroté.
 
 ---
 
@@ -99,14 +101,63 @@ Le point à retenir sur le coût : sur une tâche routinière, le petit modèle 
 
 ---
 
+## Partie A bis — État d'avancement du dépôt
+
+*Établi le 13 août 2026 par lecture du dépôt `Documents\Projects\Calepin` : 214 commits sur `main`, arbre de travail propre, `tasks/todo.md` (1,0 Mo) et `tasks/lessons.md` (78 ko) tenus à jour.*
+
+### A bis.1 Ce qui est réellement fait
+
+| Epic | Tâches | Fait | Reste | Commentaire |
+|---|---|---|---|---|
+| E00 Fondations | 11 | 11 | 0 | Monorepo, CI, ADR-001, journalisation à liste blanche, hiérarchie d'erreurs |
+| E01 Données | 12 | 12 | 0 | 46 modèles Prisma, bloc d'audit, portée par propriétaire (`ProjectScope`) |
+| E02 Authentification | 8 | 8 | 0 | Auth.js, lien courriel, Google, GitHub, suppression de compte |
+| E03 Tableau de bord | 8 | 8 | 0 | Statut dérivé, agrégats maintenus à l'écriture, duplication profonde |
+| E04 Création de projet | 8 | 8 | 0 | Comptage de mots français partagé, obsolescence en aval, import de fichier |
+| E05 Couche IA | 12 | 12 | 0 | Port fournisseur, registre de 25 missions, contexte dynamique, idempotence |
+| E06 Orchestration | 10 | 10 | 0 | BullMQ, bail, réconciliation, annulation, verrou par cible d'écriture |
+| E07 Analyse | 9 | 9 | 0 | Diagnostic 17 sections, vérification des citations, écran, validation |
+| E08 Directions | 9 | 9 | 0 | Moteur narratif, portail de divergence, remplacement, combinaison |
+| E09 Bible | 13 | 13 | 0 | Identité, style, personnages, relations, monde, chronologie, faits, verrous |
+| E10 Plan | 11 | **6** | **5** | CAL-101 → CAL-106 faits ; CAL-107 → CAL-111 restants |
+| E11 → E20 | 96 | 0 | 96 | Non commencés |
+| **E21 Mise en service** *(nouvel epic)* | **10** | **0** | **10** | Créé par cette mise à jour — voir ci-dessous |
+| **Total** | **217** | **106** | **111** | |
+
+**Preuves relevées.** `pnpm test` : 4 040 tests unitaires sur 212 fichiers. `pnpm test:integration` : 1 226 tests sur 53 fichiers, contre PostgreSQL et Redis éphémères. `pnpm test:e2e` : 123 tests Playwright. `pnpm lint`, `pnpm build` et `prisma migrate diff --exit-code` propres. La qualité d'exécution est nettement au-dessus de ce que le backlog exigeait : glossaire de domaine, ADR, frontières de couches tenues par des règles de lint testées, aucun contenu littéraire dans les journaux.
+
+### A bis.2 Le constat qui commande la suite
+
+**Le dépôt est à 49 % du backlog en nombre de tâches et à 0 % de fonction produit de bout en bout.** Aucune génération ne peut aboutir aujourd'hui, pour une raison unique et parfaitement circonscrite :
+
+- Les **25 missions** sont déclarées dans l'énumération `GenerationMission`, et les **25 prompts** existent dans `packages/ai/src/prompts/missions/`, avec leurs contrats Zod, leurs vérificateurs et leurs tests.
+- `apps/worker/src/main.ts` compose **`NO_GENERATION_EXECUTORS`**. Aucun `GenerationExecutor` n'est enregistré, donc aucune mission ne s'exécute — une génération mise en file est laissée en attente d'un travailleur qui saurait la traiter, comportement volontaire et documenté.
+- Aucun processus ne compose de `ModelProviderPort` : `ANTHROPIC_API_KEY` n'est même pas déclaré dans `envSchema` (§13 du `CLAUDE.md` le reconnaît explicitement et en attribue la charge à « la première tâche qui enregistre un exécuteur »).
+- **Aucun chemin d'écriture d'un résultat généré n'existe.** Vérifié : ni `writeAnalysis`, ni `writeDirectionProposals`, ni `writeNovelIdentity`, ni `writeCharacterSheet`, ni `writeWorldBible`, ni `writeTimeline`, ni `writeInitialCanonFacts`, ni `writePartStructure`, ni `writeChapterOutlineBatch`. Les domaines produisent des fonctions `resolve*` qui rendent des valeurs de colonnes — que rien ne persiste.
+- Le seul déclenchement de génération présent dans l'interface est le **rejeu** d'une génération existante. Aucun écran n'en crée.
+- Les écrans qui existent — analyse, directions, bible, faits, relations, cohérence, plan — affichent des données fabriquées par `prisma/seed.ts` (1 101 lignes). Le produit se démontre sur un jeu d'amorçage, pas sur une génération.
+
+Ce n'est pas un défaut de qualité, c'est une **frontière tenue avec méthode** : chaque revue de tâche note « no executor and no provider key (§13) » et livre le contrat plutôt qu'un demi-câblage. Mais la conséquence est qu'un seul chaînon manquant bloque la totalité du parcours du MVP, et le backlog initial ne l'avait pas isolé — il supposait ce câblage absorbé par CAL-051, CAL-060 et CAL-061.
+
+### A bis.3 Trois amendements au backlog
+
+1. **Nouvel epic E21 — Mise en service des générations (CAL-208 → CAL-217).** Il est numéroté en fin de document mais **s'exécute immédiatement, avant E11**. Numérotation et ordre d'exécution sont deux choses distinctes : les identifiants sont cités par 214 commits, par `tasks/todo.md` et par le glossaire du `CLAUDE.md`, donc **aucun n'est renuméroté**.
+2. **La règle « une mission se livre comme un contrat » s'arrête à CAL-208.** À partir de là, toute tâche dont le livrable est une mission livre aussi **son exécuteur et son chemin d'écriture**, et le prouve par une génération réellement exécutée. Cela concerne toutes les missions restantes de E11, E12 et E13 : `write-scene`, `extract-facts`, `check-coherence`, `fix-issue`, `summarize-chapter`, `summarize-part`, dont les prompts sont déjà écrits.
+3. **Deux tâches sont terminées sans section de revue** dans `tasks/todo.md` — CAL-013 et CAL-038 — ce qui contrevient à la définition de terminé du `CLAUDE.md`. CAL-217 rattrape cette dette.
+
+---
+
 ## Partie B — Backlog
 
 Légende : **Complexité** 1 = mécanique · 2 = standard · 3 = structurante.
-Les identifiants `CAL-xxx` sont stables et réutilisables comme références de commit et de branche.
+Les identifiants `CAL-xxx` sont stables et réutilisables comme références de commit et de branche — ils ne sont **jamais** renumérotés.
+
+État : ✅ terminé · 🟡 partiel, avec la raison et la tâche qui le débloque · ⬜ à faire.
 
 ### E00 — Cadrage, dépôt et fondations *(Phase 1)*
 
 ##### CAL-001 · Initialiser le dépôt Next.js + TypeScript
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : monorepo pnpm, application Next.js en App Router, TypeScript strict, structure de dossiers par domaine métier (`analysis`, `direction`, `bible`, `outline`, `manuscript`, `coherence`, `export`).
 - **Fini quand** : `pnpm dev` démarre, `pnpm build` passe, l'arborescence est documentée dans le README.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -118,6 +169,7 @@ claude --model opus --effort high "Initialise le dépôt Calepin : monorepo pnpm
 ```
 
 ##### CAL-002 · Rédiger le CLAUDE.md racine
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : conventions du projet (nommage, couches, gestion d'erreurs, tests obligatoires, règle de commit, interdiction d'écrire du texte littéraire dans les journaux), à respecter par toutes les sessions suivantes.
 - **Fini quand** : `CLAUDE.md` couvre architecture, conventions, tests, git, et interdits ; il est référencé dans le README.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -129,6 +181,7 @@ claude --model opus --effort high "Rédige le CLAUDE.md racine du projet Calepin
 ```
 
 ##### CAL-003 · Configurer ESLint, Prettier et les règles TypeScript strictes
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : configuration partagée, règles d'import, interdiction du `any`, tri des imports, script `pnpm lint`.
 - **Fini quand** : `pnpm lint` et `pnpm typecheck` passent sur le dépôt vide.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `medium` · **Complexité** : 1/3
@@ -140,6 +193,7 @@ claude --model sonnet --effort medium "Configure ESLint, Prettier et les règles
 ```
 
 ##### CAL-004 · Mettre en place le socle de tests (Vitest + Playwright)
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : Vitest pour l'unitaire et l'intégration, Playwright pour l'E2E, base de test isolée, helpers de fabrique.
 - **Fini quand** : un test unitaire et un test E2E d'exemple passent en local et en CI.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -151,6 +205,7 @@ claude --model sonnet --effort high "Mets en place le socle de tests de Calepin 
 ```
 
 ##### CAL-005 · Environnement local Docker Compose (PostgreSQL, Redis, MinIO)
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `docker-compose.yml`, volumes persistants, script `pnpm dev:services`, documentation de démarrage.
 - **Fini quand** : les trois services démarrent, l'application s'y connecte, la procédure tient en trois commandes dans le README.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `medium` · **Complexité** : 1/3
@@ -162,6 +217,7 @@ claude --model sonnet --effort medium "Crée l environnement local de Calepin av
 ```
 
 ##### CAL-006 · Validation des variables d'environnement au démarrage
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : schéma Zod des variables, échec explicite au boot, `.env.example` complet, typage exporté.
 - **Fini quand** : le démarrage échoue avec un message lisible si une variable manque ; aucune lecture directe de `process.env` ailleurs dans le code.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -173,6 +229,7 @@ claude --model sonnet --effort high "Ajoute la validation des variables d enviro
 ```
 
 ##### CAL-007 · Pipeline d'intégration continue
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : GitHub Actions — install, lint, typecheck, tests unitaires, tests E2E, build, cache pnpm.
 - **Fini quand** : le pipeline passe au vert sur une pull request de test en moins de dix minutes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -184,6 +241,7 @@ claude --model sonnet --effort high "Crée le pipeline GitHub Actions de Calepin
 ```
 
 ##### CAL-008 · Décision d'architecture applicative (ADR-001)
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : arbitrage backend intégré à Next.js contre service séparé, frontière entre couche IA et couche métier, stratégie de versionnement des entités, conséquences sur le déploiement.
 - **Fini quand** : `docs/adr/001-architecture.md` expose le contexte, deux options écartées avec motifs, la décision et ses conséquences.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -195,6 +253,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 8 "u
 ```
 
 ##### CAL-009 · Journalisation structurée et corrélation des requêtes
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : logger Pino, identifiant de corrélation par requête et par génération, niveaux, redaction automatique.
 - **Fini quand** : chaque requête et chaque génération portent un identifiant traçable ; **aucun contenu littéraire n'apparaît dans les journaux**, garanti par un test.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -206,6 +265,7 @@ claude --model opus --effort high "Mets en place la journalisation structurée d
 ```
 
 ##### CAL-010 · Gestion d'erreurs unifiée
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : hiérarchie d'erreurs applicatives, mapping vers codes HTTP, frontières d'erreur React, messages utilisateur en français.
 - **Fini quand** : toute erreur remonte un message compréhensible sans détail technique, et le journal conserve la trace complète.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -217,6 +277,7 @@ claude --model opus --effort high "Mets en place la gestion d erreurs unifiée d
 ```
 
 ##### CAL-011 · Jeu de données de démonstration et script de seed
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : un utilisateur de test, trois projets à des étapes différentes, une nouvelle courte libre de droits comme texte source.
 - **Fini quand** : `pnpm db:seed` recrée un environnement de démonstration reproductible.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -232,6 +293,7 @@ claude --model haiku "Écris le script de seed de Calepin dans prisma/seed.ts : 
 ### E01 — Modèle de données et persistance *(Phase 1)*
 
 ##### CAL-012 · Schéma Prisma — socle utilisateur et projet
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `User`, `Project`, énumération des dix statuts du cahier des charges, langue, longueur cible, public visé, degré de liberté.
 - **Fini quand** : la migration s'applique, les statuts correspondent exactement à la liste du cahier des charges, les index de listing existent.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -243,6 +305,7 @@ claude --model opus --effort high "Crée le schéma Prisma socle de Calepin : mo
 ```
 
 ##### CAL-013 · Schéma Prisma — texte source et ses versions
+- **État** : ✅ **Terminé** — commité, mais **sans section de revue** dans `tasks/todo.md` (dette reprise par CAL-217)
 - **Contenu** : `SourceText`, `SourceTextVersion`, comptage de mots stocké, contrainte de 2 000 mots.
 - **Fini quand** : la limite est vérifiée en base et à l'écriture ; l'historique des versions est consultable.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -254,6 +317,7 @@ claude --model sonnet --effort high "Ajoute au schéma Prisma de Calepin les mod
 ```
 
 ##### CAL-014 · Schéma Prisma — analyse narrative
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `NarrativeAnalysis` avec les dix-sept sections du cahier des charges, distinction fait explicite / interprétation, annotations utilisateur, statut de validation.
 - **Fini quand** : chaque section du cahier des charges est représentée, chaque élément porte son marqueur `factuel` ou `interprétation`.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -265,6 +329,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-015 · Schéma Prisma — directions créatives
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `CreativeDirection` avec les douze attributs du cahier des charges, marqueur de direction canonique, origine (proposée, modifiée, rédigée par l'utilisateur).
 - **Fini quand** : trois directions coexistent par projet, une seule peut être canonique, la contrainte est garantie en base.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -276,6 +341,7 @@ claude --model sonnet --effort high "Ajoute au schéma Prisma de Calepin le mod�
 ```
 
 ##### CAL-016 · Schéma Prisma — bible, personnages, relations, lieux
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `Bible` (identité et style), `Character` (dix-sept champs de fiche), `Relationship`, `Place`, `WorldRule`, verrouillage par élément.
 - **Fini quand** : une fiche personnage complète est persistable, les relations sont bidirectionnelles et typées, chaque élément peut être verrouillé.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -287,6 +353,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-017 · Schéma Prisma — chronologie et événements
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `TimelineEvent` distinguant antérieur au roman / raconté / prévu, âge des personnages à l'événement, durées entre événements.
 - **Fini quand** : une chronologie est reconstituable dans l'ordre, avec calcul automatique de l'âge des personnages présents.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -298,6 +365,7 @@ claude --model opus --effort high --permission-mode plan "Conçois le modèle de
 ```
 
 ##### CAL-018 · Schéma Prisma — faits canoniques
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `CanonFact` atomique, portée temporelle (permanent / vrai pendant une période / faux après un événement), connaissance par personnage, verrou, source.
 - **Fini quand** : les trois exemples du cahier des charges sont représentables, y compris « Nora ignore que son père est encore vivant ».
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -309,6 +377,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 10 "
 ```
 
 ##### CAL-019 · Schéma Prisma — parties, plans de chapitre, chapitres, versions
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `Part`, `ChapterPlan` (seize attributs), `Chapter`, `ChapterVersion`, statuts de chapitre, ordonnancement stable.
 - **Fini quand** : réordonner, fusionner ou scinder un chapitre ne casse pas les références ; chaque génération crée une version distincte.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -320,6 +389,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-020 · Schéma Prisma — fils narratifs
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `Thread` avec état ouvert / poursuivi / fermé, rattachement aux chapitres, promesse narrative associée.
 - **Fini quand** : on peut lister à tout moment les fils ouverts et le chapitre où chacun a été ouvert.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -331,6 +401,7 @@ claude --model sonnet --effort high "Ajoute au schéma Prisma de Calepin le mod�
 ```
 
 ##### CAL-021 · Schéma Prisma — générations, problèmes qualité, exports, publications
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : `Generation` (tâche, modèle, jetons, coût, tentatives, statut), `QualityIssue` (catégorie, gravité, passages, statut), `Export`, `Publication`.
 - **Fini quand** : une génération échouée est rejouable depuis sa trace ; un problème qualité porte les cinq statuts du cahier des charges.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -342,6 +413,7 @@ claude --model opus --effort high "Ajoute au schéma Prisma de Calepin les modè
 ```
 
 ##### CAL-022 · Champs d'audit génériques et traçabilité
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : identifiant, date de création, date de modification, auteur de la modification, statut, numéro de version sur chaque entité importante ; extension Prisma qui les renseigne.
 - **Fini quand** : aucune entité importante ne peut être écrite sans auteur de modification ; un test le garantit.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -353,6 +425,7 @@ claude --model opus --effort high "Généralise la traçabilité dans Calepin : 
 ```
 
 ##### CAL-023 · Politique d'accès par propriétaire dans la couche d'accès aux données
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : toute lecture et écriture passe par un dépôt qui exige l'identifiant du propriétaire ; interdiction des appels Prisma directs depuis les routes.
 - **Fini quand** : un test tente d'accéder au projet d'un autre utilisateur par tous les points d'entrée et échoue partout.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -368,6 +441,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Mets en pl
 ### E02 — Authentification et comptes *(Phase 1)*
 
 ##### CAL-024 · Socle d'authentification et session
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : Auth.js, adaptateur Prisma, session serveur, helper `getCurrentUser` typé.
 - **Fini quand** : une session persiste entre deux rechargements et est lisible côté serveur et côté client.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -379,6 +453,7 @@ claude --model opus --effort high "Mets en place le socle d authentification de 
 ```
 
 ##### CAL-025 · Connexion par lien envoyé par courriel
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : fournisseur e-mail, gabarit de message en français, expiration du lien, limitation de fréquence.
 - **Fini quand** : un lien reçu connecte l'utilisateur, expire après usage et après délai, et ne peut être demandé plus de N fois par heure.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -390,6 +465,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la connexion par lien env
 ```
 
 ##### CAL-026 · Connexion Google
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : fournisseur OAuth Google, rattachement au compte existant par courriel vérifié.
 - **Fini quand** : un utilisateur déjà inscrit par courriel se connecte par Google sans créer de doublon.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -401,6 +477,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la connexion Google via A
 ```
 
 ##### CAL-027 · Connexion GitHub
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : fournisseur OAuth GitHub, même règle de rattachement.
 - **Fini quand** : les trois méthodes de connexion mènent au même compte pour une même adresse vérifiée.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -412,6 +489,7 @@ claude --model haiku "Ajoute à Calepin la connexion GitHub via Auth.js en répl
 ```
 
 ##### CAL-028 · Écrans de connexion et d'inscription
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : page unique avec les trois méthodes, états de chargement, erreurs lisibles, page de vérification du courriel.
 - **Fini quand** : les écrans sont navigables au clavier, les champs sont associés à leurs intitulés, les erreurs sont annoncées aux lecteurs d'écran.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -423,6 +501,7 @@ claude --model sonnet --effort high "Crée les écrans de connexion et d inscrip
 ```
 
 ##### CAL-029 · Page de compte
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : affichage de l'adresse, méthodes liées, déconnexion, point d'entrée vers la suppression de compte.
 - **Fini quand** : la page affiche les données réelles et la déconnexion invalide la session.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -434,6 +513,7 @@ claude --model haiku "Crée la page de compte de Calepin : adresse électronique
 ```
 
 ##### CAL-030 · Protection des routes et redirection
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : middleware, routes publiques déclarées, redirection vers la page demandée après connexion.
 - **Fini quand** : aucune route de projet n'est atteignable sans session ; la redirection post-connexion préserve la destination initiale.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -445,6 +525,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la protection des routes 
 ```
 
 ##### CAL-031 · Suppression de compte et anonymisation
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : suppression en cascade ou anonymisation selon la politique, confirmation explicite, purge des fichiers S3 associés, journal d'opération.
 - **Fini quand** : après suppression, aucune donnée du compte n'est lisible ni par l'API ni en base, et les exports stockés sont purgés.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -460,6 +541,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ### E03 — Tableau de bord et cycle de vie des projets *(Phase 1)*
 
 ##### CAL-032 · Liste des projets
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : cartes ou tableau affichant titre, statut, date de dernière modification, chapitres prévus, chapitres rédigés, nombre total de mots, étape actuelle.
 - **Fini quand** : les sept informations exigées par le cahier des charges sont affichées et exactes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -471,6 +553,7 @@ claude --model sonnet --effort high "Crée le tableau de bord de Calepin listant
 ```
 
 ##### CAL-033 · Agrégats de projet calculés et maintenus
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : compteurs dénormalisés (chapitres, mots) maintenus à l'écriture, et non recalculés à chaque affichage.
 - **Fini quand** : les compteurs restent exacts après génération, édition manuelle, suppression et restauration de version.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -482,6 +565,7 @@ claude --model opus --effort high "Implémente dans Calepin les agrégats de pro
 ```
 
 ##### CAL-034 · Machine à états des statuts de projet
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : les dix statuts du cahier des charges, transitions autorisées, statut dérivé de l'avancement réel.
 - **Fini quand** : aucune transition illégale n'est possible par l'API ; le statut reflète toujours l'étape réellement atteinte.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -493,6 +577,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la machine
 ```
 
 ##### CAL-035 · Actions sur un projet
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : ouvrir, renommer, dupliquer, archiver, supprimer, avec confirmations et annulation temporaire.
 - **Fini quand** : la duplication copie l'intégralité de l'arbre narratif sans référence croisée vers l'original.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -504,6 +589,7 @@ claude --model opus --effort high "Implémente les actions de projet de Calepin 
 ```
 
 ##### CAL-036 · Recherche, tri et filtres du tableau de bord
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : recherche par titre, tri par date ou avancement, filtre par statut, état conservé dans l'URL.
 - **Fini quand** : un lien partagé restitue exactement la même vue filtrée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `medium` · **Complexité** : 1/3
@@ -515,6 +601,7 @@ claude --model sonnet --effort medium "Ajoute au tableau de bord de Calepin la r
 ```
 
 ##### CAL-037 · Fil d'étapes du processus
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : composant montrant les neuf étapes (analyse, exploration, choix, bible, planification, rédaction, contrôle, révision, export), étape courante, étapes accessibles.
 - **Fini quand** : le composant est réutilisé sur toutes les pages de projet et reflète le statut réel.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -526,6 +613,7 @@ claude --model sonnet --effort high "Crée le composant de fil d étapes de Cale
 ```
 
 ##### CAL-038 · États vides et prise en main
+- **État** : ✅ **Terminé** — commité, mais **sans section de revue** dans `tasks/todo.md` (dette reprise par CAL-217)
 - **Contenu** : écran de premier usage, appel à l'action de création, courte explication du parcours.
 - **Fini quand** : un nouvel utilisateur comprend en un écran ce que fait le produit et par où commencer.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -537,6 +625,7 @@ claude --model haiku "Crée les états vides de Calepin : écran affiché quand 
 ```
 
 ##### CAL-039 · États de chargement et retours immédiats
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : squelettes de chargement, mises à jour optimistes sur les actions rapides, indicateurs de tâche en cours.
 - **Fini quand** : aucune action ne laisse l'interface sans retour visible pendant plus de 200 ms.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -552,6 +641,7 @@ claude --model sonnet --effort high "Ajoute à Calepin les états de chargement 
 ### E04 — Création de projet et texte source *(Phase 1)*
 
 ##### CAL-040 · Formulaire de création de projet
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : parcours en étapes — titre provisoire, texte source, langue, longueur cible, public visé, degré de liberté ; brouillon conservé.
 - **Fini quand** : un rechargement en cours de saisie ne perd rien ; la création aboutit à un projet au statut brouillon.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -563,6 +653,7 @@ claude --model sonnet --effort high "Crée le formulaire de création de projet 
 ```
 
 ##### CAL-041 · Compteur de mots en temps réel et limite de 2 000 mots
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : comptage identique côté client et côté serveur, avertissement progressif, refus explicite au-delà de la limite.
 - **Fini quand** : un texte de 2 001 mots est refusé avec un message explicite, et le comptage client et serveur ne divergent jamais.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -574,6 +665,7 @@ claude --model opus --effort high "Implémente le comptage de mots de Calepin co
 ```
 
 ##### CAL-042 · Langue du texte et propagation
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : détection proposée, sélection manuelle prioritaire, propagation de la langue à toutes les générations.
 - **Fini quand** : la langue choisie est transmise à chaque appel de génération et respectée dans les sorties.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -585,6 +677,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la gestion de la langue d
 ```
 
 ##### CAL-043 · Choix de la longueur cible
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : roman court 30–45 k, standard 50–80 k, long 80–110 k, personnalisé ; conséquence sur le nombre de chapitres estimé.
 - **Fini quand** : le choix influence réellement le plan généré et la longueur cible des chapitres.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -596,6 +689,7 @@ claude --model sonnet --effort high "Ajoute à Calepin le choix de longueur cibl
 ```
 
 ##### CAL-044 · Degré de liberté laissé à l'intelligence artificielle
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : trois niveaux (faible, équilibré, élevé) avec explication courte, traduits en contraintes effectives dans les prompts.
 - **Fini quand** : le niveau `faible` produit des directions mesurablement plus proches du texte source que le niveau `élevé`.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -607,6 +701,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-045 · Public visé
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : sélection du lectorat cible, propagation aux prompts, incidence sur le niveau de langue de la bible.
 - **Fini quand** : le public visé apparaît dans la section style de la bible générée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -618,6 +713,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la sélection du public v
 ```
 
 ##### CAL-046 · Édition ultérieure du texte source et versionnement
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : modification du texte source après création, nouvelle version, avertissement sur l'invalidation possible de l'analyse.
 - **Fini quand** : modifier le texte source crée une version et signale explicitement quelles étapes en aval deviennent obsolètes.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -629,6 +725,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-047 · Import du texte source depuis un fichier
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : import `.txt`, `.md`, `.docx`, nettoyage des artefacts de mise en forme, contrôle de la limite de mots.
 - **Fini quand** : un `.docx` de nouvelle importe proprement, sans balises résiduelles ni doubles espaces.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -644,6 +741,7 @@ claude --model sonnet --effort high "Ajoute à Calepin l import du texte source 
 ### E05 — Couche d'intelligence artificielle : abstraction, schémas, contexte, coûts *(Phase 2)*
 
 ##### CAL-048 · Interface d'abstraction des fournisseurs de modèles
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : port unique (`generateStructured`, `generateProse`), types de capacités, gestion des limites de débit, expiration, annulation.
 - **Fini quand** : aucun code métier n'importe directement un SDK de fournisseur ; une règle de lint le garantit.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -655,6 +753,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ```
 
 ##### CAL-049 · Adaptateur du fournisseur principal
+- **État** : 🟡 **Partiel** — adaptateur écrit et testé, mais **aucun processus ne compose de `ModelProviderPort`** (composition livrée par CAL-208)
 - **Contenu** : implémentation du port, gestion des sorties structurées natives, flux, décompte des jetons.
 - **Fini quand** : les deux méthodes du port fonctionnent, les jetons consommés sont remontés exactement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -666,6 +765,7 @@ claude --model opus --effort high "Implémente l adaptateur du fournisseur princ
 ```
 
 ##### CAL-050 · Adaptateur de repli et bascule automatique
+- **État** : 🟡 **Partiel** — adaptateur écrit et testé, mais **aucun processus ne compose de `ModelProviderPort`** (composition livrée par CAL-208)
 - **Contenu** : second fournisseur, détection d'indisponibilité, bascule, journalisation de l'événement.
 - **Fini quand** : une indisponibilité simulée du fournisseur principal n'interrompt pas une génération en cours.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -677,6 +777,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-051 · Registre des missions et routage des modèles
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : table associant chaque mission (analyser, proposer des directions, évaluer, créer une fiche, construire un chapitre, rédiger une scène, extraire les faits, contrôler la cohérence, corriger un problème) à un modèle et à des paramètres.
 - **Fini quand** : changer le modèle d'une mission se fait dans un seul fichier, sans toucher au code appelant.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -688,6 +789,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-052 · Sorties structurées, validation et réparation
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : schémas Zod par mission, validation stricte, stratégie de réparation en cas de sortie invalide, échec propre après N tentatives.
 - **Fini quand** : une sortie invalide n'écrit jamais en base et déclenche une réparation puis un échec explicite.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -699,6 +801,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-053 · Registre des prompts versionnés
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : prompts stockés comme ressources versionnées, identifiant de version enregistré dans chaque génération, possibilité de comparer deux versions de prompt.
 - **Fini quand** : toute génération enregistre la version exacte du prompt qui l'a produite.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -710,6 +813,7 @@ claude --model opus --effort high "Implémente le registre des prompts de Calepi
 ```
 
 ##### CAL-054 · Composeur de contexte dynamique
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : construction du contexte à partir des instructions permanentes, de la bible, du plan, des faits concernés, des résumés précédents, des extraits nécessaires et de la demande utilisateur.
 - **Fini quand** : le contexte transmis pour rédiger le chapitre 12 ne contient jamais l'intégralité des onze chapitres précédents.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -721,6 +825,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-055 · Résumés hiérarchiques des chapitres
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : résumé court et résumé détaillé par chapitre, résumé de partie, régénérés à la validation.
 - **Fini quand** : le contexte long s'appuie sur des résumés et non sur le texte intégral.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -732,6 +837,7 @@ claude --model opus --effort high "Implémente dans Calepin les résumés hiéra
 ```
 
 ##### CAL-056 · Comptabilisation des jetons et estimation de coût
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : mesure par génération, agrégation par projet et par mission, tarif configurable par modèle.
 - **Fini quand** : le coût cumulé d'un projet est consultable et concorde avec la facturation du fournisseur à moins de 5 %.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -743,6 +849,7 @@ claude --model sonnet --effort high "Implémente dans Calepin la comptabilisatio
 ```
 
 ##### CAL-057 · Estimation affichée avant opération coûteuse
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : estimation de durée et de coût avant génération du plan, d'un chapitre ou d'un audit complet ; confirmation explicite.
 - **Fini quand** : aucune opération coûteuse ne démarre sans estimation affichée et confirmation.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -754,6 +861,7 @@ claude --model opus --effort high "Implémente dans Calepin l estimation affich�
 ```
 
 ##### CAL-058 · Idempotence des générations et absence de double comptage
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : clé d'idempotence par génération, reprise sans réexécution, garantie qu'un échec système ne débite pas deux fois.
 - **Fini quand** : rejouer une génération échouée n'incrémente pas deux fois le coût comptabilisé.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -765,6 +873,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-059 · Banc d'évaluation des prompts
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : jeu de textes sources de référence, exécution d'une mission sur tout le jeu, comparaison entre deux versions de prompt, critères notés.
 - **Fini quand** : modifier un prompt permet de mesurer l'effet du changement avant de l'adopter.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -780,6 +889,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ### E06 — Orchestration asynchrone et cycle de vie des générations *(Phase 2)*
 
 ##### CAL-060 · Socle BullMQ et travailleur
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : connexion Redis, déclaration des files, processus travailleur séparé, arrêt propre.
 - **Fini quand** : une tâche factice est produite, consommée et tracée ; l'arrêt du travailleur ne perd aucune tâche.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -791,6 +901,7 @@ claude --model opus --effort high "Mets en place le socle de tâches asynchrones
 ```
 
 ##### CAL-061 · Cycle de vie d'une génération
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : entité `Generation` pilotée par la file — en attente, en cours, réussie, échouée, annulée ; persistance de la charge utile de reprise.
 - **Fini quand** : l'état d'une génération est toujours lisible en base, même après redémarrage du travailleur.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -802,6 +913,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-062 · Progression en temps réel
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : flux d'événements serveur, étapes nommées, pourcentage indicatif, reprise de l'affichage après rechargement.
 - **Fini quand** : l'utilisateur peut quitter la page et revenir sans interrompre ni perdre la progression.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -813,6 +925,7 @@ claude --model sonnet --effort high "Implémente l affichage de progression des 
 ```
 
 ##### CAL-063 · Reprise après échec et rejeu manuel
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : politique de réessai avec recul exponentiel, distinction erreur transitoire / erreur définitive, bouton de rejeu.
 - **Fini quand** : une tâche échouée est rejouable depuis l'interface sans perdre la dernière version valide.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -824,6 +937,7 @@ claude --model opus --effort high "Implémente dans Calepin la reprise après é
 ```
 
 ##### CAL-064 · Annulation d'une génération en cours
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : annulation depuis l'interface, propagation au travailleur, libération des verrous, absence de comptabilisation partielle abusive.
 - **Fini quand** : annuler une rédaction de chapitre laisse le chapitre dans son état antérieur intact.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -835,6 +949,7 @@ claude --model opus --effort high --permission-mode plan "Implémente l annulati
 ```
 
 ##### CAL-065 · Limitation de concurrence
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : plafond de générations simultanées par utilisateur et par projet, file d'attente lisible.
 - **Fini quand** : lancer six générations en même temps n'écroule ni la base ni le budget.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -846,6 +961,7 @@ claude --model sonnet --effort high "Ajoute à Calepin la limitation de concurre
 ```
 
 ##### CAL-066 · Files distinctes et priorités par mission
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : file rapide (extraction, résumé), file lente (rédaction, plan), file d'audit ; priorités et concurrence propres.
 - **Fini quand** : une extraction de faits n'attend jamais derrière une génération de plan.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -857,6 +973,7 @@ claude --model sonnet --effort high "Sépare les files de tâches de Calepin par
 ```
 
 ##### CAL-067 · Verrou d'écriture par cible
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : verrou empêchant deux générations simultanées sur le même chapitre, la même bible ou le même plan.
 - **Fini quand** : deux demandes concurrentes sur le même chapitre produisent une file, jamais un écrasement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -868,6 +985,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-068 · Vue d'exploitation des tâches
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : page listant les générations récentes avec statut, durée, modèle, jetons, coût, tentatives ; rejeu et annulation.
 - **Fini quand** : la page permet de diagnostiquer un échec sans ouvrir la base.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -879,6 +997,7 @@ claude --model sonnet --effort high "Crée dans Calepin la vue d exploitation de
 ```
 
 ##### CAL-069 · Rétention et nettoyage des tâches terminées
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : purge des tâches BullMQ terminées, conservation des traces `Generation` en base, tâche planifiée.
 - **Fini quand** : Redis ne croît pas indéfiniment et l'historique reste consultable en base.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -894,6 +1013,7 @@ claude --model haiku "Configure la rétention des tâches de Calepin : purge aut
 ### E07 — Analyse du texte source *(Phase 2)*
 
 ##### CAL-070 · Mission d'analyse — prompt et schéma
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-209)
 - **Contenu** : prompt dédié produisant les dix-sept sections du diagnostic, schéma de sortie strict, langue respectée.
 - **Fini quand** : l'analyse d'un texte de référence remplit les dix-sept sections sans champ vide injustifié.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -905,6 +1025,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ```
 
 ##### CAL-071 · Distinction entre fait explicite et interprétation
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : chaque élément d'analyse porte son marqueur, avec le passage source qui l'appuie quand il est factuel.
 - **Fini quand** : un affirmation non appuyée par le texte est systématiquement marquée comme interprétation.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -916,6 +1037,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-072 · Écran de diagnostic narratif
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : présentation des dix-sept sections, marquage visuel fait/interprétation ne reposant pas sur la seule couleur, explications courtes des notions spécialisées.
 - **Fini quand** : un utilisateur non initié comprend « point de vue » et « focalisation » sans quitter la page.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -927,6 +1049,7 @@ claude --model sonnet --effort high "Crée l écran de diagnostic narratif de Ca
 ```
 
 ##### CAL-073 · Édition et annotation de l'analyse
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : modification de chaque section, annotation libre, marquage des modifications manuelles distinct des propositions du modèle.
 - **Fini quand** : l'origine de chaque élément — modèle ou utilisateur — reste lisible après édition.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -938,6 +1061,7 @@ claude --model opus --effort high --permission-mode plan "Implémente l édition
 ```
 
 ##### CAL-074 · Validation de l'analyse
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : action de validation explicite, verrouillage de l'analyse validée, transition de statut, passage à l'exploration.
 - **Fini quand** : l'étape suivante est inaccessible tant que l'analyse n'est pas validée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -949,6 +1073,7 @@ claude --model sonnet --effort high "Implémente la validation de l analyse dans
 ```
 
 ##### CAL-075 · Détection des risques de clichés dans le texte source
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : mission dédiée identifiant les éléments convenus, avec justification rattachée à un passage.
 - **Fini quand** : chaque cliché signalé cite le passage concerné et explique pourquoi il est convenu.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -960,6 +1085,7 @@ claude --model fable --effort high --max-budget-usd 8 "Conçois la mission de d�
 ```
 
 ##### CAL-076 · Évaluation du potentiel de développement en roman
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : appréciation argumentée de ce que le texte peut soutenir sur 50 000 mots, et de ce qui manque.
 - **Fini quand** : l'évaluation nomme au moins trois éléments à développer et deux fragilités à traiter.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -971,6 +1097,7 @@ claude --model fable --effort high --max-budget-usd 8 "Conçois la mission d év
 ```
 
 ##### CAL-077 · Régénération ciblée d'une section d'analyse
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : relance d'une seule section sans écraser les autres, avec instruction complémentaire de l'utilisateur.
 - **Fini quand** : régénérer la section « thèmes » ne modifie aucune autre section ni les annotations existantes.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -982,6 +1109,7 @@ claude --model opus --effort high "Implémente dans Calepin la régénération c
 ```
 
 ##### CAL-078 · Corpus de référence et tests de l'analyse
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : cinq nouvelles courtes libres de droits, résultats attendus annotés, exécution du banc d'évaluation.
 - **Fini quand** : une régression de qualité d'analyse est détectable avant mise en production.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -997,6 +1125,7 @@ claude --model sonnet --effort high "Constitue le corpus de référence de Calep
 ### E08 — Exploration des directions romanesques *(Phase 3)*
 
 ##### CAL-079 · Mission de génération des trois directions
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-210)
 - **Contenu** : prompt produisant trois directions complètes avec les douze attributs exigés, à partir de l'analyse validée et du degré de liberté.
 - **Fini quand** : les trois directions sont complètes, exploitables et conformes au schéma.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1008,6 +1137,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-080 · Contrainte de divergence des moteurs narratifs
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : garantie que les trois directions diffèrent par leur moteur narratif et non par leur décor ; contrôle automatique et relance si la divergence est insuffisante.
 - **Fini quand** : trois variations de décor sur un même moteur sont détectées et rejetées automatiquement.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1019,6 +1149,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-081 · Évaluation critique de chaque direction
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : mission séparée qui évalue une direction et explique pourquoi elle est moins intéressante que les autres, sans note globale.
 - **Fini quand** : chaque direction porte une critique argumentée reliée à des éléments précis du projet.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1030,6 +1161,7 @@ claude --model fable --effort high --max-budget-usd 8 "Conçois la mission d év
 ```
 
 ##### CAL-082 · Écran de comparaison des directions
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : présentation côte à côte des trois directions, mise en évidence des différences de moteur, critique associée.
 - **Fini quand** : la différence entre les trois directions est lisible en moins de trente secondes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1041,6 +1173,7 @@ claude --model sonnet --effort high "Crée l écran de comparaison des direction
 ```
 
 ##### CAL-083 · Remplacement d'une proposition
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : demande de remplacement d'une direction, en excluant explicitement le moteur narratif de celle qui est écartée.
 - **Fini quand** : la direction de remplacement ne reproduit pas le moteur de celle qui a été rejetée.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1052,6 +1185,7 @@ claude --model opus --effort high "Implémente dans Calepin le remplacement d un
 ```
 
 ##### CAL-084 · Combinaison d'éléments de plusieurs directions
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-214)
 - **Contenu** : sélection d'éléments issus de directions différentes, génération d'une direction fusionnée cohérente, signalement des incompatibilités.
 - **Fini quand** : combiner deux moteurs incompatibles produit un avertissement explicite plutôt qu'une fusion incohérente.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1063,6 +1197,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ```
 
 ##### CAL-085 · Édition manuelle et direction rédigée par l'utilisateur
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : modification libre d'une direction proposée, ou saisie complète d'une direction personnelle.
 - **Fini quand** : une direction entièrement rédigée par l'utilisateur alimente la bible aussi bien qu'une direction générée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1074,6 +1209,7 @@ claude --model sonnet --effort high "Implémente dans Calepin l édition manuell
 ```
 
 ##### CAL-086 · Sélection de la direction canonique
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : choix unique, verrouillage, transition de statut, avertissement sur les conséquences d'un changement ultérieur.
 - **Fini quand** : changer de direction canonique après génération de la bible avertit explicitement de ce qui devient obsolète.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1085,6 +1221,7 @@ claude --model opus --effort high "Implémente dans Calepin la sélection de la 
 ```
 
 ##### CAL-087 · Historique des directions explorées
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : conservation de toutes les directions générées, écartées et remplacées, consultables après coup.
 - **Fini quand** : aucune direction produite n'est perdue, y compris celles remplacées.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -1100,6 +1237,7 @@ claude --model haiku "Ajoute à Calepin l historique des directions romanesques 
 ### E09 — Bible narrative *(Phase 3)*
 
 ##### CAL-088 · Mission — identité du roman
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : titre provisoire, genre, sous-genre, public, longueur cible, tonalité, promesse narrative, thèmes, contre-thèmes, question centrale, type de fin.
 - **Fini quand** : les onze champs sont produits et cohérents avec la direction canonique.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1111,6 +1249,7 @@ claude --model opus --effort high "Conçois la mission d identité du roman de C
 ```
 
 ##### CAL-089 · Mission — section style
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : point de vue, focalisation, temps verbal, niveau de langue, densité descriptive, rythme, place du dialogue, motifs récurrents, éléments stylistiques à éviter.
 - **Fini quand** : la section style est réellement utilisée comme contrainte lors de la rédaction, pas seulement affichée.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1122,6 +1261,7 @@ claude --model fable --effort high --max-budget-usd 8 "Conçois la mission de se
 ```
 
 ##### CAL-090 · Mission — fiches personnages
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : génération des dix-sept champs par personnage, dont désir apparent, besoin profond, contradiction, secret, connaissances détenues.
 - **Fini quand** : chaque personnage principal a une contradiction interne explicite et un besoin distinct de son désir.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1133,6 +1273,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-091 · Relations entre personnages
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : génération et édition des relations typées et orientées, avec asymétries (ce que A sait de B et non l'inverse).
 - **Fini quand** : une relation asymétrique est représentable et exploitable par le contrôle de cohérence.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1144,6 +1285,7 @@ claude --model opus --effort high "Implémente dans Calepin la génération et l
 ```
 
 ##### CAL-092 · Mission — bible du monde
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : époque, lieux, contexte social, contexte politique, règles du monde, technologies, institutions, contraintes, éléments surnaturels et **leurs limites**.
 - **Fini quand** : tout élément surnaturel déclaré porte des limites explicites et vérifiables.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1155,6 +1297,7 @@ claude --model opus --effort high --permission-mode plan "Conçois la mission de
 ```
 
 ##### CAL-093 · Chronologie initiale
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : génération des événements antérieurs au roman et des événements prévus, âges, durées.
 - **Fini quand** : la chronologie générée ne contient aucun âge ni aucune durée incompatible.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1166,6 +1309,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-094 · Extraction des faits canoniques initiaux
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-211)
 - **Contenu** : dérivation de faits atomiques à partir de la bible et du texte source, avec portée temporelle et connaissance par personnage.
 - **Fini quand** : les faits produits sont atomiques, non redondants et correctement portés temporellement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1177,6 +1321,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-095 · Verrouillage des éléments de bible
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : verrou par élément (fait, personnage, règle, champ de fiche), effet réel sur les générations ultérieures.
 - **Fini quand** : une génération qui contredirait un élément verrouillé est bloquée avant exécution, pas corrigée après.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1188,6 +1333,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-096 · Écran de la bible
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : navigation par sections (identité, style, personnages, monde, chronologie, faits), recherche, indicateurs de verrouillage.
 - **Fini quand** : retrouver un fait canonique précis prend moins de dix secondes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1199,6 +1345,7 @@ claude --model sonnet --effort high "Crée l écran de la bible narrative de Cal
 ```
 
 ##### CAL-097 · Éditeur de fiche personnage
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : édition des dix-sept champs, verrouillage par champ, historique des modifications, relations rattachées.
 - **Fini quand** : modifier un champ verrouillé est impossible sans lever explicitement le verrou.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1210,6 +1357,7 @@ claude --model sonnet --effort high "Crée l éditeur de fiche personnage de Cal
 ```
 
 ##### CAL-098 · Éditeur de faits canoniques
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : liste filtrable, création manuelle, édition de la portée temporelle et de la connaissance par personnage, verrouillage.
 - **Fini quand** : l'utilisateur peut créer à la main le fait « Nora ignore que son père est encore vivant » en moins d'une minute.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1221,6 +1369,7 @@ claude --model opus --effort high --permission-mode plan "Crée l éditeur de fa
 ```
 
 ##### CAL-099 · Contrôle de cohérence interne de la bible
+- **État** : 🟡 **Partiel** — contrat, schéma, vérificateurs et prompt livrés et testés ; **aucun exécuteur ne lance la mission** (débloqué par CAL-208, exécuteur livré par CAL-215)
 - **Contenu** : détection des contradictions internes avant validation (âges, relations, règles du monde, faits opposés).
 - **Fini quand** : une bible contenant deux faits contradictoires ne peut pas être validée sans arbitrage explicite.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1232,6 +1381,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-100 · Validation de la bible
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : validation explicite, création d'une version nommée, transition de statut vers la planification.
 - **Fini quand** : la bible validée devient la référence utilisée par toutes les générations suivantes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -1247,6 +1397,7 @@ claude --model sonnet --effort high "Implémente la validation de la bible de Ca
 ### E10 — Construction du plan *(Phase 4)*
 
 ##### CAL-101 · Mission — découpage en parties
+- **État** : 🟡 **Partiel** — contrat, calibrage et vérificateur livrés ; `resolve*` produit des valeurs de colonnes que **rien n'écrit** (persistance et exécuteur livrés par CAL-212)
 - **Contenu** : parties avec objectif dramatique, état initial, basculement, état final, fils narratifs concernés.
 - **Fini quand** : chaque partie a un basculement identifiable et un état final différent de son état initial.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1258,6 +1409,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-102 · Mission — plans de chapitre
+- **État** : 🟡 **Partiel** — contrat, calibrage et vérificateur livrés ; `resolve*` produit des valeurs de colonnes que **rien n'écrit** (persistance et exécuteur livrés par CAL-212)
 - **Contenu** : génération des seize attributs par chapitre, en cohérence avec la partie qui le contient.
 - **Fini quand** : chaque chapitre a une fonction dramatique et une conséquence, critère d'acceptation formel du MVP.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1269,6 +1421,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 20 "
 ```
 
 ##### CAL-103 · Calibrage du nombre de chapitres
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : dérivation du nombre de chapitres et de leur longueur cible depuis la longueur du roman, avec ajustement.
 - **Fini quand** : la somme des longueurs cibles de chapitres correspond à la longueur cible du roman à 10 % près.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -1280,6 +1433,7 @@ claude --model sonnet --effort high "Implémente dans Calepin le calibrage du no
 ```
 
 ##### CAL-104 · Écran du plan
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : vue d'ensemble par parties et chapitres, aperçu de la fonction dramatique, fils narratifs, longueur cumulée.
 - **Fini quand** : la structure de cinquante chapitres reste lisible sans défilement infini.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1291,6 +1445,7 @@ claude --model sonnet --effort high "Crée l écran du plan de Calepin : vue d e
 ```
 
 ##### CAL-105 · Réorganisation des chapitres
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : déplacement par glisser-déposer et par clavier, renumérotation automatique, conservation des références.
 - **Fini quand** : déplacer un chapitre ne casse ni les fils narratifs ni les références aux faits canoniques.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1302,6 +1457,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la réorga
 ```
 
 ##### CAL-106 · Fusion et scission de chapitres
+- **État** : ✅ **Terminé** — commité, revu dans `tasks/todo.md`
 - **Contenu** : fusion de deux chapitres adjacents, scission d'un chapitre en deux, redistribution des attributs.
 - **Fini quand** : fusionner puis scinder restitue un plan cohérent, sans perte d'attribut.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1313,6 +1469,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-107 · Ajout, suppression et verrouillage d'un chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : insertion à une position donnée, suppression avec avertissement sur les fils, verrouillage empêchant toute modification automatique.
 - **Fini quand** : supprimer un chapitre qui ferme un fil narratif déclenche un avertissement explicite.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1324,6 +1481,7 @@ claude --model sonnet --effort high "Implémente dans le plan de Calepin l ajout
 ```
 
 ##### CAL-108 · Analyse des répercussions d'une modification du plan
+- **État** : ⬜ **À faire**
 - **Contenu** : après chaque modification, signalement des conséquences possibles sur la suite (fils orphelins, révélations désordonnées, chapitres rédigés invalidés).
 - **Fini quand** : déplacer une révélation avant sa préparation est signalé immédiatement.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1335,6 +1493,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ```
 
 ##### CAL-109 · Gestion des fils narratifs dans le plan
+- **État** : ⬜ **À faire**
 - **Contenu** : vue des fils, chapitre d'ouverture, de poursuite et de fermeture, alerte sur les fils jamais fermés.
 - **Fini quand** : un fil ouvert au chapitre 3 et jamais fermé apparaît en alerte sur l'écran du plan.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1346,6 +1505,7 @@ claude --model sonnet --effort high "Crée la vue des fils narratifs du plan de 
 ```
 
 ##### CAL-110 · Audit de la fonction dramatique du plan
+- **État** : ⬜ **À faire**
 - **Contenu** : contrôle avant rédaction — chaque chapitre a-t-il une fonction et une conséquence, y a-t-il progression, la fin est-elle préparée.
 - **Fini quand** : un plan comportant trois chapitres consécutifs sans conséquence est signalé.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1357,6 +1517,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 12 "
 ```
 
 ##### CAL-111 · Régénération ciblée d'un chapitre du plan
+- **État** : ⬜ **À faire**
 - **Contenu** : nouvelle proposition pour un seul chapitre, tenant compte des chapitres verrouillés voisins.
 - **Fini quand** : régénérer le chapitre 7 respecte les chapitres 6 et 8 verrouillés.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1372,6 +1533,7 @@ claude --model opus --effort high "Implémente dans Calepin la régénération c
 ### E11 — Rédaction des chapitres et éditeur de manuscrit *(Phase 5)*
 
 ##### CAL-112 · Mission de rédaction d'un chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : prompt de rédaction s'appuyant sur bible, plan du chapitre, événements déjà rédigés, état des personnages, faits concernés, fils en cours et extraits de continuité.
 - **Fini quand** : le chapitre produit respecte le point de vue, le temps verbal et le niveau de langue de la bible, et n'invente aucun fait contredisant les faits canoniques.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1383,6 +1545,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 25 "
 ```
 
 ##### CAL-113 · Paramètres de génération avant rédaction
+- **État** : ⬜ **À faire**
 - **Contenu** : longueur souhaitée, rythme, éléments à accentuer, éléments à éviter, instruction particulière.
 - **Fini quand** : chaque paramètre a un effet observable sur le texte produit.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1394,6 +1557,7 @@ claude --model opus --effort high "Implémente dans Calepin les paramètres de g
 ```
 
 ##### CAL-114 · Rédaction en flux et affichage progressif
+- **État** : ⬜ **À faire**
 - **Contenu** : diffusion du texte au fil de la génération, possibilité de quitter la page sans interrompre, reprise de l'affichage.
 - **Fini quand** : fermer l'onglet pendant la rédaction n'interrompt pas la génération.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1405,6 +1569,7 @@ claude --model sonnet --effort high "Implémente dans Calepin l affichage progre
 ```
 
 ##### CAL-115 · Contrôle des verrous avant génération
+- **État** : ⬜ **À faire**
 - **Contenu** : détection d'une instruction utilisateur contredisant un élément verrouillé, avertissement avant lancement, demande de levée.
 - **Fini quand** : demander d'écrire une scène dans la cave d'une maison déclarée sans cave déclenche un avertissement avant génération.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1416,6 +1581,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-116 · Éditeur de manuscrit — structure et navigation
+- **État** : ⬜ **À faire**
 - **Contenu** : navigation par partie et chapitre, panneau latéral, accès rapide aux personnages et faits associés au chapitre courant.
 - **Fini quand** : depuis un chapitre, la fiche d'un personnage présent est atteignable en un clic.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1427,6 +1593,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Crée l é
 ```
 
 ##### CAL-117 · Sauvegarde automatique et protection contre l'écrasement
+- **État** : ⬜ **À faire**
 - **Contenu** : sauvegarde périodique et à la perte de focus, détection de modification non sauvegardée, blocage de toute génération qui écraserait du texte non sauvegardé.
 - **Fini quand** : lancer une régénération avec des modifications manuelles non sauvegardées est impossible sans avertissement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1438,6 +1605,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-118 · Mode plein écran et compteur de mots
+- **État** : ⬜ **À faire**
 - **Contenu** : mode d'écriture sans distraction, compteur de mots du chapitre et du manuscrit, progression vers la longueur cible.
 - **Fini quand** : le mode plein écran s'active au clavier et masque tous les panneaux.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -1449,6 +1617,7 @@ claude --model haiku "Ajoute à l éditeur de Calepin un mode plein écran sans 
 ```
 
 ##### CAL-119 · Recherche et remplacement dans le manuscrit
+- **État** : ⬜ **À faire**
 - **Contenu** : recherche transverse à tous les chapitres, remplacement avec aperçu, sensibilité à la casse et aux accents.
 - **Fini quand** : renommer un personnage dans tout le manuscrit est possible en une opération contrôlée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1460,6 +1629,7 @@ claude --model sonnet --effort high "Implémente la recherche et le remplacement
 ```
 
 ##### CAL-120 · Réécritures ciblées sur sélection — volume et formulation
+- **État** : ⬜ **À faire**
 - **Contenu** : reformuler, développer une scène, raccourcir une scène, à partir d'un passage sélectionné.
 - **Fini quand** : la réécriture d'un passage ne modifie que ce passage et crée une version.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1471,6 +1641,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-121 · Réécritures ciblées sur sélection — dialogue, rythme, point de vue, répétitions
+- **État** : ⬜ **À faire**
 - **Contenu** : améliorer un dialogue, modifier le rythme, renforcer le point de vue, supprimer une répétition.
 - **Fini quand** : améliorer un dialogue tient compte de la manière de parler déclarée de chaque personnage présent.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1482,6 +1653,7 @@ claude --model fable --effort high --permission-mode plan --max-budget-usd 10 "C
 ```
 
 ##### CAL-122 · Régénération non destructive d'un chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : nouvelle version complète sans écrasement de la précédente, conservation des instructions utilisées.
 - **Fini quand** : après trois régénérations, les quatre versions restent accessibles et restaurables.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1493,6 +1665,7 @@ claude --model sonnet --effort high "Implémente dans Calepin la régénération
 ```
 
 ##### CAL-123 · Comparaison de versions de chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : vue côte à côte ou différentielle, mise en évidence des écarts, restauration depuis la comparaison.
 - **Fini quand** : comparer deux versions d'un chapitre de 4 000 mots reste lisible et rapide.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1504,6 +1677,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la compara
 ```
 
 ##### CAL-124 · Commentaires personnels et statuts de chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : notes de l'auteur rattachées à un chapitre ou à un passage, statuts (planifié, à rédiger, génération en cours, premier jet, à corriger, validé, verrouillé).
 - **Fini quand** : les commentaires n'apparaissent jamais dans un export de manuscrit.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1515,6 +1689,7 @@ claude --model sonnet --effort high "Implémente dans Calepin les commentaires p
 ```
 
 ##### CAL-125 · Validation d'un chapitre
+- **État** : ⬜ **À faire**
 - **Contenu** : action de validation déclenchant l'extraction de faits, la mise à jour des résumés et la transition de statut.
 - **Fini quand** : valider un chapitre lance l'analyse de son contenu et propose les faits nouveaux.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1530,6 +1705,7 @@ claude --model opus --effort high "Implémente la validation d un chapitre dans 
 ### E12 — Mémoire narrative et extraction de faits *(Phase 6)*
 
 ##### CAL-126 · Mission d'extraction après rédaction
+- **État** : ⬜ **À faire**
 - **Contenu** : extraction des événements, blessures, déplacements, objets acquis ou perdus, informations découvertes, relations modifiées, promesses narratives, questions ouvertes, état émotionnel, faits nouveaux.
 - **Fini quand** : les dix catégories du cahier des charges sont extraites d'un chapitre de référence.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1541,6 +1717,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois l
 ```
 
 ##### CAL-127 · Détection des conflits avec la bible
+- **État** : ⬜ **À faire**
 - **Contenu** : comparaison des faits nouveaux aux faits canoniques existants, identification des contradictions, refus d'écriture automatique.
 - **Fini quand** : un fait nouveau contredisant un fait verrouillé n'est jamais écrit automatiquement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1552,6 +1729,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-128 · Écran d'arbitrage des faits proposés
+- **État** : ⬜ **À faire**
 - **Contenu** : présentation des faits nouveaux, des conflits détectés, choix accepter / modifier / refuser, explication du conflit.
 - **Fini quand** : arbitrer dix faits proposés après un chapitre prend moins de deux minutes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1563,6 +1741,7 @@ claude --model sonnet --effort high "Crée l écran d arbitrage des faits propos
 ```
 
 ##### CAL-129 · Suivi de l'état des personnages
+- **État** : ⬜ **À faire**
 - **Contenu** : état courant de chaque personnage (localisation, état physique, état émotionnel, possessions) mis à jour chapitre par chapitre.
 - **Fini quand** : l'état d'un personnage au chapitre 12 est consultable et alimente le contexte de rédaction du chapitre 13.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1574,6 +1753,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-130 · Mise à jour des fils narratifs après rédaction
+- **État** : ⬜ **À faire**
 - **Contenu** : détection des fils ouverts, poursuivis et fermés par le chapitre validé, écart avec le plan.
 - **Fini quand** : un fil que le plan prévoyait de fermer et que le texte laisse ouvert est signalé.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1585,6 +1765,7 @@ claude --model opus --effort high "Implémente dans Calepin la mise à jour des 
 ```
 
 ##### CAL-131 · Suivi des connaissances par personnage
+- **État** : ⬜ **À faire**
 - **Contenu** : qui sait quoi et depuis quel chapitre ; détection d'une connaissance injustifiée.
 - **Fini quand** : un personnage utilisant une information qu'il n'a jamais apprise est signalé.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1596,6 +1777,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-132 · Suivi des objets, blessures et déplacements
+- **État** : ⬜ **À faire**
 - **Contenu** : registre des objets importants et de leur possesseur, des blessures et de leur guérison, des déplacements entre lieux.
 - **Fini quand** : un objet détruit puis réapparu est détectable, ainsi qu'un déplacement impossible dans le temps imparti.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1607,6 +1789,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-133 · Mise à jour de la chronologie après rédaction
+- **État** : ⬜ **À faire**
 - **Contenu** : intégration des événements racontés dans la chronologie, recalcul des durées et des âges.
 - **Fini quand** : la chronologie reflète le texte écrit et non seulement le plan prévu.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1618,6 +1801,7 @@ claude --model opus --effort high "Implémente dans Calepin la mise à jour de l
 ```
 
 ##### CAL-134 · Recalcul de la mémoire après restauration de version
+- **État** : ⬜ **À faire**
 - **Contenu** : reconstitution complète de la mémoire narrative lorsqu'une version antérieure de chapitre est restaurée.
 - **Fini quand** : restaurer la version 1 du chapitre 5 rétablit exactement l'état de mémoire correspondant.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1633,6 +1817,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ### E13 — Contrôle de cohérence et audits qualité *(Phase 6)*
 
 ##### CAL-135 · Socle du moteur d'audit
+- **État** : ⬜ **À faire**
 - **Contenu** : architecture des contrôles enfichables, modèle de problème (catégorie, gravité, explication, passages, correction proposée, statut), exécution ciblée ou complète.
 - **Fini quand** : ajouter un nouveau contrôle ne demande aucune modification du moteur.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1644,6 +1829,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-136 · Contrôles de continuité factuelle
+- **État** : ⬜ **À faire**
 - **Contenu** : changement de nom, âge incompatible, lieu impossible, objet réapparu après destruction, erreur de date, durée incohérente, blessure oubliée, connaissance injustifiée.
 - **Fini quand** : les huit contrôles du cahier des charges sont implémentés et couverts par des tests à cas positif et négatif.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1655,6 +1841,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-137 · Contrôles de continuité psychologique
+- **État** : ⬜ **À faire**
 - **Contenu** : changement brutal de motivation, réaction incompatible avec le personnage, décision non préparée, évolution trop rapide.
 - **Fini quand** : les quatre contrôles s'appuient sur la fiche de personnage et citent l'élément de fiche contredit.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1666,6 +1853,7 @@ claude --model fable --effort high --permission-mode plan --max-budget-usd 10 "C
 ```
 
 ##### CAL-138 · Contrôles de structure
+- **État** : ⬜ **À faire**
 - **Contenu** : chapitre sans conséquence, répétition d'un même enjeu, absence de progression, révélation prématurée, résolution tardive ou précipitée, fil narratif abandonné.
 - **Fini quand** : les six contrôles s'exécutent sur l'ensemble du manuscrit et citent les chapitres concernés.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1677,6 +1865,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-139 · Contrôles de style
+- **État** : ⬜ **À faire**
 - **Contenu** : répétitions lexicales, tics d'écriture, dialogues interchangeables, sur-explication, descriptions génériques, métaphores répétitives, variations injustifiées du temps verbal.
 - **Fini quand** : les sept contrôles fonctionnent, dont au moins trois de façon déterministe.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1688,6 +1877,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-140 · Contrôles d'originalité
+- **État** : ⬜ **À faire**
 - **Contenu** : scène très attendue, trope utilisé sans transformation, antagoniste caricatural, retournement prévisible, personnage uniquement fonctionnel, résolution reposant sur une coïncidence.
 - **Fini quand** : chaque signalement est argumenté et rattaché à un élément précis, sans score global.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1699,6 +1889,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-141 · Écran des problèmes détectés
+- **État** : ⬜ **À faire**
 - **Contenu** : liste filtrable par catégorie, gravité et statut, accès direct au passage concerné, proposition de correction.
 - **Fini quand** : depuis un problème, le passage concerné s'ouvre dans l'éditeur en un clic.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1710,6 +1901,7 @@ claude --model sonnet --effort high "Crée l écran des problèmes détectés de
 ```
 
 ##### CAL-142 · Cycle de vie d'un problème
+- **État** : ⬜ **À faire**
 - **Contenu** : statuts détecté, accepté, à corriger, corrigé, ignoré ; persistance entre deux audits ; non-réapparition d'un problème ignoré.
 - **Fini quand** : relancer un audit ne ressuscite pas les problèmes déjà ignorés.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1721,6 +1913,7 @@ claude --model opus --effort high --permission-mode plan "Implémente le cycle d
 ```
 
 ##### CAL-143 · Correction ciblée d'un problème
+- **État** : ⬜ **À faire**
 - **Contenu** : mission dédiée corrigeant un problème précis sans réécrire le chapitre entier, création de version.
 - **Fini quand** : corriger une répétition lexicale ne modifie pas le reste du chapitre.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1732,6 +1925,7 @@ claude --model opus --effort high --permission-mode plan "Implémente dans Calep
 ```
 
 ##### CAL-144 · Audit complet du manuscrit
+- **État** : ⬜ **À faire**
 - **Contenu** : exécution des cinq familles de contrôles sur tout le manuscrit, en tâche asynchrone, avec estimation préalable et rapport de synthèse.
 - **Fini quand** : l'audit d'un manuscrit de trente chapitres aboutit sans dépasser le budget annoncé.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1743,6 +1937,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-145 · Affichage des problèmes dans l'éditeur
+- **État** : ⬜ **À faire**
 - **Contenu** : soulignement des passages concernés dans le texte, panneau contextuel, action de correction directe.
 - **Fini quand** : les problèmes du chapitre courant sont visibles pendant l'écriture sans quitter l'éditeur.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1758,6 +1953,7 @@ claude --model sonnet --effort high "Intègre l affichage des problèmes détect
 ### E14 — Versionnement et historique *(Phase 5)*
 
 ##### CAL-146 · Socle générique de versionnement
+- **État** : ⬜ **À faire**
 - **Contenu** : mécanisme réutilisable versionnant texte source, analyse, direction, bible, plan, chapitres, résumés, titre et textes de publication.
 - **Fini quand** : les neuf types d'entité listés par le cahier des charges sont versionnés par le même mécanisme.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1769,6 +1965,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-147 · Historique consultable par entité
+- **État** : ⬜ **À faire**
 - **Contenu** : liste des versions avec date, auteur, origine (génération ou modification manuelle), aperçu.
 - **Fini quand** : l'historique de la bible et celui d'un chapitre s'affichent avec le même composant.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1780,6 +1977,7 @@ claude --model sonnet --effort high "Crée le composant d historique de versions
 ```
 
 ##### CAL-148 · Comparaison générique de deux versions
+- **État** : ⬜ **À faire**
 - **Contenu** : comparaison adaptée au type d'entité — différentiel de prose pour les chapitres, différentiel structuré pour la bible et le plan.
 - **Fini quand** : comparer deux versions de bible met en évidence les champs modifiés, pas un différentiel de JSON brut.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1791,6 +1989,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la compara
 ```
 
 ##### CAL-149 · Restauration d'une version
+- **État** : ⬜ **À faire**
 - **Contenu** : restauration créant une nouvelle version plutôt qu'un retour destructif, avec avertissement sur les conséquences.
 - **Fini quand** : restaurer une version antérieure ne supprime aucune version postérieure.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1802,6 +2001,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la restaur
 ```
 
 ##### CAL-150 · Nommage d'une version
+- **État** : ⬜ **À faire**
 - **Contenu** : libellé libre attribué à une version, recherche par nom.
 - **Fini quand** : une version nommée est retrouvable depuis l'historique.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -1813,6 +2013,7 @@ claude --model haiku "Ajoute à Calepin le nommage des versions : champ de libel
 ```
 
 ##### CAL-151 · Points de sauvegarde de projet
+- **État** : ⬜ **À faire**
 - **Contenu** : instantané cohérent de toutes les entités d'un projet à un instant donné, restauration globale.
 - **Fini quand** : restaurer un point de sauvegarde rétablit un projet entièrement cohérent, mémoire narrative comprise.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1824,6 +2025,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-152 · Rétention et purge des versions
+- **État** : ⬜ **À faire**
 - **Contenu** : politique de conservation configurable, purge des versions intermédiaires anciennes, protection des versions nommées.
 - **Fini quand** : la purge ne supprime jamais une version nommée ni un point de sauvegarde.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1835,6 +2037,7 @@ claude --model sonnet --effort high "Implémente la politique de rétention des 
 ```
 
 ##### CAL-153 · Journal d'activité du projet
+- **État** : ⬜ **À faire**
 - **Contenu** : chronologie des actions (générations, validations, modifications, restaurations, exports) consultable par l'auteur.
 - **Fini quand** : l'auteur peut retracer ce qui s'est passé sur son projet sans contenu littéraire dans le journal.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1850,6 +2053,7 @@ claude --model sonnet --effort high "Crée le journal d activité de projet de C
 ### E15 — Export du manuscrit *(Phase 6)*
 
 ##### CAL-154 · Moteur d'export — options et sélection
+- **État** : ⬜ **À faire**
 - **Contenu** : choix du titre, du nom d'auteur, des chapitres inclus, de la table des matières, des numéros de chapitre, de la page de titre, des sauts de page, des métadonnées et des notes.
 - **Fini quand** : les neuf options du cahier des charges sont exposées et prises en compte par tous les formats.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1861,6 +2065,7 @@ claude --model opus --effort high --permission-mode plan "Conçois le moteur d e
 ```
 
 ##### CAL-155 · Export Markdown
+- **État** : ⬜ **À faire**
 - **Contenu** : rendu Markdown du manuscrit avec titres de chapitres, table des matières optionnelle, métadonnées en en-tête.
 - **Fini quand** : le fichier produit s'ouvre correctement dans un éditeur Markdown standard.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 1/3
@@ -1872,6 +2077,7 @@ claude --model sonnet --effort high "Implémente le rendu Markdown de l export d
 ```
 
 ##### CAL-156 · Export DOCX
+- **État** : ⬜ **À faire**
 - **Contenu** : rendu Word avec styles de titre natifs, table des matières générée, sauts de page, page de titre, métadonnées de document.
 - **Fini quand** : le fichier s'ouvre dans Word et LibreOffice avec une table des matières fonctionnelle et une navigation par titres.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1883,6 +2089,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-157 · Table des matières et numérotation
+- **État** : ⬜ **À faire**
 - **Contenu** : génération de la table des matières à partir de la structure réelle, numérotation continue ou par partie, options d'affichage.
 - **Fini quand** : la table des matières reflète exactement la sélection de chapitres exportée.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1894,6 +2101,7 @@ claude --model sonnet --effort high "Implémente dans l export de Calepin la gé
 ```
 
 ##### CAL-158 · Page de titre et métadonnées
+- **État** : ⬜ **À faire**
 - **Contenu** : page de titre configurable, métadonnées de document, mention de la longueur.
 - **Fini quand** : les métadonnées sont lisibles dans les propriétés du fichier exporté.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -1905,6 +2113,7 @@ claude --model haiku "Ajoute à l export de Calepin la page de titre configurabl
 ```
 
 ##### CAL-159 · Exclusion des éléments internes
+- **État** : ⬜ **À faire**
 - **Contenu** : garantie que bible, commentaires, diagnostics et problèmes n'apparaissent jamais dans un manuscrit exporté, sauf demande explicite.
 - **Fini quand** : un test échoue si un élément interne apparaît dans un export standard.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1916,6 +2125,7 @@ claude --model opus --effort high "Garantis par construction dans l export de Ca
 ```
 
 ##### CAL-160 · Export asynchrone et téléchargement sécurisé
+- **État** : ⬜ **À faire**
 - **Contenu** : génération en tâche de fond, dépôt sur stockage S3, lien de téléchargement temporaire et privé.
 - **Fini quand** : un lien d'export n'est utilisable que par son propriétaire et expire.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1927,6 +2137,7 @@ claude --model opus --effort high --permission-mode plan "Implémente l export a
 ```
 
 ##### CAL-161 · Historique des exports
+- **État** : ⬜ **À faire**
 - **Contenu** : liste des exports réalisés avec format, options, date, retéléchargement tant que le fichier existe.
 - **Fini quand** : un export réalisé la veille est retéléchargeable ou clairement signalé comme expiré.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -1938,6 +2149,7 @@ claude --model haiku "Ajoute à Calepin l historique des exports : liste des exp
 ```
 
 ##### CAL-162 · Tests d'export et vérification du rendu
+- **État** : ⬜ **À faire**
 - **Contenu** : fichiers de référence, ouverture automatisée, contrôle de la structure produite.
 - **Fini quand** : une régression de rendu DOCX ou Markdown est détectée en intégration continue.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1955,6 +2167,7 @@ claude --model sonnet --effort high "Écris la suite de tests d export de Calepi
 > **Note d'affectation.** Cet epic est volontairement confié à `opus` et non à `fable`. Les classifieurs de sûreté de Fable 5 signalent le plus souvent les requêtes des domaines cybersécurité et biologie, ce qui déclenche un **repli automatique de modèle** : une tâche de durcissement formulée pour Fable 5 risque d'être traitée par un autre modèle sans que ce soit visible dans le résultat. Opus 5 offre ici la capacité nécessaire sans cet aléa.
 
 ##### CAL-163 · Validation des entrées et protection contre les injections
+- **État** : ⬜ **À faire**
 - **Contenu** : validation de schéma sur toutes les entrées, requêtes paramétrées, assainissement des contenus rendus.
 - **Fini quand** : aucun point d'entrée n'accepte une charge utile non validée.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -1966,6 +2179,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Renforce l
 ```
 
 ##### CAL-164 · Limitation du nombre de requêtes
+- **État** : ⬜ **À faire**
 - **Contenu** : plafonds par utilisateur et par adresse sur l'authentification, la création de projet et les générations.
 - **Fini quand** : un script tentant cent connexions par minute est bloqué.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1977,6 +2191,7 @@ claude --model sonnet --effort high "Implémente la limitation du nombre de requ
 ```
 
 ##### CAL-165 · Gestion des secrets et chiffrement des communications
+- **État** : ⬜ **À faire**
 - **Contenu** : aucun secret dans le dépôt, rotation possible, HTTPS strict, en-têtes de transport.
 - **Fini quand** : une analyse du dépôt ne trouve aucun secret et le service refuse le HTTP simple.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -1988,6 +2203,7 @@ claude --model opus --effort high "Sécurise la configuration de Calepin : véri
 ```
 
 ##### CAL-166 · Contrôle d'accès aux fichiers et téléversements
+- **État** : ⬜ **À faire**
 - **Contenu** : espace privé par utilisateur, vérification de type et de taille à l'import, aucun objet public par défaut.
 - **Fini quand** : aucun objet du stockage n'est accessible sans lien signé valide.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -1999,6 +2215,7 @@ claude --model opus --effort high --permission-mode plan "Implémente le contrô
 ```
 
 ##### CAL-167 · En-têtes de sécurité et politique de contenu
+- **État** : ⬜ **À faire**
 - **Contenu** : en-têtes de sécurité, politique de sécurité du contenu adaptée à Next.js, protection contre l'inclusion en cadre.
 - **Fini quand** : les en-têtes sont présents en production sans casser l'application.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2010,6 +2227,7 @@ claude --model sonnet --effort high "Configure les en-têtes de sécurité de Ca
 ```
 
 ##### CAL-168 · Conditions d'utilisation et politique de confidentialité
+- **État** : ⬜ **À faire**
 - **Contenu** : rédaction expliquant le traitement des textes, la transmission éventuelle à un fournisseur externe, la durée de conservation, l'usage ou non pour l'entraînement, la procédure de suppression.
 - **Fini quand** : les cinq points exigés par la section 10.1 du cahier des charges sont couverts en langage clair.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2021,6 +2239,7 @@ claude --model opus --effort high "Rédige les conditions d utilisation et la po
 ```
 
 ##### CAL-169 · Information sur le traitement par un fournisseur externe
+- **État** : ⬜ **À faire**
 - **Contenu** : mention visible dans l'application au moment de la première génération, sans friction excessive.
 - **Fini quand** : l'utilisateur est informé avant la première transmission de son texte.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -2032,6 +2251,7 @@ claude --model haiku "Ajoute à Calepin l information sur le traitement externe 
 ```
 
 ##### CAL-170 · Garde-fou contre l'imitation d'œuvres et d'auteurs
+- **État** : ⬜ **À faire**
 - **Contenu** : refus des demandes visant à reproduire une œuvre protégée ou le style exact d'un auteur vivant ; autorisation des caractéristiques générales (prose minimaliste, narration fragmentée, ambiance mélancolique).
 - **Fini quand** : « écris comme <auteur vivant> » est refusé avec explication, alors que « prose minimaliste, dialogues secs » est accepté.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2043,6 +2263,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-171 · Avertissement sur les droits du texte importé
+- **État** : ⬜ **À faire**
 - **Contenu** : mention à la création de projet rappelant que l'utilisateur doit détenir les droits sur le texte fourni.
 - **Fini quand** : l'avertissement est affiché à la création sans bloquer le parcours.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -2054,6 +2275,7 @@ claude --model haiku "Ajoute au formulaire de création de projet de Calepin un 
 ```
 
 ##### CAL-172 · Suppression des données et exercice des droits
+- **État** : ⬜ **À faire**
 - **Contenu** : suppression d'un projet, d'une version, d'un export, d'une publication ; export des données personnelles.
 - **Fini quand** : chaque niveau de suppression exigé par la section 10.3 est disponible et effectif.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2069,6 +2291,7 @@ claude --model opus --effort high "Implémente dans Calepin les suppressions gra
 ### E17 — Observabilité, coûts et indicateurs *(transverse)*
 
 ##### CAL-173 · Métriques de génération
+- **État** : ⬜ **À faire**
 - **Contenu** : durée, nombre de tentatives, modèle utilisé, volume de données, coût estimé, interruptions, exports.
 - **Fini quand** : les sept mesures exigées par la section 9.6 sont collectées sans contenu littéraire.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2080,6 +2303,7 @@ claude --model sonnet --effort high "Instrumente les générations de Calepin : 
 ```
 
 ##### CAL-174 · Suivi des erreurs
+- **État** : ⬜ **À faire**
 - **Contenu** : intégration d'un service de suivi d'erreurs, filtrage des données sensibles, regroupement par cause.
 - **Fini quand** : une erreur de production est diagnosticable sans lire les journaux bruts, et aucun extrait de roman n'est transmis au service.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2091,6 +2315,7 @@ claude --model opus --effort high "Intègre un service de suivi d erreurs à Cal
 ```
 
 ##### CAL-175 · Tableau des indicateurs du MVP
+- **État** : ⬜ **À faire**
 - **Contenu** : les douze indicateurs de la section 17, dont la part de projets atteignant la bible, le plan, un chapitre, trois chapitres.
 - **Fini quand** : les douze indicateurs sont calculés à partir des données réelles.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2102,6 +2327,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-176 · Alertes sur dérive de coût
+- **État** : ⬜ **À faire**
 - **Contenu** : seuils par projet et globaux, alerte à l'utilisateur et à l'exploitant, blocage optionnel.
 - **Fini quand** : un projet dépassant son seuil déclenche une alerte avant d'épuiser le budget.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2113,6 +2339,7 @@ claude --model sonnet --effort high "Implémente les alertes de coût de Calepin
 ```
 
 ##### CAL-177 · Mesure du parcours utilisateur
+- **État** : ⬜ **À faire**
 - **Contenu** : temps entre création et premier chapitre, nombre de modifications avant validation, taux de régénération.
 - **Fini quand** : les trois mesures sont disponibles sans instrumentation intrusive du contenu.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2124,6 +2351,7 @@ claude --model sonnet --effort high "Instrumente le parcours utilisateur de Cale
 ```
 
 ##### CAL-178 · Retour déclaré sur la cohérence et l'originalité
+- **État** : ⬜ **À faire**
 - **Contenu** : demande de retour légère après la validation du troisième chapitre, deux questions courtes.
 - **Fini quand** : les réponses alimentent les deux indicateurs de satisfaction déclarée.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -2135,6 +2363,7 @@ claude --model haiku "Ajoute à Calepin un retour déclaré léger : après vali
 ```
 
 ##### CAL-179 · Journalisation des durées et des reprises
+- **État** : ⬜ **À faire**
 - **Contenu** : mesure fine des durées par étape de génération, nombre de reprises, causes d'échec agrégées.
 - **Fini quand** : on peut identifier l'étape la plus lente et la plus fragile du parcours.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `medium` · **Complexité** : 1/3
@@ -2146,6 +2375,7 @@ claude --model sonnet --effort medium "Étends l instrumentation de Calepin pour
 ```
 
 ##### CAL-180 · Tableau de bord d'exploitation
+- **État** : ⬜ **À faire**
 - **Contenu** : vue interne agrégeant indicateurs, coûts, erreurs et durées.
 - **Fini quand** : l'état de santé du service se lit sur un seul écran.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2161,6 +2391,7 @@ claude --model sonnet --effort high "Crée le tableau de bord d exploitation int
 ### E18 — Système de design, accessibilité et responsive *(transverse)*
 
 ##### CAL-181 · Système de design et jetons visuels
+- **État** : ⬜ **À faire**
 - **Contenu** : palette, typographie adaptée à la lecture longue, échelle d'espacement, jetons partagés.
 - **Fini quand** : aucune valeur de couleur ou d'espacement n'est écrite en dur dans un composant.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2172,6 +2403,7 @@ claude --model opus --effort high --permission-mode plan "Conçois le système d
 ```
 
 ##### CAL-182 · Bibliothèque de composants de base
+- **État** : ⬜ **À faire**
 - **Contenu** : boutons, champs, listes, panneaux, boîtes de dialogue, infobulles, indicateurs de statut.
 - **Fini quand** : chaque composant est accessible au clavier et documenté par un exemple.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2183,6 +2415,7 @@ claude --model sonnet --effort high "Crée la bibliothèque de composants de bas
 ```
 
 ##### CAL-183 · Thème clair et thème sombre
+- **État** : ⬜ **À faire**
 - **Contenu** : bascule de thème, respect de la préférence système, contrastes vérifiés dans les deux thèmes.
 - **Fini quand** : les contrastes sont conformes dans les deux thèmes, y compris sur les indicateurs de statut.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2194,6 +2427,7 @@ claude --model sonnet --effort high "Implémente les thèmes clair et sombre de 
 ```
 
 ##### CAL-184 · Accessibilité — clavier et gestion du focus
+- **État** : ⬜ **À faire**
 - **Contenu** : navigation complète au clavier, ordre de tabulation cohérent, focus visible, piégeage du focus dans les dialogues.
 - **Fini quand** : tout le parcours du MVP est réalisable sans souris.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2205,6 +2439,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Rends l in
 ```
 
 ##### CAL-185 · Accessibilité — contrastes et indépendance à la couleur
+- **État** : ⬜ **À faire**
 - **Contenu** : contrastes conformes, aucune information portée par la seule couleur (statuts, gravités, verrous, fait/interprétation).
 - **Fini quand** : l'interface reste compréhensible en niveaux de gris.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2216,6 +2451,7 @@ claude --model sonnet --effort high "Audite et corrige dans Calepin l indépenda
 ```
 
 ##### CAL-186 · Accessibilité — libellés, erreurs et lecteurs d'écran
+- **État** : ⬜ **À faire**
 - **Contenu** : champs associés à leurs intitulés, messages d'erreur annoncés, régions vivantes pour la progression des générations.
 - **Fini quand** : la progression d'une génération est annoncée par un lecteur d'écran.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2227,6 +2463,7 @@ claude --model opus --effort high "Rends Calepin utilisable au lecteur d écran 
 ```
 
 ##### CAL-187 · Adaptation ordinateur et tablette
+- **État** : ⬜ **À faire**
 - **Contenu** : mise en page principale pour ordinateur, adaptation des panneaux et de l'éditeur sur tablette.
 - **Fini quand** : le parcours complet est utilisable sur tablette, panneaux repliables compris.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2238,6 +2475,7 @@ claude --model sonnet --effort high "Adapte l interface de Calepin à la tablett
 ```
 
 ##### CAL-188 · Consultation sur téléphone
+- **État** : ⬜ **À faire**
 - **Contenu** : lecture du manuscrit, consultation de la bible et du plan, suivi des générations en cours ; édition avancée limitée.
 - **Fini quand** : consulter un chapitre et suivre une génération est confortable sur téléphone.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `medium` · **Complexité** : 2/3
@@ -2253,6 +2491,7 @@ claude --model sonnet --effort medium "Rends consultable sur téléphone le manu
 ### E19 — Tests, évaluations et qualité *(transverse)*
 
 ##### CAL-189 · Tests unitaires de la couche métier
+- **État** : ⬜ **À faire**
 - **Contenu** : couverture des règles métier — comptage de mots, machine à états, atomicité des faits, ordonnancement, rétention.
 - **Fini quand** : la logique métier est couverte à un niveau permettant de refactoriser sans crainte.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2264,6 +2503,7 @@ claude --model sonnet --effort high "Complète les tests unitaires de la couche 
 ```
 
 ##### CAL-190 · Tests d'intégration des dépôts et de la file
+- **État** : ⬜ **À faire**
 - **Contenu** : base réelle, file réelle, vérification du cycle de vie complet d'une génération.
 - **Fini quand** : un redémarrage du travailleur en cours de test est couvert.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -2275,6 +2515,7 @@ claude --model opus --effort high --permission-mode plan "Écris les tests d int
 ```
 
 ##### CAL-191 · Tests de bout en bout des parcours critiques
+- **État** : ⬜ **À faire**
 - **Contenu** : parcours complet création → analyse → direction → bible → plan → trois chapitres → export.
 - **Fini quand** : le parcours complet du MVP est vérifié automatiquement avec des réponses de modèle simulées.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2286,6 +2527,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Écris le 
 ```
 
 ##### CAL-192 · Tests d'isolation entre utilisateurs
+- **État** : ⬜ **À faire**
 - **Contenu** : tentative d'accès croisé sur chaque point d'entrée, y compris fichiers exportés et flux d'événements.
 - **Fini quand** : le critère d'acceptation de sécurité du MVP est vérifié automatiquement.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2297,6 +2539,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Écris la 
 ```
 
 ##### CAL-193 · Évaluations littéraires automatisées
+- **État** : ⬜ **À faire**
 - **Contenu** : exécution du banc d'évaluation sur les missions d'analyse, de direction, de bible et de rédaction ; détection de régression qualitative.
 - **Fini quand** : une modification de prompt dégradant la qualité est visible avant fusion.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2308,6 +2551,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 15 "
 ```
 
 ##### CAL-194 · Tests de performance de l'éditeur
+- **État** : ⬜ **À faire**
 - **Contenu** : mesure de la fluidité d'édition sur un chapitre long et d'un manuscrit de cinquante chapitres.
 - **Fini quand** : les seuils de fluidité sont vérifiés automatiquement.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2319,6 +2563,7 @@ claude --model sonnet --effort high "Écris les tests de performance de l édite
 ```
 
 ##### CAL-195 · Tests d'accessibilité automatisés
+- **État** : ⬜ **À faire**
 - **Contenu** : analyse automatisée de chaque écran, vérification des contrastes, parcours clavier scripté.
 - **Fini quand** : une régression d'accessibilité échoue en intégration continue.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2330,6 +2575,7 @@ claude --model sonnet --effort high "Ajoute à Calepin les tests d accessibilit�
 ```
 
 ##### CAL-196 · Revue de sécurité avant mise en production
+- **État** : ⬜ **À faire**
 - **Contenu** : relecture complète des contrôles d'accès, des secrets, des dépendances et des en-têtes ; rapport de constats.
 - **Fini quand** : chaque constat est corrigé ou explicitement accepté avec motif.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `max` · **Complexité** : 3/3
@@ -2341,6 +2587,7 @@ claude --model opus --effort max --permission-mode plan "ultrathink Conduis une 
 ```
 
 ##### CAL-197 · Documentation de développement et d'exploitation
+- **État** : ⬜ **À faire**
 - **Contenu** : démarrage local, architecture, missions IA, procédures d'exploitation, reprise après incident.
 - **Fini quand** : une personne extérieure peut démarrer le projet et relancer une génération échouée en suivant la documentation.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2356,6 +2603,7 @@ claude --model sonnet --effort high "Rédige la documentation de Calepin dans do
 ### E20 — Version étendue *(Phase 7, hors MVP)*
 
 ##### CAL-198 · Génération complète du roman avec points de contrôle
+- **État** : ⬜ **À faire**
 - **Contenu** : enchaînement automatique de la rédaction avec validation obligatoire à intervalles définis, audit intermédiaire, arrêt sur incohérence grave.
 - **Fini quand** : un roman de trente chapitres se génère par lots avec arrêt automatique en cas d'incohérence grave.
 - **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2367,6 +2615,7 @@ claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 25 "
 ```
 
 ##### CAL-199 · Export PDF
+- **État** : ⬜ **À faire**
 - **Contenu** : rendu paginé, typographie de lecture, page de titre, table des matières, numérotation.
 - **Fini quand** : le PDF produit est imprimable sans défaut de pagination.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2378,6 +2627,7 @@ claude --model opus --effort high "Implémente le rendu PDF de l export de Calep
 ```
 
 ##### CAL-200 · Export EPUB
+- **État** : ⬜ **À faire**
 - **Contenu** : structure EPUB valide, table des matières navigable, métadonnées, couverture optionnelle.
 - **Fini quand** : le fichier passe une validation EPUB et s'ouvre correctement sur une liseuse.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2389,6 +2639,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Implément
 ```
 
 ##### CAL-201 · Export HTML et texte brut
+- **État** : ⬜ **À faire**
 - **Contenu** : rendus HTML autonome et texte brut, à partir du même modèle de composition.
 - **Fini quand** : les deux formats respectent la sélection de chapitres et les options communes.
 - **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
@@ -2400,6 +2651,7 @@ claude --model haiku "Ajoute à l export de Calepin les rendus HTML autonome et 
 ```
 
 ##### CAL-202 · Publication web — adresse publique et statuts
+- **État** : ⬜ **À faire**
 - **Contenu** : adresse publique par roman, statuts public, privé ou non répertorié, dépublication à tout moment.
 - **Fini quand** : la publication n'est jamais automatique et la dépublication est immédiate.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -2411,6 +2663,7 @@ claude --model opus --effort high --permission-mode plan "Implémente la publica
 ```
 
 ##### CAL-203 · Publication web — page de présentation
+- **État** : ⬜ **À faire**
 - **Contenu** : page de présentation avec couverture, résumé, date de publication, navigation par chapitre.
 - **Fini quand** : la page publique est lisible et référençable, sans exposer les éléments internes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2422,6 +2675,7 @@ claude --model sonnet --effort high "Crée la page de présentation publique d u
 ```
 
 ##### CAL-204 · Publication web — confort de lecture
+- **État** : ⬜ **À faire**
 - **Contenu** : mode de lecture adapté aux écrans, taille de texte réglable, thème clair ou sombre, mémorisation de la position.
 - **Fini quand** : lire un chapitre sur téléphone et sur ordinateur est confortable dans les deux thèmes.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2433,6 +2687,7 @@ claude --model sonnet --effort high "Implémente le lecteur public de Calepin : 
 ```
 
 ##### CAL-205 · Génération et gestion de la couverture
+- **État** : ⬜ **À faire**
 - **Contenu** : téléversement d'une couverture, recadrage, formats dérivés, stockage.
 - **Fini quand** : une couverture téléversée s'affiche correctement sur la page publique et dans l'EPUB.
 - **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
@@ -2444,6 +2699,7 @@ claude --model sonnet --effort high "Implémente la gestion de couverture de Cal
 ```
 
 ##### CAL-206 · Crédits et estimation avant consommation
+- **État** : ⬜ **À faire**
 - **Contenu** : solde de crédits, coût par mission, estimation avant opération, historique de consommation.
 - **Fini quand** : le coût affiché intègre les phases d'analyse et de contrôle, pas seulement les mots produits.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
@@ -2455,6 +2711,7 @@ claude --model opus --effort xhigh --permission-mode plan "ultrathink Conçois e
 ```
 
 ##### CAL-207 · Offres et limites par formule
+- **État** : ⬜ **À faire**
 - **Contenu** : formule gratuite (projets limités, génération limitée, export Markdown) et formule payante (projets, longueurs, modèles, exports, historique, audits, publication).
 - **Fini quand** : les limites sont appliquées côté serveur et non seulement masquées dans l'interface.
 - **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 3/3
@@ -2467,45 +2724,182 @@ claude --model opus --effort high --permission-mode plan "Implémente les formul
 
 ---
 
+### E21 — Mise en service des générations *(nouvel epic — à exécuter avant E11)*
+
+> **Pourquoi cet epic existe.** Le dépôt contient 25 missions déclarées, 25 prompts, leurs contrats, leurs vérificateurs et leurs tests — et aucun exécuteur. `apps/worker/src/main.ts` compose `NO_GENERATION_EXECUTORS`, aucun processus ne compose de `ModelProviderPort`, et aucune fonction n'écrit le résultat d'une génération. Le backlog initial supposait ce câblage absorbé par CAL-051, CAL-060 et CAL-061 ; le dépôt l'a délibérément laissé à « la première tâche qui enregistre un exécuteur » (§13 du `CLAUDE.md`). Cet epic est cette tâche, et les neuf qui en découlent.
+>
+> **Il est sur le chemin critique.** Tant qu'il n'est pas fait, E11 (rédaction) n'a rien à rédiger, E12 (mémoire) rien à extraire, E13 (cohérence) rien à contrôler et E19 aucun parcours de bout en bout à prouver.
+
+##### CAL-208 · Enregistrer le premier exécuteur et composer le port fournisseur
+- **État** : ⬜ **À faire**
+- **Contenu** : composition d'un `ModelProviderPort` dans `apps/worker` et dans `apps/web`, déclaration de `ANTHROPIC_API_KEY` et des identifiants Bedrock dans `envSchema`, enregistrement du premier `GenerationExecutor` (`ANALYZE_SOURCE_TEXT`), en remplacement de `NO_GENERATION_EXECUTORS`.
+- **Fini quand** : une génération mise en file appelle réellement un modèle, l'attempt enregistre son modèle, ses jetons et sa durée, et §13 du `CLAUDE.md` perd sa première ligne.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : c'est la clé de voûte du produit, et le travail est **spécifié** — ADR-001 fixe la frontière, le port existe, le registre de missions existe, l'exécuteur est décrit comme « une ligne ici et rien d'autre ». Il ne s'agit donc pas d'un problème ambigu qui appellerait Fable 5, mais d'un câblage multicouche traversant les deux processus, la validation d'environnement, l'injection de dépendances et la transaction d'achèvement — cas d'usage central d'Opus 5. Sa date de connaissance de mai 2026 est décisive ici : c'est la seule tâche du dépôt qui touche réellement le SDK d'un fournisseur, et Sonnet 5 comme Fable 5 s'arrêtent en janvier 2026. `xhigh` parce que la tâche doit rester juste sur quatre couches à la fois sans franchir aucune frontière que le lint protège.
+- **Commande** :
+
+```bash
+claude --model opus --effort xhigh --permission-mode plan "ultrathink Mets en service les générations de Calepin. Lis d abord ADR-001, la section 13 du CLAUDE.md, packages/ai/src/provider, packages/shared/src/generation et apps/worker/src/main.ts. Puis : déclare ANTHROPIC_API_KEY et les identifiants du fournisseur de secours dans envSchema et dans les trois fichiers .env.example ; compose un ModelProviderPort dans apps/worker et dans apps/web sans franchir les frontières de couches que le lint protège ; enregistre le premier GenerationExecutor, celui de ANALYZE_SOURCE_TEXT, en remplacement de NO_GENERATION_EXECUTORS. Prouve-le par un test d intégration avec un fournisseur simulé qui vérifie que l attempt enregistre modèle, jetons, durée et version de prompt, puis retire la première ligne du tableau de la section 13 du CLAUDE.md. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-209 · Exécuter et persister l'analyse du texte source
+- **État** : ⬜ **À faire**
+- **Contenu** : chemin d'écriture d'une analyse générée — `Analysis`, `AnalysisSectionRevision`, `AnalysisElement` — depuis un `VerifiedSourceTextAnalysis`, dans la transaction qui achève la génération.
+- **Fini quand** : lancer `analyze-source-text` sur un texte source produit une analyse consultable à l'écran de diagnostic, avec ses dix-sept sections et ses marqueurs fait/interprétation.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : c'est le **premier** chemin d'écriture d'un résultat généré, donc celui qui établit le patron que CAL-210 à CAL-212 répliqueront : écriture dans `completeGenerationAttempt`, jamais de donnée partielle, `origin: GENERATED`, lignée mintée, `Generation` nommée par la révision. Le dépôt possède déjà `editAnalysisSection` et `regenerateAnalysisSection` comme références exactes de forme. Conception structurante mais entièrement cadrée : Opus 5 à `xhigh`.
+- **Commande** :
+
+```bash
+claude --model opus --effort xhigh --permission-mode plan "ultrathink Ajoute à Calepin le chemin d écriture d une analyse générée. Prends pour modèle exact editAnalysisSection et regenerateAnalysisSection déjà présents dans packages/shared/src/repository/analysis.ts. Écris une fonction qui persiste un VerifiedSourceTextAnalysis en Analysis, AnalysisSectionRevision et AnalysisElement, avec origin GENERATED, une lignée mintée par élément et le lien vers la Generation, à l intérieur de la transaction qui achève la tentative, sans jamais écrire de donnée partielle. Enregistre l exécuteur de la mission ANALYZE_SOURCE_TEXT. Prouve par un test d intégration que l analyse produite s affiche à l écran de diagnostic avec ses dix-sept sections et ses marqueurs. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-210 · Exécuter et persister les trois directions
+- **État** : ⬜ **À faire**
+- **Contenu** : écriture des `CreativeDirection` produites par `propose-directions`, relance ciblée quand le portail de divergence ou le contrôle de conformité refuse.
+- **Fini quand** : lancer la proposition produit trois directions divergentes en base, et une divergence insuffisante déclenche la relance que CAL-080 avait laissée à « la tâche de l'exécuteur ».
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : CAL-079 et CAL-080 ont explicitement reporté ici la **boucle de relance** — les rapports `checkDirectionDivergence` et `checkDirectionProposalCompliance` existent, personne ne les exploite. Décider quoi relancer, combien de fois, et quoi faire d'un refus persistant, est une logique d'orchestration bornée à écrire avec soin. Opus 5, `xhigh`.
+- **Commande** :
+
+```bash
+claude --model opus --effort xhigh --permission-mode plan "ultrathink Ajoute à Calepin l exécution et la persistance des directions romanesques. Enregistre l exécuteur de propose-directions, écris les trois CreativeDirection produites avec origin PROPOSED en réutilisant le patron d écriture établi pour l analyse, puis implémente la boucle de relance que CAL-079 et CAL-080 ont laissée à cette tâche : exploite les rapports de checkDirectionDivergence et de checkDirectionProposalCompliance, relance de façon ciblée en excluant les moteurs déjà produits via la variable excludedEngines du prompt, borne le nombre de relances et expose un refus explicite plutôt qu une boucle. Prouve par un test que trois directions volontairement peu divergentes déclenchent la relance. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-211 · Exécuter et persister les cinq sections de bible
+- **État** : ⬜ **À faire**
+- **Contenu** : écriture des résultats de `define-novel-identity`, `define-style`, `create-character-sheet`, `relate-characters`, `define-world`, `build-timeline` et `extract-initial-facts` dans les neuf modèles concernés, sous le portail de verrous.
+- **Fini quand** : une bible entière se génère depuis la direction canonique, et un élément verrouillé bloque la régénération avant l'appel au modèle.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : sept missions, neuf modèles Prisma, trois régimes de vérification distincts (refus global, abandon d'entrée, mise à null) et le portail de verrous de CAL-095 à respecter avant l'appel. Le volume et la précision requise en font la tâche la plus dense de l'epic. Les fonctions `resolve*` existent déjà et sont testées : il n'y a rien à inventer, tout à raccorder exactement. Opus 5 à `xhigh`.
+- **Commande** :
+
+```bash
+claude --model opus --effort xhigh --permission-mode plan "ultrathink Ajoute à Calepin l exécution et la persistance de la bible narrative. Enregistre les exécuteurs de define-novel-identity, define-style, create-character-sheet, relate-characters, define-world, build-timeline et extract-initial-facts, et écris leurs résultats en réutilisant les fonctions resolve déjà livrées et testées dans packages/bible, sans réimplémenter aucune règle. Respecte le portail de verrous de readBibleLockGate avant tout appel de modèle, honore les trois régimes de vérification déjà définis, refus global, abandon d entrée et mise à null, et n écris jamais de section partielle. Prouve par un test d intégration qu une bible entière se génère depuis la direction canonique et qu un élément verrouillé bloque la régénération avant l appel. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-212 · Exécuter et persister le plan
+- **État** : ⬜ **À faire**
+- **Contenu** : écriture des `Part`, `Thread`, `ChapterOutline`, `Chapter` produits par `split-into-parts` et `build-chapter-outline`, avec minting des clés d'ordre et sérialisation des lots.
+- **Fini quand** : un plan complet se génère depuis la bible validée et s'affiche dans l'écran de plan, où le déplacement, la fusion et la scission déjà livrés opèrent dessus.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : c'est le chaînon qui rend utilisables CAL-104, CAL-105 et CAL-106, aujourd'hui alimentés par le seul jeu d'amorçage. Il faut minter les clés d'ordre fractionnaires, résoudre les libellés de fils en lignes `Thread` dont `openingChapterId` est non nul — donc écrire chapitres et fils dans le bon ordre — et enchaîner les lots par partie en portant les empreintes des lots précédents dans l'ask. Opus 5 à `xhigh`.
+- **Commande** :
+
+```bash
+claude --model opus --effort xhigh --permission-mode plan "ultrathink Ajoute à Calepin l exécution et la persistance du plan. Enregistre les exécuteurs de split-into-parts et de build-chapter-outline, et écris les lignes produites par resolvePartStructure et resolveChapterOutlineBatch : Part, Thread, Chapter, ChapterOutline et leurs tables de liaison. Mint les clés d ordre fractionnaires plutôt que de stocker des positions, résous les libellés de fils en lignes Thread en respectant la contrainte non nulle sur le chapitre d ouverture, et enchaîne les lots partie par partie en portant dans l ask les empreintes des lots déjà produits, comme le contrat le prévoit. Prouve par un test d intégration qu un plan complet se génère depuis la bible validée, s affiche dans l écran de plan, et que le déplacement, la fusion et la scission déjà livrés opèrent dessus. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-213 · Lancer une génération depuis l'interface
+- **État** : ⬜ **À faire**
+- **Contenu** : boutons de lancement sur les écrans d'analyse, de directions, de bible et de plan, adossés à l'estimation et à la confirmation existantes, avec suivi de progression.
+- **Fini quand** : l'auteur lance chaque étape depuis l'écran correspondant, voit l'estimation, confirme, et suit la progression sans quitter la page.
+- **Modèle** : `sonnet` (Claude Sonnet 5) · **Effort** : `high` · **Complexité** : 2/3
+- **Pourquoi ce modèle** : toute la machinerie difficile est déjà là — `acceptOperationEstimate`, `costly-operation.ts`, le flux d'événements de CAL-062, le rejeu de CAL-063. Il reste à poser des boutons et des actions serveur au-dessus, sur des écrans existants : c'est du travail d'interface répétitif et cadré, le créneau où Sonnet 5 est le plus rentable.
+- **Commande** :
+
+```bash
+claude --model sonnet --effort high "Ajoute à Calepin le lancement des générations depuis l interface. Sur les écrans d analyse, de directions, de bible et de plan, ajoute l action de lancement adossée au mécanisme d estimation et de confirmation déjà présent dans apps/web/src/lib/costly-operation.ts, et au flux de progression déjà livré. Aucune nouvelle règle métier : réutilise reserveGeneration, acceptOperationEstimate et enqueueGeneration tels quels. Le bouton est désactivé avec un motif lisible quand l étape amont n est pas validée ou qu un élément verrouillé bloque la génération. Ajoute les tests end-to-end. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-214 · Exécuteurs des missions secondaires d'analyse et de direction
+- **État** : ⬜ **À faire**
+- **Contenu** : exécuteurs de `detect-cliche-risks`, `assess-novel-potential`, `regenerate-analysis-section`, `evaluate-direction`, `replace-direction`, `combine-directions`.
+- **Fini quand** : les six missions s'exécutent et écrivent leur résultat, la régénération de section utilisant `regenerateAnalysisSection` déjà livrée.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
+- **Pourquoi ce modèle** : réplication du patron posé par CAL-209 et CAL-210 sur six missions dont les contrats, vérificateurs et prompts sont écrits, et dont deux disposent déjà de leur fonction d'écriture. Le travail est spécifié et répétitif mais touche six chemins de persistance distincts, ce qui exclut Haiku 4.5 — 200 k de contexte ne suffisent pas à tenir six missions et leurs cibles. Effort par défaut.
+- **Commande** :
+
+```bash
+claude --model opus --effort high "Enregistre dans Calepin les exécuteurs des six missions secondaires : detect-cliche-risks, assess-novel-potential, regenerate-analysis-section, evaluate-direction, replace-direction et combine-directions. Réutilise le patron d écriture établi pour l analyse et les directions, et les fonctions de dépôt déjà livrées quand elles existent, notamment regenerateAnalysisSection. Respecte pour chacune le régime de vérification que son contrat déclare. Prouve chaque exécuteur par un test d intégration avec fournisseur simulé. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-215 · Exécuteur des contradictions de bible et gate de validation
+- **État** : ⬜ **À faire**
+- **Contenu** : exécuteur de `detect-bible-contradictions`, écriture des `QualityIssue` produites, branchement sur `validateBible`.
+- **Fini quand** : la validation de la bible refuse tant qu'une contradiction critique repérée par le modèle reste non arbitrée, comme le fait déjà celle repérée par calcul.
+- **Modèle** : `opus` (Claude Opus 5) · **Effort** : `high` · **Complexité** : 2/3
+- **Pourquoi ce modèle** : CAL-099 a livré le moteur, les quatre contrôles calculables, la réconciliation par empreinte et le refus `BIBLE_NOT_COHERENT` ; il manque le seul contrôle adossé à un modèle. La difficulté est de ne pas rompre la règle de réconciliation — un contrôle non exécuté ne doit pas voir ses lignes fermées — ce qui demande de la rigueur, pas de l'invention.
+- **Commande** :
+
+```bash
+claude --model opus --effort high "Enregistre dans Calepin l exécuteur de detect-bible-contradictions et branche-le sur la validation de la bible. Écris les QualityIssue produites avec leur empreinte, en passant à reconcileCoherenceIssues uniquement les identifiants de contrôles réellement exécutés, afin qu un contrôle non lancé ne referme pas ses lignes. La validation doit refuser tant qu une contradiction critique reste non arbitrée, exactement comme le font déjà les quatre contrôles calculables. Prouve par un test d intégration. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-216 · Preuve de bout en bout sur un projet réel
+- **État** : ⬜ **À faire**
+- **Contenu** : parcours complet exécuté contre un fournisseur réel sur un texte source du corpus — analyse, directions, bible, plan — avec relevé du coût, des durées et des défauts rencontrés.
+- **Fini quand** : un projet a traversé les quatre étapes sans intervention manuelle en base, et le compte rendu nomme chaque défaut trouvé.
+- **Modèle** : `fable` (Claude Fable 5) · **Effort** : `xhigh` · **Complexité** : 3/3
+- **Pourquoi ce modèle** : c'est la première fois que la chaîne entière tourne, et les défauts y seront **de nature inconnue** — un prompt qui produit une sortie valide mais inexploitable, un budget de contexte trop serré, un vérificateur trop strict, un enchaînement de lots qui dérive. Diagnostiquer cela demande d'enquêter à travers quatre couches sans hypothèse de départ, sur une session longue : le profil pour lequel Fable 5 est explicitement recommandé, et où sa propension à vérifier son propre travail avant de conclure est la propriété recherchée. Budget plafonné, et la commande impose de ne rien corriger en silence.
+- **Commande** :
+
+```bash
+claude --model fable --effort xhigh --permission-mode plan --max-budget-usd 25 "ultrathink Fais traverser à Calepin son parcours complet pour la première fois, contre un fournisseur réel, en partant d un texte source du corpus de référence committé. Enchaîne analyse, validation, directions, sélection de la direction canonique, bible complète, validation, découpage en parties et plans de chapitre, sans jamais écrire en base à la main. Relève pour chaque étape la durée, les jetons, le coût réel et l écart à l estimation. Chaque défaut rencontré, sortie valide mais inexploitable, budget de contexte trop serré, vérificateur trop strict, dérive d un enchaînement de lots, doit être nommé dans un compte rendu dans tasks/todo.md avec sa cause racine, et corrigé ou explicitement reporté avec son motif et la tâche qui le prendra. Ne corrige rien en silence et n affaiblis aucun vérificateur pour faire passer le parcours. Aucun contenu littéraire dans le compte rendu : durées, comptes, identifiants et codes d erreur seulement. Écris ton plan dans tasks/todo.md avant d agir. Termine par un commit Conventional Commits en anglais."
+```
+
+##### CAL-217 · Rattraper la dette de traçabilité de CAL-013 et CAL-038
+- **État** : ⬜ **À faire**
+- **Contenu** : sections de revue manquantes dans `tasks/todo.md` pour le schéma du texte source et pour l'écran d'état vide.
+- **Fini quand** : les 108 tâches terminées ont chacune leur section de revue, conformément à la définition de terminé du `CLAUDE.md`.
+- **Modèle** : `haiku` (Claude Haiku 4.5) · **Effort** : *n/a* · **Complexité** : 1/3
+- **Pourquoi ce modèle** : rédaction de deux comptes rendus à partir de commits et de code déjà présents dans le dépôt — tout le contexte nécessaire est sous les yeux du modèle, aucune connaissance de l'écosystème récent n'est requise, aucune décision n'est à prendre. C'est exactement le créneau de Haiku 4.5, à un cinquième du prix d'Opus 5. **Pas de `--effort` : Haiku 4.5 ne le prend pas en charge.**
+- **Commande** :
+
+```bash
+claude --model haiku "Rattrape la dette de traçabilité de Calepin. CAL-013, schéma du texte source et de ses versions, et CAL-038, écran d état vide, sont terminés et commités mais n ont pas de section de revue dans tasks/todo.md. Lis les commits et le code correspondants, puis rédige les deux sections manquantes en suivant exactement la forme des sections de revue voisines déjà présentes dans le fichier. Aucun contenu littéraire. Termine par un commit Conventional Commits en anglais."
+```
+
+---
+
 ## Partie C — Annexes
 
 ### C.1 Ordre d'exécution conseillé
 
-| Jalon | Epics | Tâches | Résultat attendu |
-|---|---|---|---|
-| J1 — Fondations | E00, E01, E02 | CAL-001 → CAL-031 | Dépôt, schéma complet, authentification, isolation par propriétaire |
-| J2 — Socle produit | E03, E04 | CAL-032 → CAL-047 | Tableau de bord, création de projet, texte source contraint à 2 000 mots |
-| J3 — Moteur IA | E05, E06 | CAL-048 → CAL-069 | Abstraction fournisseur, registre des missions, contexte dynamique, file de tâches |
-| J4 — Analyse et directions | E07, E08 | CAL-070 → CAL-087 | Diagnostic narratif validable, trois directions réellement divergentes |
-| J5 — Bible et plan | E09, E10 | CAL-088 → CAL-111 | Bible verrouillable, faits canoniques, plan complet auditable |
-| J6 — Rédaction | E11, E14 | CAL-112 → CAL-125, CAL-146 → CAL-153 | Trois chapitres rédigés, éditeur, versionnement réversible |
-| J7 — Mémoire et cohérence | E12, E13 | CAL-126 → CAL-145 | Extraction de faits, arbitrage des conflits, audits qualité |
-| J8 — Export et mise en production | E15, E16, E17, E18, E19 | CAL-154 → CAL-197 | Export Markdown et DOCX, sécurité, accessibilité, tests, indicateurs |
-| J9 — Version étendue | E20 | CAL-198 → CAL-207 | Roman complet, EPUB, PDF, publication web, crédits |
+*Révisé le 13 août 2026 d'après l'état réel du dépôt. L'ordre d'exécution n'est pas l'ordre de numérotation : E21 est numéroté en dernier et s'exécute maintenant.*
 
-Le MVP tel que défini à la section 2.3 du cahier des charges est atteint à la fin du jalon J8. Les critères d'acceptation de la section 13 sont couverts par CAL-041, CAL-070, CAL-071, CAL-079, CAL-080, CAL-095, CAL-102, CAL-122, CAL-127, CAL-155, CAL-156 et CAL-192.
+| Jalon | Epics | Tâches | État | Résultat attendu |
+|---|---|---|---|---|
+| J1 — Fondations | E00, E01, E02 | CAL-001 → CAL-031 | ✅ fait | Dépôt, schéma complet, authentification, isolation par propriétaire |
+| J2 — Socle produit | E03, E04 | CAL-032 → CAL-047 | ✅ fait | Tableau de bord, création de projet, texte source contraint à 2 000 mots |
+| J3 — Moteur IA | E05, E06 | CAL-048 → CAL-069 | ✅ fait | Abstraction fournisseur, registre des missions, contexte dynamique, file de tâches |
+| J4 — Analyse et directions | E07, E08 | CAL-070 → CAL-087 | ✅ fait | Contrats, prompts, vérificateurs, écrans — **sans exécution** |
+| J5 — Bible et début du plan | E09, E10 partiel | CAL-088 → CAL-106 | ✅ fait | Bible verrouillable, faits canoniques, parties, lots de chapitres, fusion et scission |
+| **J5 bis — Mise en service** | **E21** | **CAL-208 → CAL-217** | ⬜ **suivant** | **Les missions s'exécutent réellement et leurs résultats sont persistés** |
+| J5 ter — Fin du plan | E10 fin | CAL-107 → CAL-111 | ⬜ à faire | Ajout et verrouillage d'un chapitre, répercussions, fils, audit dramatique |
+| J6 — Rédaction | E11, E14 | CAL-112 → CAL-125, CAL-146 → CAL-153 | ⬜ à faire | Trois chapitres rédigés, éditeur, versionnement réversible |
+| J7 — Mémoire et cohérence | E12, E13 | CAL-126 → CAL-145 | ⬜ à faire | Extraction de faits, arbitrage des conflits, audits qualité |
+| J8 — Export et mise en production | E15, E16, E17, E18, E19 | CAL-154 → CAL-197 | ⬜ à faire | Export Markdown et DOCX, sécurité, accessibilité, tests, indicateurs |
+| J9 — Version étendue | E20 | CAL-198 → CAL-207 | ⬜ à faire | Roman complet, EPUB, PDF, publication web, crédits |
+
+**Pourquoi J5 bis passe devant J5 ter.** CAL-107 à CAL-111 opèrent sur des lignes de plan qu'aujourd'hui seul `prisma/seed.ts` sait créer. CAL-108 en particulier — l'analyse des répercussions — n'a rien de réel à analyser tant qu'un plan n'a pas été généré. Faire l'epic de mise en service d'abord évite de bâtir cinq tâches de plus au-dessus d'un jeu d'amorçage.
+
+Le MVP tel que défini à la section 2.3 du cahier des charges est atteint à la fin du jalon J8. Les critères d'acceptation de la section 13 sont couverts par CAL-041, CAL-070, CAL-071, CAL-079, CAL-080, CAL-095, CAL-102, CAL-122, CAL-127, CAL-155, CAL-156, CAL-192 — et désormais par CAL-208 à CAL-212, sans lesquels aucun des cinq premiers ne produit d'effet observable pour un utilisateur.
 
 ### C.2 Récapitulatif par modèle
 
-| Modèle | Nombre de tâches | Familles de tâches concernées |
-|---|---|---|
-| `opus` (Opus 5) | 95 | Schémas de données, couche IA, orchestration asynchrone, mémoire narrative, sécurité, export DOCX et EPUB, accessibilité clavier |
-| `sonnet` (Sonnet 5) | 70 | Écrans, endpoints, formulaires, listes, tests, instrumentation, adaptation responsive |
-| `fable` (Fable 5) | 28 | Architecture, faits canoniques, contexte dynamique, missions littéraires, divergence des directions, audits de structure et d'originalité, recalcul de mémoire, génération complète |
-| `haiku` (Haiku 4.5) | 14 | Seeds, réplications de patron, états vides, libellés, historiques d'affichage, rendus dérivés |
+| Modèle | Total | Dont restant | Familles de tâches concernées |
+|---|---|---|---|
+| `opus` (Opus 5) | 102 | **54** | Schémas de données, couche IA, mise en service des générations, mémoire narrative, sécurité, export DOCX et EPUB, accessibilité clavier |
+| `sonnet` (Sonnet 5) | 71 | **35** | Écrans, endpoints, formulaires, listes, tests, instrumentation, adaptation responsive |
+| `fable` (Fable 5) | 29 | **13** | Missions littéraires restantes, audits de structure et d'originalité, recalcul de mémoire, preuve de bout en bout, génération complète |
+| `haiku` (Haiku 4.5) | 15 | **9** | Réplications de patron, libellés, historiques d'affichage, rendus dérivés, dette de traçabilité |
+| **Total** | **217** | **111** | |
 
-Répartition par complexité : **24 tâches en 1/3**, **97 en 2/3**, **86 en 3/3**. La forte proportion de 3/3 tient à la nature du produit — la valeur de Calepin réside dans sa mémoire narrative et dans son contrôle de cohérence, deux sujets qui n'ont pas de version simple.
+Répartition par complexité sur l'ensemble : **25 tâches en 1/3**, **98 en 2/3**, **94 en 3/3**.
+
+**Ce que le dépôt a appris sur l'affectation.** Les 106 tâches réalisées valident la doctrine sur un point précis : les tâches confiées à Fable 5 — modèle des faits canoniques, composeur de contexte, divergence des moteurs narratifs, moteur d'audit — sont exactement celles dont le `CLAUDE.md` du dépôt cite aujourd'hui les décisions comme structurantes, et aucune n'a eu à être reprise. Symétriquement, les tâches Haiku 4.5 se sont toutes révélées être des réplications de patrons déjà présents, ce qui était la condition posée. Le seul ajustement de doctrine que cette mise à jour opère concerne **CAL-208** : le câblage d'un fournisseur est une tâche `opus` et non `fable`, parce qu'elle est entièrement spécifiée par ADR-001 et parce qu'elle est la seule du dépôt à toucher réellement un SDK de fournisseur — terrain où la date de connaissance de mai 2026 d'Opus 5 est un avantage décisif sur les deux modèles arrêtés en janvier 2026.
 
 ### C.3 Répartition des niveaux d'effort
 
 | Niveau | Tâches | Usage retenu dans ce backlog |
 |---|---|---|
 | `low` | 0 | Non utilisé : aucune tâche de ce backlog n'est à la fois assez courte et assez insensible à l'intelligence pour le justifier — ces tâches-là sont confiées à Haiku 4.5, qui n'a pas de niveau d'effort |
-| `medium` | 5 | Configuration d'outillage, filtres du tableau de bord, adaptation téléphone, instrumentation dérivée |
-| `high` | 129 | Défaut du produit : tout travail spécifié à exécution soignée |
-| `xhigh` | 58 | Conception structurante, missions littéraires, balayages exhaustifs, orchestration longue |
-| `max` | 1 | Revue de sécurité avant mise en production (CAL-196) uniquement — niveau session, sujet à la sur-réflexion, à réserver aux passes ponctuelles à fort enjeu |
-| *n/a* | 14 | Tâches confiées à Haiku 4.5, qui ne prend pas en charge le paramètre d'effort |
+| `medium` | 5 *(2 restantes)* | Configuration d'outillage, filtres du tableau de bord, adaptation téléphone, instrumentation dérivée |
+| `high` | 132 *(63 restantes)* | Défaut du produit : tout travail spécifié à exécution soignée |
+| `xhigh` | 64 *(36 restantes)* | Conception structurante, missions littéraires, balayages exhaustifs, orchestration longue, mise en service des générations |
+| `max` | 1 *(1 restante)* | Revue de sécurité avant mise en production (CAL-196) uniquement — niveau session, sujet à la sur-réflexion, à réserver aux passes ponctuelles à fort enjeu |
+| *n/a* | 15 *(9 restantes)* | Tâches confiées à Haiku 4.5, qui ne prend pas en charge le paramètre d'effort |
 
 ### C.4 Réglages de session recommandés
 
@@ -2549,8 +2943,17 @@ Il constitue une alternative économique sur les tâches de complexité 2/3 affe
 
 ### C.6 Une note de calendrier
 
-Sonnet 5 bénéficie d'un tarif d'introduction de 2 $ / 10 $ par million de jetons **jusqu'au 31 août 2026**, contre 3 $ / 15 $ ensuite. Les 70 tâches affectées à `sonnet` sont largement concentrées sur les jalons J2, J6 et J8 : celles qui peuvent être avancées avant cette date le sont à coût réduit d'un tiers.
+Sonnet 5 bénéficie d'un tarif d'introduction de 2 $ / 10 $ par million de jetons **jusqu'au 31 août 2026**, contre 3 $ / 15 $ ensuite — soit dix-huit jours au moment de cette mise à jour. Il reste **35 tâches `sonnet`**, concentrées sur J6 (éditeur de manuscrit), J8 (export, accessibilité, tests) et sur CAL-213. Celles qui ne dépendent pas de l'epic de mise en service — notamment CAL-119, CAL-141, CAL-147, CAL-155, CAL-157, CAL-182, CAL-183, CAL-185, CAL-187 et CAL-189 — peuvent être avancées en parallèle de E21 à coût réduit d'un tiers, puisqu'elles ne touchent ni la couche IA ni la persistance des générations.
+
+### C.7 Règle ajoutée le 13 août 2026
+
+**Toute tâche dont le livrable est une mission livre désormais son exécuteur, son chemin d'écriture et une génération réellement exécutée en preuve.**
+
+La convention précédente — livrer le contrat, le schéma, le vérificateur et le prompt, et laisser le câblage à plus tard — était juste tant qu'aucun exécuteur n'existait : elle a permis de construire 25 missions cohérentes entre elles sans dépendre d'une clé de fournisseur. Elle cesse de l'être dès CAL-208, et la maintenir plus longtemps reproduirait la situation que cet epic corrige, avec dix-neuf missions au lieu de zéro.
+
+Concrètement, cela s'applique aux missions restantes dont les prompts sont **déjà écrits** dans `packages/ai/src/prompts/missions/` mais qu'aucune tâche n'exécute encore : `write-scene` (CAL-112), `extract-facts` (CAL-126), `check-coherence` (CAL-136 à CAL-140), `fix-issue` (CAL-143), `summarize-chapter` et `summarize-part` (CAL-125). Aucune de ces tâches ne doit être déclarée terminée sur la seule foi d'un contrat validé par un test à fournisseur simulé.
 
 ---
 
 *Sources des données de modèles et de commandes : documentation officielle Anthropic — [Models overview](https://platform.claude.com/docs/en/about-claude/models/overview), [Effort](https://platform.claude.com/docs/en/build-with-claude/effort), [Model configuration (Claude Code)](https://code.claude.com/docs/en/model-config), [CLI reference](https://code.claude.com/docs/en/cli-reference), [Choosing a Claude model and effort level in Claude Code](https://claude.com/blog/claude-model-and-effort-level-in-claude-code). Consultées le 7 août 2026.*
+

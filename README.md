@@ -6,7 +6,7 @@ de la bible narrative et du plan, rédaction chapitre par chapitre, contrôle de
 cohérence, export.
 
 Ce dépôt en est le squelette. Les domaines métier existent et sont vides ;
-le backlog de réalisation est dans [`Calepin_backlog.md`](./Calepin_backlog.md).
+le backlog de réalisation est dans [`calepin-backlog.md`](./calepin-backlog.md).
 
 ## Prérequis
 
@@ -134,7 +134,7 @@ calepin/
 │   └── lessons.md            les corrections reçues, converties en règles
 │
 ├── CLAUDE.md                 contrat de travail du dépôt
-├── Calepin_backlog.md        207 tâches, 21 epics
+├── calepin-backlog.md        217 tâches, 22 epics
 ├── docker-compose.yml        PostgreSQL, Redis, MinIO — `pnpm dev:services`
 ├── package.json              scripts racine, délégués au workspace
 ├── pnpm-workspace.yaml       apps/* et packages/*
