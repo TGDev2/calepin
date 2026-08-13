@@ -30,42 +30,32 @@
  */
 
 import type { CheckedElement, VerifiedSourceTextAnalysis } from "./evidence";
-import {
-  ANALYSIS_SECTION_FIELDS,
-  ANALYSIS_SECTIONS,
-  type AnalysisElementKind,
-  type AnalysisSection,
-} from "./schema";
+import { ANALYSIS_SECTION_FIELDS, ANALYSIS_SECTIONS, type AnalysisSection } from "./schema";
+import type { AnalysisElementDraft } from "./section-edit";
 
 /**
- * One element as a row will hold it.
+ * One section's elements, in the order the answer listed them.
  *
- * Structurally `RegeneratedAnalysisElement`, the writer's own input type, and
- * deliberately not an import of it: a domain declaring what it produces, rather
- * than restating what `shared` accepts, is what keeps the dependency running one
- * way. The label is `null` rather than absent for a paragraph section, because
- * the column is nullable and *this section has no heading* is an answer.
+ * The element type is `AnalysisElementDraft`, which the manual write path
+ * already declares — *one element of a section in the shape persistence takes
+ * it*, `label` present and null for a paragraph section rather than absent. One
+ * shape for both write paths, as one schema already serves both.
  */
-export interface ResolvedAnalysisElement {
-  readonly kind: AnalysisElementKind;
-  readonly label: string | null;
-  readonly statement: string;
-  readonly evidence: string | null;
-}
-
-/** One section's elements, in the order the answer listed them. */
 export interface ResolvedAnalysisSection {
   readonly section: AnalysisSection;
-  readonly elements: readonly ResolvedAnalysisElement[];
+  readonly elements: readonly AnalysisElementDraft[];
 }
 
 /**
  * The seventeen sections of a verified diagnostic, ready to be written.
  *
- * Order is the enum's, and it is load-bearing twice: it is the order
- * `getAnalysis` folds the revisions back in, and it is the order the diagnostic
- * screen renders. Position inside a section is the answer's own, and the writer
- * turns it into `AnalysisElement.position`.
+ * Order is the enum's — the order the sections are asked for and the order the
+ * diagnostic screen renders them in. It is deliberately *not* the order they
+ * come back in: `getAnalysis` orders by `revisionNumber`, and seventeen
+ * revisions written at once all carry the same one, so nothing downstream may
+ * read the snapshot's array order as meaning anything. Position **inside** a
+ * section is the answer's own, and the writer turns it into
+ * `AnalysisElement.position`, which is ordered and does mean something.
  */
 export function resolveSourceTextAnalysis(
   analysis: VerifiedSourceTextAnalysis,

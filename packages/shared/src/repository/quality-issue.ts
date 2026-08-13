@@ -135,9 +135,11 @@ export interface QualityIssueReconciliationReport {
 /**
  * The reconciliation itself, inside a transaction the caller already holds.
  *
- * Not exported from the barrel: a caller that has no transaction should use
- * `reconcileQualityIssues` below, and one that has should be a repository
- * function rather than a page — `readBibleLocksFor`'s arrangement.
+ * A caller with no transaction of its own should use `reconcileQualityIssues`
+ * below; one that has a transaction is a domain repository rather than a page,
+ * which is why this half is on the barrel and reachable — the arrangement
+ * `writeGeneratedAnalysisWithin` now shares, with no outer twin because its
+ * only caller is an append closure.
  */
 export async function reconcileQualityIssuesWithin(
   client: TransactionClient,

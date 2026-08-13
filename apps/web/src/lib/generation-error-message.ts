@@ -46,6 +46,14 @@ const MESSAGE_BY_CODE: Partial<Record<ErrorCode, string>> = {
     "Cette génération réécrirait un élément de la bible que vous avez verrouillé. " +
     "Rien n'a été demandé au modèle et rien ne vous est compté : levez le verrou " +
     "avant de relancer.",
+  // The other failure a *Relancer* button is not an answer to (CAL-209), and
+  // more finally than a lock: nothing un-validates an analysis, so relaunching
+  // lands on the same refusal for as long as the project stands. The sentence
+  // therefore names what a new diagnostic would take rather than a step to
+  // retry.
+  ANALYSIS_ALREADY_VALIDATED:
+    "Cette analyse est validée : une nouvelle analyse ne peut plus la remplacer. " +
+    "Dupliquez le projet pour repartir d'un diagnostic neuf.",
   GENERATION_ATTEMPTS_EXHAUSTED:
     "Plusieurs tentatives automatiques ont échoué et Calepin s'est arrêté pour ne pas " +
     "continuer à consommer votre budget. Votre projet est intact.",

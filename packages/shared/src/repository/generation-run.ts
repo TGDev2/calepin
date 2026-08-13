@@ -36,6 +36,7 @@ import type { $Enums, Prisma } from "@prisma/client";
 
 import { blockedGenerationError } from "../bible-lock";
 import { getDatabaseClient, type TransactionClient } from "../database/client";
+import { isUniqueViolation } from "../database/unique-violation";
 import { ConflictError, InternalError, NotFoundError } from "../errors/app-error";
 import type { ErrorCategory } from "../errors/categories";
 import { fail, type Result, succeed } from "../errors/result";
@@ -174,18 +175,6 @@ const ERROR_CATEGORY_COLUMN = {
 
 function generationNotFound(): NotFoundError {
   return new NotFoundError({ message: "no generation with this id belongs to this owner" });
-}
-
-/**
- * A `P2002`, recognised without importing `@prisma/client` as a value.
- *
- * `../database/client` keeps that import type-only so the unit Vitest project
- * runs without `prisma generate` having produced anything, and this module is
- * underneath it. The shape is Prisma's public error contract, so reading the
- * code off it is not a guess.
- */
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
 /**

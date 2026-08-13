@@ -36,11 +36,7 @@ export {
   type VerifiedSourceTextAnalysis,
   verifyAnalysisEvidence,
 } from "./evidence";
-export {
-  type ResolvedAnalysisElement,
-  type ResolvedAnalysisSection,
-  resolveSourceTextAnalysis,
-} from "./persistence";
+export { type ResolvedAnalysisSection, resolveSourceTextAnalysis } from "./persistence";
 export {
   isVerifiedNovelPotentialAssessment,
   NOVEL_POTENTIAL_CHAR_CEILINGS,

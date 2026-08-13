@@ -30,6 +30,7 @@
 import type { $Enums, Prisma } from "@prisma/client";
 
 import { getDatabaseClient, type TransactionClient } from "../database/client";
+import { isUniqueViolation } from "../database/unique-violation";
 import { ConflictError, InternalError, NotFoundError, ValidationError } from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
 import {
@@ -533,10 +534,25 @@ export interface WriteGeneratedAnalysisInput {
 
 export interface GeneratedAnalysisWritten {
   readonly analysisId: string;
+  /** `true` when this write is what opened the project's analysis. */
+  readonly created: boolean;
   readonly sectionCount: number;
   readonly elementCount: number;
   /** As `AnalysisSectionRegeneration`'s, and for the same reason. */
   readonly orphanedAnnotationCount: number;
+  /**
+   * How many sections the author had rewritten by hand and this analysis
+   * replaces.
+   *
+   * Reported for `orphanedAnnotationCount`'s reason, and it matters more: a
+   * whole re-analysis writes seventeen `GENERATED` revisions, so every section
+   * the author had edited stops being what the screen shows. Nothing is
+   * deleted — the revisions they wrote stand, and CAL-147's history is where
+   * they live — but nothing can recompute this number afterwards without
+   * re-reading the revisions that were replaced. A count, so it is safe to log
+   * (§9), and what a *relancer l'analyse ?* dialog has to be able to say.
+   */
+  readonly supersededEditedSectionCount: number;
 }
 
 /**
@@ -561,23 +577,25 @@ export interface GeneratedAnalysisWritten {
  *   row lock. `…Within` is `listQualityIssuesWithin`'s name for that, and it is
  *   what makes *never a partial write* structural: a refusal here rolls the
  *   revision, the elements, the attempt and the generation back together.
- * - **It creates the `Analysis` row when there is none.** Nothing else ever has
- *   — every other `analysis.create` in the repository is a seed or a fixture —
- *   so a project's first diagnostic would otherwise have nowhere to go. There is
- *   no filter to put on a create; what proves the project is the caller's is the
- *   `FOR UPDATE` join on project and owner that `runLockedOnGeneration` already
- *   holds, and a race for the row cannot happen because
- *   `MISSION_WRITE_TARGET_KIND` maps all four analysis missions to one target
- *   and the claim refuses the second of them.
- * - **It writes every section it is given, in one statement each.** Seventeen
- *   revisions by `createManyAndReturn`, keyed back **by section** rather than by
- *   the order the rows came back in — Prisma promises no such order — then one
- *   `createMany` for every element of every section.
+ * - **It creates the `Analysis` row when there is none** — see
+ *   `openAnalysisFor`, which is the only thing in the product that ever does.
+ * - **It writes every section it is given in two statements.** Seventeen
+ *   revisions by `createManyAndReturn`, then one `createMany` for every element
+ *   of every section. Not an optimisation: an interactive transaction has a
+ *   five-second budget by default and this one already holds the generation's
+ *   row lock, so thirty-four round trips is how an answer somebody paid for
+ *   comes to be rolled back by a timeout.
  *
- * A validated analysis is refused, as in both twins: the lock is true for every
- * writer or it is true for none. The executor refuses it before calling a model
- * too (§6.5), so reaching this branch means the author validated while the
- * generation was in flight — rare, and the answer is still to keep their lock.
+ * **`sourceTextVersionId` is a parameter, where both twins re-read the current
+ * version.** That divergence is the point: the column means *the version this
+ * revision was produced against*, the executor already refused a superseded ask
+ * before paying for anything, and re-reading *current* here would attribute the
+ * diagnostic to a text the model never saw. An edit landing between the answer
+ * and the commit then correctly leaves the analysis in
+ * `SourceTextObsolescence`'s doubt, which is the author's call to make.
+ *
+ * There is no transaction-opening twin of this function, deliberately: its only
+ * caller is an append closure, which is handed one.
  *
  * The caller must be inside `runWithActor`: the `Analysis` row carries the audit
  * block, and the sentinel default the column would otherwise take is refused by
@@ -637,53 +655,41 @@ export async function writeGeneratedAnalysisWithin(
     }
   }
 
-  const existing = await client.analysis.findFirst({
-    where: scopedWhere("Analysis", scope),
-    select: { id: true, validatedAt: true },
-  });
+  const opened = await openAnalysisFor(client, scope);
+  if (!opened.ok) return opened;
 
-  if (existing !== null && existing.validatedAt !== null) {
-    return fail(
-      new ConflictError({
-        code: "ANALYSIS_ALREADY_VALIDATED",
-        message: "the analysis is validated and no longer replaceable",
-        userMessage:
-          "Cette analyse est validée : elle ne peut plus être remplacée par une nouvelle analyse.",
-      }),
-    );
-  }
+  const { analysisId, created } = opened.value;
 
-  const analysisId =
-    existing?.id ??
-    (
-      await client.analysis.create({
-        data: { projectId: scope.projectId },
-        select: { id: true },
-      })
-    ).id;
-
-  // The current revision of each section, and the lineages it holds — one read
-  // for both, folded the way `getAnalysis` folds: ordered ascending, last one
-  // seen per section wins. That rule lives in one place or it lives in none.
+  // The current revision of each section, the lineages it holds and who wrote
+  // it — one read for all three, folded the way `getAnalysis` folds: ordered
+  // ascending, last one seen per section wins. That rule lives in one place or
+  // it lives in none.
   const previous = await client.analysisSectionRevision.findMany({
     where: { analysisId, section: { in: sections } },
     orderBy: { revisionNumber: "asc" },
-    select: { section: true, revisionNumber: true, elements: { select: { lineageId: true } } },
+    select: {
+      section: true,
+      revisionNumber: true,
+      origin: true,
+      elements: { select: { lineageId: true } },
+    },
   });
 
   const replaced = new Map<
     $Enums.AnalysisSection,
-    { revisionNumber: number; lineages: string[] }
+    { revisionNumber: number; origin: $Enums.AnalysisRevisionOrigin; lineages: string[] }
   >();
 
   for (const revision of previous) {
     replaced.set(revision.section, {
       revisionNumber: revision.revisionNumber,
+      origin: revision.origin,
       lineages: revision.elements.map((element) => element.lineageId),
     });
   }
 
-  const replacedLineages = [...replaced.values()].flatMap((entry) => entry.lineages);
+  const superseded = [...replaced.values()];
+  const replacedLineages = superseded.flatMap((entry) => entry.lineages);
 
   // Counted before the append and never modified by it — a `count`, not an
   // `updateMany`, exactly as in a targeted regeneration.
@@ -694,19 +700,44 @@ export async function writeGeneratedAnalysisWithin(
           where: { analysisId, lineageId: { in: replacedLineages } },
         });
 
-  const revisions = await client.analysisSectionRevision.createManyAndReturn({
-    data: input.sections.map((entry) => ({
-      analysisId,
-      section: entry.section,
-      revisionNumber: (replaced.get(entry.section)?.revisionNumber ?? 0) + 1,
-      origin: "GENERATED" as const,
-      sourceTextVersionId: input.sourceTextVersionId,
-      generationId: input.generationId,
-      createdById: scope.ownerId,
-    })),
-    select: { id: true, section: true },
-  });
+  // The one collision nothing serialises: the write target excludes another
+  // *generation*, not an author saving a section from the editor, and both
+  // would compute the same next revision number. The index the schema put there
+  // for it — `@@unique([analysisId, section, revisionNumber])` — is the arbiter;
+  // catching it is what turns an internal error, with the paid-for answer
+  // already rolled back and nothing said, into a refusal with a sentence.
+  let revisions: { id: string; section: $Enums.AnalysisSection }[];
 
+  try {
+    revisions = await client.analysisSectionRevision.createManyAndReturn({
+      data: input.sections.map((entry) => ({
+        analysisId,
+        section: entry.section,
+        revisionNumber: (replaced.get(entry.section)?.revisionNumber ?? 0) + 1,
+        origin: "GENERATED" as const,
+        sourceTextVersionId: input.sourceTextVersionId,
+        generationId: input.generationId,
+        createdById: scope.ownerId,
+      })),
+      select: { id: true, section: true },
+    });
+  } catch (error: unknown) {
+    if (!isUniqueViolation(error)) throw error;
+
+    return fail(
+      new ConflictError({
+        message: "a revision of this analysis was written while the generation ran",
+        userMessage:
+          "L'analyse a été modifiée pendant que cette analyse était produite. " +
+          "Relancez-la pour qu'elle reparte de la version actuelle.",
+        cause: error,
+      }),
+    );
+  }
+
+  // Keyed by section, never by the order the rows came back in: Prisma promises
+  // none for `createManyAndReturn`, and each section appears exactly once by
+  // construction — the duplicate refusal above is what makes the map total.
   const revisionBySection = new Map(revisions.map((row) => [row.section, row.id]));
 
   const elements: Prisma.AnalysisElementCreateManyInput[] = [];
@@ -724,8 +755,8 @@ export async function writeGeneratedAnalysisWithin(
       elements.push({
         sectionRevisionId,
         position: index + 1,
-        // No `lineageId`: the column's cuid default mints one per element, so
-        // nothing here has to know how an identifier is made.
+        // No `lineageId`: the Prisma-level cuid default mints one per element,
+        // so nothing here has to know how an identifier is made.
         origin: "GENERATED",
         kind: element.kind,
         label: element.label,
@@ -740,14 +771,92 @@ export async function writeGeneratedAnalysisWithin(
   }
 
   // Empty data on purpose, as in both twins: `@updatedAt` and the CAL-022
-  // extension are the whole point of the statement.
-  await client.analysis.update({ where: { id: analysisId }, data: {} });
+  // extension are the whole point of the statement. Skipped when the row was
+  // created a moment ago, which already stamped both.
+  if (!created) {
+    await client.analysis.update({ where: { id: analysisId }, data: {} });
+  }
 
   return succeed({
     analysisId,
+    created,
     sectionCount: input.sections.length,
     elementCount: elements.length,
     orphanedAnnotationCount,
+    supersededEditedSectionCount: superseded.filter((entry) => entry.origin === "EDITED").length,
+  });
+}
+
+/**
+ * The project's analysis, opening it if this is the first one.
+ *
+ * **CAL-209 is the row's first and only production creator.** Nothing else can:
+ * `editAnalysisSection` and `addAnalysisAnnotation` both refuse `NOT_FOUND` when
+ * there is none, and creating a project does not create one — every other
+ * `analysis.create` in the repository is a seed or a fixture. So a project's
+ * first diagnostic has nowhere to go until this runs.
+ *
+ * The create is unfiltered, because there is nothing to filter on a row that
+ * does not exist; what proves the project is the caller's is the `FOR UPDATE`
+ * join on project and owner that `runLockedOnGeneration` is already holding, and
+ * `projectId` names the scope's own project. A unique violation is a race, and
+ * the answer to it is the one `reserveGeneration` gives: read the winner's row
+ * and carry on, rather than open a second analysis or lose an answer somebody
+ * paid for.
+ *
+ * A validated analysis is refused, as in both twins: the lock is true for every
+ * writer or it is true for none. The executor refuses it before calling a model
+ * too (§6.5), so reaching this branch means the author validated while the
+ * generation was in flight — rare, and the answer is still to keep their lock.
+ */
+async function openAnalysisFor(
+  client: TransactionClient,
+  scope: ProjectScope,
+): Promise<Result<{ analysisId: string; created: boolean }>> {
+  const existing = await client.analysis.findFirst({
+    where: scopedWhere("Analysis", scope),
+    select: { id: true, validatedAt: true },
+  });
+
+  if (existing !== null) {
+    return existing.validatedAt === null
+      ? succeed({ analysisId: existing.id, created: false })
+      : fail(analysisAlreadyValidated());
+  }
+
+  try {
+    const opened = await client.analysis.create({
+      data: { projectId: scope.projectId },
+      select: { id: true },
+    });
+
+    return succeed({ analysisId: opened.id, created: true });
+  } catch (error: unknown) {
+    if (!isUniqueViolation(error)) throw error;
+
+    const winner = await client.analysis.findFirst({
+      where: scopedWhere("Analysis", scope),
+      select: { id: true, validatedAt: true },
+    });
+
+    if (winner === null) {
+      // `projectId` is unique and the violation named it, so the row exists.
+      throw new InternalError({ message: "the analysis that won the race is not there" });
+    }
+
+    return winner.validatedAt === null
+      ? succeed({ analysisId: winner.id, created: false })
+      : fail(analysisAlreadyValidated());
+  }
+}
+
+/** The refusal both branches above share, so they cannot word it differently. */
+function analysisAlreadyValidated(): ConflictError {
+  return new ConflictError({
+    code: "ANALYSIS_ALREADY_VALIDATED",
+    message: "the analysis is validated and no longer replaceable",
+    userMessage:
+      "Cette analyse est validée : elle ne peut plus être remplacée par une nouvelle analyse.",
   });
 }
 
