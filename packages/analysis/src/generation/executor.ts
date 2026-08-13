@@ -16,13 +16,18 @@
  * would fail inside Turbopack naming a page rather than this file. `@calepin/bible`
  * and `@calepin/outline` each learned that the expensive way.
  *
- * **It writes nothing, and that is this task's boundary rather than an
- * oversight.** `GenerationProduct.append` is optional by construction, so a
- * mission may legitimately produce a validated answer and no row; CAL-209 owns
- * the seventeen-section write path and fills the closure in. Until then the
- * generation succeeds, its attempt records what the call cost, and
- * `analysis.result-not-persisted` says out loud that the diagnostic was not
- * kept. That line is the marker to delete when the write arrives.
+ * **It writes through the transaction that completes the attempt** (CAL-209).
+ * `GenerationProduct.append` is a closure, so the value never leaves this
+ * module: what is handed back is the *write*, and
+ * `writeGeneratedAnalysisWithin` runs it against the client
+ * `completeGenerationAttempt` is already holding. The seventeen revisions and
+ * the generation's completion therefore commit together or not at all, and a
+ * refusal leaves no half-written diagnostic behind (§7).
+ *
+ * **Nothing unverified can reach a row.** `resolveSourceTextAnalysis` takes the
+ * brand `verifyAnalysisEvidence` mints and nothing else, so CAL-071's check
+ * stopped being a step this file remembers to perform and became a shape the
+ * write path requires.
  */
 
 import {
@@ -43,9 +48,15 @@ import type {
   GenerationExecutorRequest,
   GenerationProduct,
 } from "@calepin/shared/queue";
-import { getGenerationContextForProject, getSourceText } from "@calepin/shared/repository";
+import {
+  getAnalysis,
+  getGenerationContextForProject,
+  getSourceText,
+  writeGeneratedAnalysisWithin,
+} from "@calepin/shared/repository";
 
 import { verifyAnalysisEvidence } from "../evidence";
+import { resolveSourceTextAnalysis } from "../persistence";
 import {
   ANALYSIS_TOTAL_WORD_BUDGET,
   ANALYSIS_WORD_TARGETS,
@@ -76,6 +87,16 @@ function sourceTextSuperseded(): AppError {
     userMessage:
       "Le texte source a été modifié depuis le lancement de cette analyse. " +
       "Relancez l'analyse pour qu'elle porte sur la version actuelle.",
+  });
+}
+
+function analysisAlreadyValidated(): AppError {
+  return new ConflictError({
+    code: "ANALYSIS_ALREADY_VALIDATED",
+    message: "the project's analysis is validated and cannot be replaced",
+    userMessage:
+      "Cette analyse est validée : elle ne peut plus être remplacée. " +
+      "Dupliquez le projet pour repartir d'un nouveau diagnostic.",
   });
 }
 
@@ -152,6 +173,18 @@ export function createAnalyzeSourceTextExecutor(port: ModelProviderPort): Genera
         return fail(sourceTextSuperseded());
       }
 
+      // §6.5, *signaler avant la génération*: the write below refuses a
+      // validated analysis, and reaching that refusal would mean the author had
+      // already paid for an answer nothing could store. Decided here with no
+      // model call, exactly as the superseded version above is. The write keeps
+      // its own refusal all the same — the author may validate while this runs,
+      // and a lock is true for every writer or it is true for none.
+      const existing = await getAnalysis(request.scope);
+
+      if (existing !== null && existing.validatedAt !== null) {
+        return fail(analysisAlreadyValidated());
+      }
+
       const context = await getGenerationContextForProject(request.scope);
       if (!context.ok) return context;
 
@@ -208,8 +241,8 @@ export function createAnalyzeSourceTextExecutor(port: ModelProviderPort): Genera
       // Provenance, never sufficiency (CAL-071): every quotation read back
       // against the text it claims to come from, an unsupported FACTUAL element
       // demoted and an invented quotation dropped. The branded result is what
-      // CAL-209's write path will take, so an analysis that skipped this check
-      // has no way of being persisted.
+      // the write path takes, so an analysis that skipped this check has no way
+      // of being persisted.
       const verified = verifyAnalysisEvidence(generated.value.output, snapshot.value.content);
 
       logger.info("analysis.evidence-verified", {
@@ -218,13 +251,37 @@ export function createAnalyzeSourceTextExecutor(port: ModelProviderPort): Genera
         itemCount: verified.report.corrections.length,
       });
 
-      // Delete this line in CAL-209, with the empty product it explains.
-      logger.warn("analysis.result-not-persisted", {
-        generationId: request.generationId,
-        missionId: MISSION_ID,
-      });
+      const sections = resolveSourceTextAnalysis(verified.analysis);
 
-      return succeed({});
+      // The write, handed back as a closure rather than performed here: it runs
+      // inside the transaction that completes the attempt, so the seventeen
+      // revisions and the generation's own completion commit together or not at
+      // all (§7). A refusal rolls every one of them back, which is what makes
+      // *never a partial analysis* structural rather than careful.
+      return succeed({
+        append: async (client): Promise<Result<void>> => {
+          const written = await writeGeneratedAnalysisWithin(client, request.scope, {
+            sections,
+            // The version the ask named, not today's — the column means *the
+            // version this revision was produced against*, and an edit that
+            // landed while this ran belongs in `SourceTextObsolescence`'s doubt.
+            sourceTextVersionId: parsed.data.sourceTextVersionId,
+            generationId: request.generationId,
+          });
+
+          if (!written.ok) return written;
+
+          // Logged from inside the transaction that made it true, and counts
+          // only (§9): what was written, never a word of it.
+          logger.info("analysis.persisted", {
+            generationId: request.generationId,
+            missionId: MISSION_ID,
+            itemCount: written.value.elementCount,
+          });
+
+          return succeed(undefined);
+        },
+      });
     },
   };
 }
