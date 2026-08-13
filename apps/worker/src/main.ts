@@ -8,12 +8,22 @@
  * and arranges for the process to stop without dropping what it is doing.
  *
  * It holds no business rule and never will. A mission runs here by being called
- * through domain code with an injected port (§3.3, §5.3) — which is why the
- * generation worker takes an **executor per mission** and this shell composes
- * `NO_GENERATION_EXECUTORS`: no mission runs asynchronously yet, and a
- * generation whose mission is not registered is left queued for a worker that
- * has it rather than failed. Registering the first one is a line here and
- * nothing else.
+ * through domain code with an injected port (§3.3, §5.3), which is why the
+ * generation worker takes an **executor per mission** and why composing them is
+ * this file's job: an executor reaches a domain package and `@calepin/ai`, and
+ * `@calepin/shared/queue` may reach neither.
+ *
+ * Since CAL-208 the map is no longer empty. `ANALYZE_SOURCE_TEXT` is registered
+ * and really calls a model; every other mission is still absent, and absent
+ * means **left alone** rather than failed — during a rolling release a job
+ * written by the new version is routinely picked up by an old worker, and
+ * failing an author's generation because this process has not been deployed yet
+ * would be the wrong answer. The row stays `QUEUED` for a worker that knows it.
+ *
+ * The same map goes to all three generation workers even though `MISSION_QUEUE`
+ * sends this one mission to `generation-slow`. Routing is that table's decision,
+ * not this file's, and a per-queue map here would be a second answer able to
+ * disagree with it.
  *
  * **Two connections, not one.** The consumer blocks and must never give up on a
  * command (`maxRetriesPerRequest: null`); the producer must fail fast so the
@@ -22,6 +32,10 @@
  *
  * Every import after the environment is dynamic — see `./environment`.
  */
+
+// Type-only, so it is erased and the dynamic-import discipline above holds —
+// `environment.ts` imports `Env` the same way and for the same reason.
+import type { GenerationExecutors } from "@calepin/shared/queue";
 
 import { loadEnv } from "./environment";
 
@@ -42,7 +56,6 @@ async function main(): Promise<void> {
     GENERATION_SLOW_JOB,
     handlePing,
     installSignalHandlers,
-    NO_GENERATION_EXECUTORS,
     PING_JOB,
     RECONCILE_GENERATIONS_JOB,
     reconcileGenerations,
@@ -51,9 +64,23 @@ async function main(): Promise<void> {
     scheduleQueueCleanup,
     startQueueWorker,
   } = await import("@calepin/shared/queue");
+  const { createAnalyzeSourceTextExecutor } = await import("@calepin/analysis/generation");
   const { disconnectDatabase } = await import("./database");
+  const { createWorkerModelProvider } = await import("./model-provider");
 
   configureLogger({ level: env.LOG_LEVEL });
+
+  // One port for the process: provider health is the one thing `@calepin/ai`
+  // keeps between calls, and two ports would learn the same outage twice.
+  const modelProvider = createWorkerModelProvider(env);
+
+  // Which missions this worker can run. Keyed by the Prisma enum member, which
+  // is what `runGenerationJob` looks a generation's mission up by; the typed
+  // map is what turns a misspelling into a compile error rather than a mission
+  // silently left unhandled.
+  const executors: GenerationExecutors = {
+    ANALYZE_SOURCE_TEXT: createAnalyzeSourceTextExecutor(modelProvider),
+  };
 
   // One consumer connection for every worker in the process: BullMQ duplicates
   // it internally for the blocking reads each one needs.
@@ -78,7 +105,7 @@ async function main(): Promise<void> {
         defineJob(GENERATION_FAST_JOB, (payload) =>
           runGenerationJob({
             generationId: payload.generationId,
-            executors: NO_GENERATION_EXECUTORS,
+            executors,
           }),
         ),
       ],
@@ -91,7 +118,7 @@ async function main(): Promise<void> {
         defineJob(GENERATION_SLOW_JOB, (payload) =>
           runGenerationJob({
             generationId: payload.generationId,
-            executors: NO_GENERATION_EXECUTORS,
+            executors,
           }),
         ),
       ],
@@ -104,7 +131,7 @@ async function main(): Promise<void> {
         defineJob(GENERATION_AUDIT_JOB, (payload) =>
           runGenerationJob({
             generationId: payload.generationId,
-            executors: NO_GENERATION_EXECUTORS,
+            executors,
           }),
         ),
       ],

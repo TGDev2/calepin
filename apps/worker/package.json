@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@calepin/ai": "workspace:*",
+    "@calepin/analysis": "workspace:*",
     "@calepin/shared": "workspace:*",
     "@prisma/client": "^6.19.3",
     "bullmq": "^6.0.10",
