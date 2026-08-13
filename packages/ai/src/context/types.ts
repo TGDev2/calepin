@@ -155,6 +155,28 @@ export interface ChapterSummaryContextInput {
   readonly detailedWordTarget: number;
 }
 
+/**
+ * What `composeSourceTextAnalysisContext` needs (CAL-208).
+ *
+ * The four numbers are `@calepin/analysis`'s, for `ChapterSummaryContextInput`'s
+ * reason: they are also the bounds its schema validates the answer against, and
+ * a target stated twice is a target that will disagree with itself. This layer
+ * renders what it is handed and owns none of them.
+ *
+ * `language` and `targetAudience` are the project's resolved settings
+ * (CAL-042, CAL-045), read once by the caller and never re-decided here.
+ */
+export interface SourceTextAnalysisContextInput {
+  readonly language: string;
+  readonly targetAudience: string;
+  /** The version being analysed, in full: it is the subject, not context. */
+  readonly sourceText: string;
+  readonly summaryWordTarget: number;
+  readonly potentialWordTarget: number;
+  readonly totalWordBudget: number;
+  readonly evidenceWordTarget: number;
+}
+
 /** One already-summarised chapter, offered to the part composition. */
 export interface PartSummaryChapter {
   readonly id: string;

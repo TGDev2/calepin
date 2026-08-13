@@ -91,13 +91,16 @@ export {
   type ProviderId,
 } from "./capabilities";
 export {
+  type AnalysisCompositionReport,
   type CanonFactCandidate,
   type ChapterSummaryContextInput,
   composeChapterSummaryContext,
+  type ComposedAnalysisContext,
   type ComposedSceneContext,
   type ComposedSummaryContext,
   composePartSummaryContext,
   composeSceneContext,
+  composeSourceTextAnalysisContext,
   CONTEXT_ITEM_CEILINGS,
   type ContextCompositionReport,
   type ContextItemKind,
@@ -113,6 +116,7 @@ export {
   type PartSummaryContextInput,
   type PrecedingChapterSummary,
   type SceneContextInput,
+  type SourceTextAnalysisContextInput,
   type SummaryCompositionReport,
 } from "./context";
 export { createModelProviderPort, type CreateModelProviderPortOptions } from "./create-model-port";

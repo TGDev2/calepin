@@ -8,6 +8,11 @@
  * the composition did not produce.
  */
 
+export {
+  type AnalysisCompositionReport,
+  type ComposedAnalysisContext,
+  composeSourceTextAnalysisContext,
+} from "./analysis";
 export { type ComposedSceneContext, composeSceneContext } from "./compose";
 export { ESTIMATED_CHARS_PER_TOKEN, estimateTokens } from "./estimate";
 export {
@@ -34,4 +39,5 @@ export type {
   PartSummaryContextInput,
   PrecedingChapterSummary,
   SceneContextInput,
+  SourceTextAnalysisContextInput,
 } from "./types";
