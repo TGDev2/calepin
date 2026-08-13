@@ -25,7 +25,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ProviderCall, StructuredProviderCall } from "../adapter";
 import { MODEL_CAPABILITIES } from "../capabilities";
-import { createBedrockAdapter } from "./bedrock";
+import { bedrockAdapterOptions, createBedrockAdapter } from "./bedrock";
 import { answer, simulatedClient, text } from "./simulated";
 
 function proseCall(overrides: Partial<ProviderCall> = {}): ProviderCall {
@@ -162,5 +162,85 @@ describe("the fallback adapter's configuration", () => {
     const adapter = createBedrockAdapter({ region: "eu-west-3", apiKey: "TOKEN_TEST" });
 
     expect(adapter.provider).toBe("bedrock");
+  });
+});
+
+/**
+ * *All three or none* (CAL-208) — one answer, because two process shells
+ * compose this endpoint and a rule duplicated between them drifts silently on
+ * whichever side loses it.
+ */
+describe("bedrockAdapterOptions", () => {
+  const COMPLETE = {
+    region: "eu-west-3",
+    accessKeyId: "AKIA_TEST",
+    secretAccessKey: "SECRET_TEST",
+  };
+
+  it("builds the SigV4 options when all three are supplied", () => {
+    expect(bedrockAdapterOptions(COMPLETE)).toEqual({
+      region: "eu-west-3",
+      credentials: { accessKeyId: "AKIA_TEST", secretAccessKey: "SECRET_TEST" },
+    });
+  });
+
+  it("feeds an adapter that really builds", () => {
+    const options = bedrockAdapterOptions(COMPLETE);
+
+    expect(options).toBeDefined();
+    expect(options && createBedrockAdapter(options).provider).toBe("bedrock");
+  });
+
+  // Wiring one endpoint is a supported configuration, not a mis-wiring: the
+  // pipeline drops a model whose provider has no adapter rather than throwing,
+  // so an absent fallback costs resilience and never a generation.
+  it("answers nothing when none is supplied", () => {
+    expect(
+      bedrockAdapterOptions({
+        ...COMPLETE,
+        region: undefined,
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("treats a blank setting as an unset one", () => {
+    expect(
+      bedrockAdapterOptions({ region: "  ", accessKeyId: "", secretAccessKey: undefined }),
+    ).toBeUndefined();
+  });
+
+  // The behaviour that must not exist is a silent `undefined` here: it would
+  // start the process, run every generation on one endpoint, and answer *why
+  // did failover never happen* nowhere at all.
+  it.each([
+    ["region", { ...COMPLETE, region: undefined }, "BEDROCK_REGION"],
+    ["access key", { ...COMPLETE, accessKeyId: undefined }, "BEDROCK_ACCESS_KEY_ID"],
+    ["secret", { ...COMPLETE, secretAccessKey: undefined }, "BEDROCK_SECRET_ACCESS_KEY"],
+  ])("refuses a fallback missing its %s", (_label, values, expected) => {
+    expect(() => bedrockAdapterOptions(values)).toThrow();
+
+    try {
+      bedrockAdapterOptions(values);
+    } catch (error: unknown) {
+      expect(isAppError(error) && error.code).toBe("MODEL_NOT_CONFIGURED");
+      expect(isAppError(error) && error.fieldPath).toBe(expected);
+    }
+  });
+
+  it("names every missing setting, and no value (§9)", () => {
+    try {
+      bedrockAdapterOptions({
+        region: "eu-west-3",
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+      });
+    } catch (error: unknown) {
+      expect(isAppError(error) && error.fieldPath).toBe(
+        "BEDROCK_ACCESS_KEY_ID,BEDROCK_SECRET_ACCESS_KEY",
+      );
+      expect(error instanceof Error && error.message).not.toContain("eu-west-3");
+    }
   });
 });

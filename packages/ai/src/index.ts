@@ -19,7 +19,9 @@ export type {
 } from "./adapter";
 export { createAnthropicAdapter, type CreateAnthropicAdapterOptions } from "./adapters/anthropic";
 export {
+  bedrockAdapterOptions,
   type BedrockCredentials,
+  type BedrockCredentialValues,
   createBedrockAdapter,
   type CreateBedrockAdapterOptions,
 } from "./adapters/bedrock";
