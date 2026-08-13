@@ -6,9 +6,10 @@ import { z } from "zod";
  * either injected or, for apps/web and the future worker, imported from
  * `@calepin/shared/config`.
  *
- * Scoped to what already exists: the local stack `docker-compose.yml`
- * (CAL-005) stands up. AI provider keys, auth secrets and similar belong to
- * the tasks that build those layers (CAL-048, CAL-174, ...).
+ * Scoped to what already exists: a variable is declared by the task that first
+ * composes something with it, never ahead of one. The model provider
+ * credentials arrived with CAL-208, the task that registered the first
+ * `GenerationExecutor`; error-tracking configuration still belongs to CAL-174.
  */
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -51,6 +52,43 @@ export const envSchema = z.object({
    */
   GITHUB_CLIENT_ID: z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
+  /**
+   * The key the primary provider adapter is built with (CAL-049, CAL-208).
+   * `createAnthropicAdapter` takes it as a constructor argument and its SDK
+   * would otherwise read `ANTHROPIC_API_KEY` off the environment on its own —
+   * declared here and passed explicitly instead, for `AUTH_SECRET`'s reason.
+   *
+   * Required, and required of every process rather than of the worker alone:
+   * this schema is one closed list for all of them, and a process that could
+   * boot without it would discover the gap in the middle of the first
+   * generation an author paid for rather than at startup.
+   */
+  ANTHROPIC_API_KEY: z.string().min(1),
+  /**
+   * The fallback provider (CAL-050, CAL-208) — the same Claude models under a
+   * different account, credential and control plane, which is where a provider
+   * outage actually lives.
+   *
+   * **Optional as a group.** A shell that wires one endpoint only is a
+   * supported configuration, not a mis-wiring: `createModelProviderPort` drops
+   * a model whose provider has no adapter instead of throwing, so an absent
+   * fallback costs resilience and never a generation.
+   *
+   * All three or none, and that rule lives beside the adapter
+   * (`bedrockAdapterOptions`) rather than in a refinement here. Two reasons:
+   * this schema is a flat list with no cross-field rule to be consistent with,
+   * and a half-configured fallback has to be *refused* rather than ignored —
+   * which is a composition-time throw, not a malformed environment.
+   *
+   * `BEDROCK_` rather than `AWS_`, deliberately. `createBedrockAdapter` refuses
+   * the host's ambient credential chain on purpose, and an `AWS_`-prefixed name
+   * is exactly what that chain would also answer to — a variable that leaked in
+   * from the surrounding machine would look like configuration and be nobody's
+   * decision. No session token: it expires, and a worker outlives one.
+   */
+  BEDROCK_REGION: z.string().min(1).optional(),
+  BEDROCK_ACCESS_KEY_ID: z.string().min(1).optional(),
+  BEDROCK_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   REDIS_URL: z.string().url(),
   /**
    * How many generation jobs each of the three generation-queue workers runs

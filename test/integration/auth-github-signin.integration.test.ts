@@ -29,6 +29,7 @@ process.env.GOOGLE_CLIENT_ID ??= "integration-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "integration-google-client-secret";
 process.env.GITHUB_CLIENT_ID ??= "integration-github-client-id";
 process.env.GITHUB_CLIENT_SECRET ??= "integration-github-client-secret";
+process.env.ANTHROPIC_API_KEY ??= "integration-anthropic-api-key";
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.S3_ENDPOINT ??= "http://localhost:9000";
 process.env.S3_REGION ??= "us-east-1";

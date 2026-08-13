@@ -152,6 +152,14 @@ jobs:
       # sign-in yet (CAL-028 wires the sign-in screen).
       GITHUB_CLIENT_ID: ci-e2e-github-client-id
       GITHUB_CLIENT_SECRET: ci-e2e-github-client-secret
+      # Shape-valid only (CAL-208): the E2E suite never starts a generation, so
+      # no provider is ever reached. The variable is required because the web
+      # process composes a provider port at boot — with this value it composes
+      # one that would be refused on the first call, which is the right failure
+      # for a key nobody in this job is meant to spend. The fallback provider's
+      # three variables are absent on purpose: one endpoint is a supported
+      # configuration.
+      ANTHROPIC_API_KEY: ci-e2e-anthropic-api-key
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1
@@ -202,6 +210,7 @@ jobs:
       GOOGLE_CLIENT_SECRET: ci-build-google-client-secret
       GITHUB_CLIENT_ID: ci-build-github-client-id
       GITHUB_CLIENT_SECRET: ci-build-github-client-secret
+      ANTHROPIC_API_KEY: ci-build-anthropic-api-key
       REDIS_URL: redis://localhost:6379
       S3_ENDPOINT: http://localhost:9000
       S3_REGION: us-east-1

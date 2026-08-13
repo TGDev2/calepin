@@ -15,6 +15,7 @@ const validEnv = {
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   GITHUB_CLIENT_ID: "github-client-id",
   GITHUB_CLIENT_SECRET: "github-client-secret",
+  ANTHROPIC_API_KEY: "anthropic-api-key",
   REDIS_URL: "redis://localhost:6379",
   S3_ENDPOINT: "http://localhost:9000",
   S3_REGION: "us-east-1",
@@ -54,6 +55,7 @@ describe("envSchema", () => {
     "GOOGLE_CLIENT_SECRET",
     "GITHUB_CLIENT_ID",
     "GITHUB_CLIENT_SECRET",
+    "ANTHROPIC_API_KEY",
   ] as const)("fails with the missing variable's path when %s is absent", (variable) => {
     const result = envSchema.safeParse(envWithout(variable));
 
@@ -82,5 +84,29 @@ describe("envSchema", () => {
     expect(
       result.success || result.error.issues.some((issue) => issue.path.join(".") === "REDIS_URL"),
     ).toBe(true);
+  });
+
+  // The fallback provider is optional as a group (CAL-208): a deployment that
+  // wires one endpoint only is supported, and `createModelProviderPort` drops a
+  // model whose provider has no adapter rather than refusing the generation.
+  // `validEnv` above therefore carries none of the three, and this states it.
+  it("accepts an environment with no fallback provider at all", () => {
+    const result = envSchema.safeParse(validEnv);
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.BEDROCK_REGION).toBeUndefined();
+    expect(result.success && result.data.BEDROCK_ACCESS_KEY_ID).toBeUndefined();
+    expect(result.success && result.data.BEDROCK_SECRET_ACCESS_KEY).toBeUndefined();
+  });
+
+  // A *half*-configured fallback parses here on purpose. The rule that refuses
+  // it is `bedrockAdapterOptions`, beside the adapter it configures — the shape
+  // of the environment is one question and whether an endpoint can be built
+  // from it is another, and mixing them would put a composition decision in a
+  // schema that has no other cross-field rule.
+  it("leaves a half-configured fallback to the composition root", () => {
+    const result = envSchema.safeParse({ ...validEnv, BEDROCK_REGION: "eu-west-3" });
+
+    expect(result.success).toBe(true);
   });
 });
