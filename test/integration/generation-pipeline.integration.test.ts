@@ -340,11 +340,12 @@ describe("a queued analysis generation (CAL-208)", () => {
     expect(call?.params.output_config?.format?.type).toBe("json_schema");
   });
 
-  // CAL-209's boundary, asserted rather than assumed: this task calls a model
-  // and records the call. The seventeen sections are not written yet, and a
-  // future reader should find that stated by a test rather than inferred from
-  // an absence.
-  it("succeeds without writing an analysis, which is CAL-209's half", async () => {
+  // What this file's boundary used to be: until CAL-209 the generation
+  // succeeded and wrote nothing. It now writes the diagnostic in the same
+  // transaction that completes it, so the assertion is the opposite one. What
+  // the analysis *contains* is `analysis-generation.integration.test.ts`'s;
+  // what belongs here is that a succeeded generation left one behind.
+  it("writes the analysis in the transaction that completes it", async () => {
     const fixture = await createFixture();
     const generationId = await reserve(fixture, fixture.sourceTextVersionId);
     const { port } = simulatedProvider(analysisAnswer());
@@ -354,7 +355,7 @@ describe("a queued analysis generation (CAL-208)", () => {
     expect((await seam.generation.findUniqueOrThrow({ where: { id: generationId } })).status).toBe(
       "SUCCEEDED",
     );
-    expect(await seam.analysis.count({ where: { projectId: fixture.projectId } })).toBe(0);
+    expect(await seam.analysis.count({ where: { projectId: fixture.projectId } })).toBe(1);
   });
 
   // The ask names a version and every stage produced from it is attributed to
@@ -395,10 +396,10 @@ describe("a queued analysis generation (CAL-208)", () => {
     expect(attempt.estimatedCostUsd).toBeNull();
   });
 
-  // The evidence check runs on the way through. What it corrects is invisible
-  // until CAL-209 stores the corrected analysis; what is observable today is
-  // that the correction path does not fail the generation — which is the
-  // failure mode that would otherwise appear first in production.
+  // The evidence check runs on the way through, and the failure mode that would
+  // appear first in production is its correcting an element and taking the
+  // generation down with it. What it corrects is now stored, and
+  // `analysis-generation.integration.test.ts` reads it back off both branches.
   it("corrects an unfound quotation instead of failing the generation", async () => {
     const fixture = await createFixture();
     const generationId = await reserve(fixture, fixture.sourceTextVersionId);
