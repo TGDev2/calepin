@@ -69,7 +69,12 @@ barrel of this package for a type. Putting the executor there would break
 naming a page rather than this file — the trap `@calepin/bible` and
 `@calepin/outline` each hit before it was written down.
 
-**It writes nothing yet.** `GenerationProduct.append` is optional, and the
-seventeen-section write path is CAL-209's; until then the generation succeeds,
-the attempt records what the call cost, and `analysis.result-not-persisted` says
-out loud that the diagnostic was not kept.
+**It writes through the transaction that completes the attempt** (CAL-209).
+`GenerationProduct.append` is a closure, so what leaves the executor is the
+*write* rather than the value: `resolveSourceTextAnalysis` turns the verified
+answer into seventeen `{ section, elements }` groups and
+`writeGeneratedAnalysisWithin` appends them beside the generation's own
+completion. They commit together or not at all, so a refusal leaves no
+half-written diagnostic behind — and because the resolver takes the brand
+`verifyAnalysisEvidence` mints, an answer whose quotations were never read back
+against the source text has no way of reaching a row.
