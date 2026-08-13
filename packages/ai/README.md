@@ -550,21 +550,38 @@ measured tokens at today's tariff, never replayed from a recorded price.
   stays beside V2, append-only (CAL-053).
 
 - **The scission of one chapter** — `split-chapter-outline` V1 (CAL-106). The
-  design problem is not *write two chapters*: the batch mission already does
+  design problem is not _write two chapters_: the batch mission already does
   that, with a whole part in view. It is **do not lose anything on the way** —
   a model handed one chapter and asked for two produces two plausible ones and
   silently drops the thread it could not place. Three ideas answer that: the
   cut is named and argued before the halves are; every element is accounted
   for one by one in `placements`, with where it went and why; and the
-  vocabulary is closed and numbered, so a claim that a column was *kept* can
+  vocabulary is closed and numbered, so a claim that a column was _kept_ can
   be read back against the text the ask showed. The merge has no prompt at
   all — consolidating two chapters is arithmetic, and §5.4 gives a mission
   only to the half that is judgement.
 
+## What exists (CAL-208)
+
+- **The credentials both adapters take are resolved from the validated config
+  module by the process shell** — the row §13 of the project instructions held
+  for "the first task to register a `GenerationExecutor`". `apps/worker` and
+  `apps/web` each compose one `ModelProviderPort`; nothing in this package
+  reads an environment, and nothing outside `adapters/` names a provider SDK.
+- `adapters/bedrock.ts` — `bedrockAdapterOptions`, the one answer to _all three
+  settings or none_. Absent is a configuration and composes a single endpoint,
+  which `candidatesFor` already supports; **partial throws**, because answering
+  "no fallback" there would start a process that runs every generation on one
+  endpoint and explains it nowhere.
+- `context/analysis.ts` — `composeSourceTextAnalysisContext`, the third
+  assembly. No degradation ladder at all, for the reason
+  `composeChapterSummaryContext` has none: a diagnostic context _is_ its
+  subject, and half a source text produces a diagnosis of half a source text
+  that every later stage would then be built on. Over budget refuses.
+
 ## What arrives in its own task
 
-The credentials both adapters take, resolved from the validated config
-module by the process shell (CAL-060) · context assemblies for the remaining
+Context assemblies for the remaining
 missions, in the epics that own them (`check-coherence` in E13,
 `extract-facts` in E12), over the same `context/` engine · the screens that
 show an estimate and take its confirmation, in the epics that own the

@@ -83,6 +83,7 @@ calepin/
 │       ├── src/lib/current-user.ts  `getCurrentUser` / `requireCurrentUser`
 │       ├── src/lib/database.ts  le seul fichier de l'application qui nomme la base
 │       │                     de données ; tout le reste passe par `@calepin/shared/repository`
+│       ├── src/lib/model-provider.ts  composition du port fournisseur, sur `globalThis`
 │       ├── src/proxy.ts      attribue `x-correlation-id` à chaque requête
 │       ├── src/instrumentation.ts  environnement, niveau du journal, `onRequestError`
 │       └── tests/e2e/        specs Playwright
@@ -90,6 +91,7 @@ calepin/
 │       ├── .env.example      mêmes variables que l'application ; `envSchema` est unique
 │       ├── src/main.ts       la coquille : environnement, journal, base, files, arrêt propre
 │       ├── src/database.ts   composition du client Prisma, jumelle de celle du web
+│       ├── src/model-provider.ts  composition du port fournisseur, un par processus
 │       ├── src/environment.ts  charge `.env` avant tout import qui le lit
 │       └── src/ping.ts       produit une tâche factice et rend la main (`pnpm worker:ping`)
 │

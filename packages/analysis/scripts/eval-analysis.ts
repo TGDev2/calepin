@@ -12,11 +12,14 @@
  * `createAnthropicAdapter`'s own doc comment describes — no package under
  * `src/` reads the environment; this script is the one that supplies it.
  *
- * `ANTHROPIC_API_KEY` deliberately stays out of `envSchema` (CLAUDE.md §13):
- * that wiring is reserved for the first task to register a
- * `GenerationExecutor`, the production queue-driven write path. This script
- * bypasses `Generation`/the queue entirely and calls the port directly, the
- * same way CAL-059's bench itself does.
+ * `ANTHROPIC_API_KEY` is in `envSchema` since CAL-208, and this script still
+ * does not read it from there. That is not an oversight: importing
+ * `@calepin/shared/config` validates the **whole** environment on import, so a
+ * bench command run from a shell that has a provider key and nothing else would
+ * fail on seventeen unrelated variables before reaching the model. A command
+ * needs one credential, a process needs a configuration; this script bypasses
+ * `Generation` and the queue entirely and calls the port directly, the same way
+ * CAL-059's bench itself does.
  *
  * The rendered report quotes the corpus and the model's answers, which is
  * literary content (§9): it is written under `bench-reports/` (gitignored)

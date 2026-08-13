@@ -48,3 +48,28 @@ expose (absences, so they cite nothing) and at least two fragilities to treat
 unfound one to null rather than dropping the appraisal — its standing is its
 argument, and a drop could break the minimums. Result branded
 (`VerifiedNovelPotentialAssessment`), report in counts and positions only.
+
+CAL-208 added the first `GenerationExecutor` in the repository, behind a second
+entry point: `@calepin/analysis/generation`. `createAnalyzeSourceTextExecutor`
+takes the provider port a process shell hands it (§5.3), parses the ask, reads
+the source-text version the ask names, composes the mission's context, calls the
+port, reports what the call spent — on the failure path too, since a rejected
+answer was still bought — and reads every quotation back through
+`verifyAnalysisEvidence`. The ask is one field, `sourceTextVersionId`: it is
+what `Generation.input` stores and what the idempotency key digests, so asking
+again for an untouched text is the same ask and asking after an edit is a
+different one. A version superseded while the job waited refuses
+(`SOURCE_TEXT_VERSION_SUPERSEDED`) before a provider is paid.
+
+**The second entry point is not tidiness.** This module reaches
+`@calepin/shared/repository` and `@calepin/shared/queue`, whose graphs end in
+`node:async_hooks`, and a `"use client"` component already imports the root
+barrel of this package for a type. Putting the executor there would break
+`pnpm build` inside Turbopack the first time anything imported it as a value,
+naming a page rather than this file — the trap `@calepin/bible` and
+`@calepin/outline` each hit before it was written down.
+
+**It writes nothing yet.** `GenerationProduct.append` is optional, and the
+seventeen-section write path is CAL-209's; until then the generation succeeds,
+the attempt records what the call cost, and `analysis.result-not-persisted` says
+out loud that the diagnostic was not kept.
