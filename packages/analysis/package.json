@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./generation": {
+      "types": "./src/generation/index.ts",
+      "default": "./src/generation/index.ts"
     }
   },
   "scripts": {

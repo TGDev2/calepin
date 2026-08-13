@@ -159,6 +159,19 @@ export const ERROR_CODES = [
    * the screen can put every finding back beside the control that produced it.
    */
   "CHAPTER_SPLIT_REFUSED",
+  /**
+   * A generation reserved against one version of the source text reached a
+   * worker after the author had written another (CAL-208).
+   *
+   * `conflict` for `CHAPTER_MERGE_REFUSED`'s reason: nothing about the ask is
+   * malformed, the text underneath it simply moved. Refused rather than
+   * silently run against the new version, because the ask *names* the version
+   * (that is what makes the idempotency key move when the text does) and every
+   * stage produced from it is attributed to the version it names — so running
+   * on one and recording the other is how an analysis comes to cite a text it
+   * never read. The remedy is to ask again, which is a new ask by construction.
+   */
+  "SOURCE_TEXT_VERSION_SUPERSEDED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -343,6 +356,7 @@ export const CATEGORY_BY_CODE = {
   CHAPTER_MERGE_REFUSED: "conflict",
   CHAPTER_MERGE_LOSS_NOT_ACKNOWLEDGED: "conflict",
   CHAPTER_SPLIT_REFUSED: "conflict",
+  SOURCE_TEXT_VERSION_SUPERSEDED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

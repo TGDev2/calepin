@@ -45,6 +45,17 @@ import { assertProjectScope, type ProjectScope, scopedWhere } from "./scope";
 /** The source text as it stands: its current version, and how it got there. */
 export interface SourceTextSnapshot {
   readonly sourceTextId: string;
+  /**
+   * The row the content below came out of (CAL-208).
+   *
+   * `versionNumber` is what a reader is shown and `versionId` is what a later
+   * stage is attributed to — `AnalysisSectionRevision.sourceTextVersionId` and
+   * every column like it. The two are not interchangeable: a number is only
+   * meaningful beside the source text it counts within, and a generation
+   * reserved against one version has to be able to say, when it finally runs,
+   * whether it is still looking at that one.
+   */
+  readonly versionId: string;
   readonly versionNumber: number;
   readonly versionCount: number;
   readonly content: string;
@@ -100,6 +111,7 @@ export async function getSourceText(scope: ProjectScope): Promise<Result<SourceT
         orderBy: { versionNumber: "desc" },
         take: 1,
         select: {
+          id: true,
           versionNumber: true,
           content: true,
           wordCount: true,
@@ -122,6 +134,7 @@ export async function getSourceText(scope: ProjectScope): Promise<Result<SourceT
   return succeed({
     sourceTextId: sourceText.id,
     versionCount: sourceText._count.versions,
+    versionId: current.id,
     versionNumber: current.versionNumber,
     content: current.content,
     wordCount: current.wordCount,
