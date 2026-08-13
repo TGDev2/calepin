@@ -21,6 +21,13 @@
  * client it could run commands on. Registered at boot rather than lazily so a
  * mis-wired deployment says so at startup instead of during the first
  * generation an author paid for.
+ *
+ * And the model provider, third and last (CAL-208). Nothing in `apps/web`
+ * starts a generation yet — the worker does — but the port is composed here
+ * anyway, on the same argument: a missing key or a fallback wired in half is a
+ * deployment fault, and the moment to learn about one is now rather than
+ * mid-mission. It also puts the port on `globalThis` before any request can
+ * race two chunks into composing one each.
  */
 import type { Instrumentation } from "next";
 
@@ -31,6 +38,7 @@ export async function register() {
     const { configureQueueConnection, createQueueConnection } =
       await import("@calepin/shared/queue");
     await import("./lib/database");
+    await import("./lib/model-provider");
 
     configureLogger({ level: env.LOG_LEVEL });
     configureQueueConnection(createQueueConnection({ url: env.REDIS_URL, role: "producer" }));
