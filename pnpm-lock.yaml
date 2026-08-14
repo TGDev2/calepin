@@ -21,6 +21,9 @@ importers:
       '@calepin/bible':
         specifier: workspace:*
         version: link:packages/bible
+      '@calepin/direction':
+        specifier: workspace:*
+        version: link:packages/direction
       '@calepin/manuscript':
         specifier: workspace:*
         version: link:packages/manuscript

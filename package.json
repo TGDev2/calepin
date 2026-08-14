@@ -39,6 +39,7 @@
     "@calepin/ai": "workspace:*",
     "@calepin/analysis": "workspace:*",
     "@calepin/bible": "workspace:*",
+    "@calepin/direction": "workspace:*",
     "@calepin/manuscript": "workspace:*",
     "@calepin/outline": "workspace:*",
     "@calepin/shared": "workspace:*",
