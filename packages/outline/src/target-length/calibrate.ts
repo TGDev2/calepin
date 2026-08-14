@@ -1,4 +1,5 @@
-import { TARGET_LENGTH_RANGES } from "./ranges";
+import { resolveNovelTargetWordCount } from "@calepin/shared/target-length";
+
 import type {
   ChapterCalibration,
   ChapterWordBudgetGap,
@@ -67,15 +68,6 @@ export function partCalibrationForWordCount(novelTargetWordCount: number): PartC
   const maxParts = Math.max(Math.min(count + 1, PART_COUNT_RANGE.max), PART_COUNT_RANGE.min);
 
   return { novelTargetWordCount, minParts, maxParts };
-}
-
-/** A choice resolved to a single word count: a preset's midpoint, or the custom value. */
-export function resolveNovelTargetWordCount(choice: NovelLengthChoice): number {
-  if (choice.targetLength === "CUSTOM") return choice.targetWordCount;
-
-  const range = TARGET_LENGTH_RANGES[choice.targetLength];
-
-  return Math.round((range.min + range.max) / 2);
 }
 
 /**

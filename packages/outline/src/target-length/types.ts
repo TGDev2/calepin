@@ -1,35 +1,20 @@
 /**
- * The novel-length choice (CAL-043) and what it resolves to. `prisma/schema.prisma`
- * stores the choice; this file is the interpretation the schema's own comment on
- * `TargetLength` defers to this task.
+ * What a novel-length choice is worth once the plan reads it (CAL-043).
+ *
+ * The choice itself — `TARGET_LENGTHS`, `NovelLengthChoice`, the ranges and
+ * `resolveNovelTargetWordCount` — moved to `@calepin/shared/target-length` in
+ * CAL-210, once the bible and the direction missions needed the same number and
+ * a domain may not import a domain (§3.2). They are re-exported below, so every
+ * caller reading them from `@calepin/outline` is unaffected; what stays here is
+ * the calibration this package owns.
  */
 
-export const TARGET_LENGTHS = ["SHORT", "STANDARD", "LONG", "CUSTOM"] as const;
-
-/**
- * Its own literal union rather than `@prisma/client`'s `$Enums.TargetLength` —
- * the same choice `packages/manuscript/src/chapter/revision.ts` makes for
- * `ChapterRevisionOrigin`. Only `@calepin/shared` may import a provider's
- * generated client; a value read through it is assignable here without a cast
- * because the two literal unions are structurally identical.
- */
-export type TargetLength = (typeof TARGET_LENGTHS)[number];
-
-export interface TargetLengthRange {
-  readonly min: number;
-  readonly max: number;
-}
-
-/**
- * The choice as `projects_custom_target_word_count_check` guarantees it: a
- * word count if and only if the length is `CUSTOM`. A discriminated union
- * rather than the nullable pair the database carries, so a `CUSTOM` choice
- * with no word count fails to compile instead of needing a runtime check
- * everywhere it is read.
- */
-export type NovelLengthChoice =
-  | { readonly targetLength: "SHORT" | "STANDARD" | "LONG" }
-  | { readonly targetLength: "CUSTOM"; readonly targetWordCount: number };
+export {
+  type NovelLengthChoice,
+  TARGET_LENGTHS,
+  type TargetLength,
+  type TargetLengthRange,
+} from "@calepin/shared/target-length";
 
 /** What a novel-length choice is worth in chapters, once resolved to a number. */
 export interface ChapterCalibration {

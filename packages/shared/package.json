@@ -91,6 +91,10 @@
     "./queue": {
       "types": "./src/queue/index.ts",
       "default": "./src/queue/index.ts"
+    },
+    "./target-length": {
+      "types": "./src/target-length/index.ts",
+      "default": "./src/target-length/index.ts"
     }
   },
   "scripts": {

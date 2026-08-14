@@ -24,7 +24,6 @@ export {
   PART_CHAPTER_COUNT_RANGE,
   PART_COUNT_RANGE,
   partCalibrationForWordCount,
-  resolveNovelTargetWordCount,
 } from "./calibrate";
 export { CUSTOM_TARGET_WORD_COUNT_RANGE, TARGET_LENGTH_RANGES } from "./ranges";
 export {
@@ -37,3 +36,4 @@ export {
   type TargetLength,
   type TargetLengthRange,
 } from "./types";
+export { resolveNovelTargetWordCount } from "@calepin/shared/target-length";

@@ -22,6 +22,7 @@ them; an import in the other direction is a cycle.
 | `@calepin/shared/freedom-level` | the freedom-level policy over the ten source dimensions, the constraints it resolves to at each of the four stages, the compliance check and the French an author reads (CAL-044) |
 | `@calepin/shared/generation` | the generation attempt lifecycle and its append-only guarantee (CAL-010)                                                                                     |
 | `@calepin/shared/logging`    | the Pino logger, the correlation context and the log field allowlist (CAL-009)                                                                               |
+| `@calepin/shared/target-length` | `Project.targetLength` read as a number of words — the presets, the custom bounds and `resolveNovelTargetWordCount` (CAL-043, moved here by CAL-210)       |
 | `@calepin/shared/testing`    | test helpers — data factories, log capture                                                                                                                   |
 
 They are separate entry points on purpose: importing `@calepin/shared` for

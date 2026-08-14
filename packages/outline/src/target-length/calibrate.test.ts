@@ -1,3 +1,4 @@
+import { resolveNovelTargetWordCount } from "@calepin/shared/target-length";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,23 +12,12 @@ import {
   PART_CHAPTER_COUNT_RANGE,
   PART_COUNT_RANGE,
   partCalibrationForWordCount,
-  resolveNovelTargetWordCount,
 } from "./calibrate";
 import type { NovelLengthChoice } from "./types";
 
-describe("resolveNovelTargetWordCount", () => {
-  it("resolves a preset to the midpoint of its range", () => {
-    expect(resolveNovelTargetWordCount({ targetLength: "SHORT" })).toBe(37_500);
-    expect(resolveNovelTargetWordCount({ targetLength: "STANDARD" })).toBe(65_000);
-    expect(resolveNovelTargetWordCount({ targetLength: "LONG" })).toBe(95_000);
-  });
-
-  it("resolves a custom choice to exactly its own word count", () => {
-    expect(resolveNovelTargetWordCount({ targetLength: "CUSTOM", targetWordCount: 123_456 })).toBe(
-      123_456,
-    );
-  });
-});
+// `resolveNovelTargetWordCount` itself is proved in
+// `packages/shared/src/target-length/resolve.test.ts`, where CAL-210 moved it;
+// it is imported here because the calibrations below are stated in terms of it.
 
 describe("estimateChapterCalibration", () => {
   it("derives a chapter count and a per-chapter target for each preset", () => {
