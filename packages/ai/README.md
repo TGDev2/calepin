@@ -578,6 +578,17 @@ measured tokens at today's tariff, never replayed from a recorded price.
   `composeChapterSummaryContext` has none: a diagnostic context _is_ its
   subject, and half a source text produces a diagnosis of half a source text
   that every later stage would then be built on. Over budget refuses.
+- `context/directions.ts` — `composeDirectionProposalsContext` (CAL-210), the
+  fourth. No ladder either, and now for two subjects rather than one: the
+  diagnostic and the source text are both what the directions are argued out
+  of, and shedding a section of either would license exactly the inventions the
+  freedom clauses exist to bound. It derives those clauses and the ten
+  declaration keys from `@calepin/shared/freedom-level` itself — a level and a
+  set of clauses that disagree is not a shape a caller can build — and takes
+  everything the domain owns already worded. `directionCount` and
+  `excludedEngines` are variables, which is what makes a **targeted relaunch**
+  expressible: re-ask only the slots whose engines collided, naming the ones
+  that stand.
 
 ## What arrives in its own task
 

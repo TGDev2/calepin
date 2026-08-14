@@ -14,6 +14,11 @@ export {
   composeSourceTextAnalysisContext,
 } from "./analysis";
 export { type ComposedSceneContext, composeSceneContext } from "./compose";
+export {
+  type ComposedDirectionProposalsContext,
+  composeDirectionProposalsContext,
+  type DirectionProposalsCompositionReport,
+} from "./directions";
 export { ESTIMATED_CHARS_PER_TOKEN, estimateTokens } from "./estimate";
 export {
   CONTEXT_ITEM_CEILINGS,
@@ -34,6 +39,7 @@ export type {
   ChapterSummaryContextInput,
   ContextCompositionReport,
   ContinuityExcerptCandidate,
+  DirectionProposalsContextInput,
   PartSummary,
   PartSummaryChapter,
   PartSummaryContextInput,

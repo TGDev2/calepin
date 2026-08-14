@@ -9,6 +9,8 @@
  * the candidates; the composer selects, degrades and renders.
  */
 
+import type { FreedomLevel } from "@calepin/shared/freedom-level";
+
 import type { MissionId } from "../missions";
 import type { PromptId } from "../prompts";
 
@@ -175,6 +177,48 @@ export interface SourceTextAnalysisContextInput {
   readonly potentialWordTarget: number;
   readonly totalWordBudget: number;
   readonly evidenceWordTarget: number;
+}
+
+/**
+ * What `composeDirectionProposalsContext` needs (CAL-210).
+ *
+ * Everything narrative is `@calepin/direction`'s and arrives already worded —
+ * the engine axes glossed, the excluded engines as clauses, the word targets and
+ * list floors — for `SourceTextAnalysisContextInput`'s reason: they are also the
+ * bounds its schema validates the answer against. What this layer derives for
+ * itself is the freedom-level half, which is `@calepin/shared`'s and which it may
+ * read directly (§3.2), so a caller cannot hand a level and clauses that
+ * disagree.
+ *
+ * `directionCount` is a **variable**, not the schema's constant: a targeted
+ * relaunch re-asks only the slots whose engines collided, and the count it asks
+ * for is what makes that possible.
+ */
+export interface DirectionProposalsContextInput {
+  readonly language: string;
+  readonly targetAudience: string;
+  readonly targetWordCount: number;
+  readonly freedomLevel: FreedomLevel;
+  /** The diagnostic, section by section, already rendered by the caller. */
+  readonly validatedAnalysis: string;
+  /** The current version, in full: a direction is defended out of the text. */
+  readonly sourceText: string;
+  readonly engineAxes: readonly string[];
+  readonly minEngineDifferences: number;
+  /** One clause per engine no proposal may reuse. Empty on a first ask. */
+  readonly excludedEngines: readonly string[];
+  readonly directionCount: number;
+  readonly premiseWordTarget: number;
+  readonly conflictWordTarget: number;
+  readonly arcWordTarget: number;
+  readonly endingWordTarget: number;
+  readonly assessmentWordTarget: number;
+  readonly itemWordTarget: number;
+  readonly minNewStakes: number;
+  readonly minMainRisks: number;
+  readonly minElementsKept: number;
+  readonly minElementsTransformed: number;
+  readonly maxPerList: number;
 }
 
 /** One already-summarised chapter, offered to the part composition. */
