@@ -12,6 +12,7 @@ them; an import in the other direction is a cycle.
 | Import                       | What it holds                                                                                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@calepin/shared`            | the package's own surface — `APP_NAME`, `BUSINESS_DOMAINS`                                                                                                   |
+| `@calepin/shared/analysis`   | the seventeen sections of the diagnostic named in French, and the rendering a mission downstream of it quotes them by (CAL-210)                              |
 | `@calepin/shared/audit`      | the audited-model registry, the actor scope and the Prisma extension that fills `updatedById` and `version` (CAL-022)                                        |
 | `@calepin/shared/auth`       | the Auth.js persistence adapter over the client seam, the session lifetimes (CAL-024), the email sign-in provider and its five-per-hour rate limit (CAL-025), the Google and GitHub providers and their shared verified-email account linking (CAL-026, CAL-027) |
 | `@calepin/shared/bible-lock` | the lock on one element of the bible — what can be locked, what each mission would rebuild, the gate that stops a generation before it runs, and the predicates a write path composes (CAL-095) |

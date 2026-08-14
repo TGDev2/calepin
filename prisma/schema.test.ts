@@ -129,6 +129,11 @@ function sharedStringUnion(path: string, name: string): string[] {
   return workspaceStringUnion(`packages/shared/src/${path}`, name);
 }
 
+/** `sharedStringUnion`'s twin for a table keyed by an enum. */
+function sharedRecordKeys(path: string, name: string): string[] {
+  return workspaceRecordKeys(`packages/shared/src/${path}`, name);
+}
+
 /**
  * The same pin for a union any workspace package owns — CAL-070 mirrors
  * `AnalysisSection` and `AnalysisElementKind` from `@calepin/analysis`, where
@@ -148,6 +153,21 @@ function workspaceStringUnion(path: string, name: string): string[] {
     .map((member) => member[1])
     .filter((member): member is string => member !== undefined)
     .map((member) => member.toUpperCase());
+}
+
+/**
+ * The same pin for a table *keyed* by an enum rather than a list of its members
+ * — CAL-210's French section labels, whose key order is also the order a mission
+ * reads the diagnostic in.
+ */
+function workspaceRecordKeys(path: string, name: string): string[] {
+  const source = readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), "utf8");
+  const block = new RegExp(`export const ${name} = \\{([^}]*)\\}`).exec(source);
+  if (!block?.[1]) throw new Error(`${name} is not declared in ${path}`);
+
+  return [...block[1].matchAll(/^\s*([A-Z][A-Z0-9_]*)\s*:/gm)]
+    .map((key) => key[1])
+    .filter((key): key is string => key !== undefined);
 }
 
 describe("prisma schema", () => {
@@ -359,6 +379,20 @@ describe("prisma schema", () => {
       );
       expect(enumMembers("AnalysisElementKind")).toEqual(
         workspaceStringUnion("packages/analysis/src/schema.ts", "ANALYSIS_ELEMENT_KINDS"),
+      );
+    });
+
+    // The French half of the same mirroring (CAL-210). A mission downstream of
+    // the diagnostic quotes it section by section and may not import
+    // `@calepin/analysis` (§3.2), so the labels live in `@calepin/shared` — and
+    // their key order *is* the order `describeAnalysis` renders in, which is why
+    // this compares the sequence rather than the set.
+    it("labels every section of the diagnostic, in the enum's own order", () => {
+      expect(enumMembers("AnalysisSection")).toEqual(
+        sharedRecordKeys("analysis/labels.ts", "ANALYSIS_SECTION_LABELS"),
+      );
+      expect(enumMembers("AnalysisElementKind")).toEqual(
+        sharedRecordKeys("analysis/labels.ts", "ANALYSIS_ELEMENT_KIND_LABELS"),
       );
     });
 
