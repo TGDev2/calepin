@@ -49,16 +49,15 @@ export interface ComposedDirectionProposalsContext {
  * reports, and it is the one thing a reader of a relaunch needs: it says which
  * ask this was without quoting what was asked.
  */
-export interface DirectionProposalsCompositionReport
-  extends Pick<
-    ContextCompositionReport,
-    | "missionId"
-    | "promptId"
-    | "promptVersion"
-    | "budgetTokens"
-    | "estimatedTokens"
-    | "degradationStepsApplied"
-  > {
+export interface DirectionProposalsCompositionReport extends Pick<
+  ContextCompositionReport,
+  | "missionId"
+  | "promptId"
+  | "promptVersion"
+  | "budgetTokens"
+  | "estimatedTokens"
+  | "degradationStepsApplied"
+> {
   readonly directionCount: number;
   readonly excludedEngineCount: number;
 }
