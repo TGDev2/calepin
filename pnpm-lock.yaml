@@ -157,6 +157,9 @@ importers:
       '@calepin/analysis':
         specifier: workspace:*
         version: link:../../packages/analysis
+      '@calepin/direction':
+        specifier: workspace:*
+        version: link:../../packages/direction
       '@calepin/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -234,6 +237,9 @@ importers:
 
   packages/direction:
     dependencies:
+      '@calepin/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@calepin/shared':
         specifier: workspace:*
         version: link:../shared

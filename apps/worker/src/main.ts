@@ -65,6 +65,7 @@ async function main(): Promise<void> {
     startQueueWorker,
   } = await import("@calepin/shared/queue");
   const { createAnalyzeSourceTextExecutor } = await import("@calepin/analysis/generation");
+  const { createProposeDirectionsExecutor } = await import("@calepin/direction/generation");
   const { disconnectDatabase } = await import("./database");
   const { createWorkerModelProvider } = await import("./model-provider");
 
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
   // silently left unhandled.
   const executors: GenerationExecutors = {
     ANALYZE_SOURCE_TEXT: createAnalyzeSourceTextExecutor(modelProvider),
+    PROPOSE_DIRECTIONS: createProposeDirectionsExecutor(modelProvider),
   };
 
   // One consumer connection for every worker in the process: BullMQ duplicates

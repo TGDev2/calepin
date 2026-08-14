@@ -8,7 +8,7 @@
  */
 
 export { CUSTOM_TARGET_WORD_COUNT_RANGE, TARGET_LENGTH_RANGES } from "./ranges";
-export { resolveNovelTargetWordCount } from "./resolve";
+export { novelLengthChoiceOf, resolveNovelTargetWordCount } from "./resolve";
 export {
   type NovelLengthChoice,
   TARGET_LENGTHS,

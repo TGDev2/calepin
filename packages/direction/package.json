@@ -7,12 +7,17 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./generation": {
+      "types": "./src/generation/index.ts",
+      "default": "./src/generation/index.ts"
     }
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@calepin/ai": "workspace:*",
     "@calepin/shared": "workspace:*",
     "zod": "^4.4.3"
   }

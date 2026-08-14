@@ -57,14 +57,16 @@ const EVALUATION_LIST_TITLE: Record<DirectionEvaluationList, string> = {
  * Side-by-side comparison of the directions proposed for a project (CAL-082),
  * and the ones the author has written off (CAL-083).
  *
- * **One write, and only one.** No mission executor exists yet to produce a
- * direction, a narrative engine or a critique (CLAUDE.md §13), so nothing here
- * generates anything — there is deliberately no *générer un remplacement*
- * button, because a button that cannot produce an answer is not a feature.
- * What CAL-083 does ship end to end is the author's half: écarter a proposal,
- * with their reason, and find it afterwards. `getDirectionsForComparison`
- * reads as a bare array, `analysis/page.tsx`'s convention: no directions yet
- * is a legitimate state, not a failure.
+ * **Nothing is launched from here yet.** `propose-directions` does have an
+ * executor since CAL-210 — a queued generation really produces three divergent
+ * directions and writes them — but no screen reserves a generation until
+ * CAL-213, so this page still only reads. There is deliberately no *générer un
+ * remplacement* button either: `replace-direction` has no executor (CLAUDE.md
+ * §13), and a button that cannot produce an answer is not a feature. What
+ * CAL-083 ships end to end is the author's half: écarter a proposal, with their
+ * reason, and find it afterwards. `getDirectionsForComparison` reads as a bare
+ * array, `analysis/page.tsx`'s convention: no directions yet is a legitimate
+ * state, not a failure.
  *
  * **The comparison is between the directions that still stand.** A discarded
  * one is out of the grid, out of `checkDirectionDivergence` and out of the

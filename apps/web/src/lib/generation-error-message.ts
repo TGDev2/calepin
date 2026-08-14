@@ -54,6 +54,22 @@ const MESSAGE_BY_CODE: Partial<Record<ErrorCode, string>> = {
   ANALYSIS_ALREADY_VALIDATED:
     "Cette analyse est validée : une nouvelle analyse ne peut plus la remplacer. " +
     "Dupliquez le projet pour repartir d'un diagnostic neuf.",
+  // Relaunching is a real answer here, unlike the two above — a model asked
+  // again may well diverge — so the sentence says what *else* can be changed
+  // rather than sending the reader away. The freedom level is named because at
+  // `LOW` three of the five engine axes are legitimately pinned by the
+  // constraints, and no relaunch can free them (CAL-210).
+  DIRECTION_DIVERGENCE_NOT_REACHED:
+    "Les directions proposées reposaient toutes sur le même moteur narratif, " +
+    "malgré plusieurs relances automatiques. Rien n'a été écrit. Élargir le degré " +
+    "de liberté du projet laisse plus de jeu au conflit et à la fin.",
+  // Nothing was asked of the model and nothing is counted: the refusal is
+  // decided before the call. The sentence names the two ways forward the
+  // product actually has, since re-proposing a whole set is not one of them.
+  DIRECTIONS_ALREADY_PROPOSED:
+    "Ce projet a déjà des directions en comparaison, et rien n'a été demandé au " +
+    "modèle. Écartez celles qui ne vous conviennent pas, puis demandez un " +
+    "remplacement direction par direction.",
   GENERATION_ATTEMPTS_EXHAUSTED:
     "Plusieurs tentatives automatiques ont échoué et Calepin s'est arrêté pour ne pas " +
     "continuer à consommer votre budget. Votre projet est intact.",
