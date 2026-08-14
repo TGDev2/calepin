@@ -88,6 +88,11 @@ export {
   type TensionSource,
 } from "./narrative-engine";
 export {
+  type ResolvedDirection,
+  resolveDirectionProposal,
+  resolveDirectionProposals,
+} from "./persistence";
+export {
   checkDirectionProposalCompliance,
   DIRECTION_CHAR_CEILINGS,
   DIRECTION_LABEL_CHAR_CEILING,
@@ -99,6 +104,7 @@ export {
   type DirectionProposal,
   type DirectionProposals,
   directionProposalsSchema,
+  directionProposalsSchemaFor,
 } from "./proposals";
 export {
   checkDirectionReplacement,

@@ -192,13 +192,31 @@ export const directionProposalSchema = z.strictObject({
   narrativeEngine: narrativeEngineSchema,
 });
 
+/**
+ * The answer to `propose-directions` asked for exactly `count` directions.
+ *
+ * **One schema definition, two entry points** (CAL-210) — the arrangement
+ * `parseAnalysisSectionEdit` already established one epic over. The mission's
+ * own contract is `directionProposalsSchema` below and is exactly
+ * `DIRECTION_PROPOSAL_COUNT`; a *targeted relaunch* re-asks only the slots whose
+ * engines collided, and the narrower ask is the same object with the same
+ * fields under the same bounds — never a second contract able to drift from it.
+ *
+ * The count is the ask's, and the prompt states it in the same breath
+ * (`directionCount`, CAL-055's discipline): a model told to propose two and
+ * validated against three would fail on an answer that did what it was asked.
+ */
+export function directionProposalsSchemaFor(count: number) {
+  return z.strictObject({
+    directions: z
+      .array(directionProposalSchema)
+      .length(count)
+      .describe("The proposed directions, as many as the ask named."),
+  });
+}
+
 /** The answer to `propose-directions`. */
-export const directionProposalsSchema = z.strictObject({
-  directions: z
-    .array(directionProposalSchema)
-    .length(DIRECTION_PROPOSAL_COUNT)
-    .describe("The three proposed directions."),
-});
+export const directionProposalsSchema = directionProposalsSchemaFor(DIRECTION_PROPOSAL_COUNT);
 
 export type DirectionProposals = z.infer<typeof directionProposalsSchema>;
 
