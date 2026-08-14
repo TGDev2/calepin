@@ -141,6 +141,12 @@ import { createProjectGraph, type ProjectGraph } from "./project-graph";
  * `bible-coherence.integration.test.ts` too, for the same reason as the
  * quality-issue functions: a `BibleVersion` only exists once a bible has been
  * validated, which is that file's own fixture to set up.
+ * `writeGeneratedDirectionsWithin` (CAL-210) is isolated in
+ * `direction-generation.integration.test.ts`, exactly as
+ * `writeGeneratedAnalysisWithin` is in its own suite and for the same two
+ * reasons: it takes a transaction client, and it refuses a project that already
+ * holds standing proposals — so what it accepts and what it refuses both need a
+ * fixture this file's shared graph cannot express.
  */
 const ENTRY_POINTS = [
   "addAnalysisAnnotation",
@@ -215,6 +221,7 @@ const ENTRY_POINTS = [
   "withProjectTransaction",
   "writeCanonFact",
   "writeGeneratedAnalysisWithin",
+  "writeGeneratedDirectionsWithin",
   "writeRelationship",
   "writeUserDirection",
 ];
@@ -249,11 +256,15 @@ const SYSTEM_ENTRY_POINTS = [
  * `createGenerationPersistence` is one of them despite what its result does:
  * the factory itself issues no statement, and each of the three methods it
  * returns is an entry point listed above, isolated on its own.
+ * `directionsAlreadyProposed` (CAL-210) builds the refusal the executor raises
+ * before a model is called and the write raises again at commit — one wording
+ * for both, and a constructor that reaches nothing.
  */
 const HELPERS = [
   "assertProjectScope",
   "createGenerationPersistence",
   "delegateName",
+  "directionsAlreadyProposed",
   "isProjectOwnedModel",
   "isProjectScope",
   "isUnduplicatedModel",

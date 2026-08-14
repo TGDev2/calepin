@@ -185,6 +185,38 @@ export const ERROR_CODES = [
    * of offering a *Relancer* that would be refused again.
    */
   "ANALYSIS_ALREADY_VALIDATED",
+  /**
+   * Directions were asked of, or written into, a project that already holds
+   * proposals nobody has written off (CAL-210).
+   *
+   * `conflict` for `ANALYSIS_ALREADY_VALIDATED`'s reason, and its own code for
+   * the same one: it is decided **before** the model is called as well as at the
+   * write, so the interface answers it by naming what stands in the way.
+   *
+   * Refused rather than appended, because the divergence gate is defined over
+   * *one* answer: a second triple would sit beside the first with nothing ever
+   * having compared the two, and the comparison screen would show six cards
+   * where the product designed three. Proposing a further direction once three
+   * stand is `replace-direction`'s job (CAL-083), which takes the engines
+   * already standing as its exclusions.
+   */
+  "DIRECTIONS_ALREADY_PROPOSED",
+  /**
+   * The model was asked again, up to the bound, and never produced enough
+   * directions with genuinely distinct narrative engines (CAL-210).
+   *
+   * `conflict` rather than `provider`: every answer was well formed and passed
+   * the mission's schema — what failed is a narrative rule this repository owns
+   * (`checkDirectionDivergence`), and calling it a provider failure would make
+   * it retryable, which is precisely the loop the bound exists to stop. The
+   * remedy is a person's: ask again, or widen the project's freedom level, which
+   * at `LOW` legitimately pins three of the five axes.
+   *
+   * Its own code rather than a bare `CONFLICT` for `BIBLE_NOT_COHERENT`'s
+   * reason: what the interface owes here is an explanation of why three
+   * directions could not be told apart, not a sentence.
+   */
+  "DIRECTION_DIVERGENCE_NOT_REACHED",
 
   // rate_limit
   "RATE_LIMITED",
@@ -371,6 +403,8 @@ export const CATEGORY_BY_CODE = {
   CHAPTER_SPLIT_REFUSED: "conflict",
   SOURCE_TEXT_VERSION_SUPERSEDED: "conflict",
   ANALYSIS_ALREADY_VALIDATED: "conflict",
+  DIRECTIONS_ALREADY_PROPOSED: "conflict",
+  DIRECTION_DIVERGENCE_NOT_REACHED: "conflict",
   RATE_LIMITED: "rate_limit",
   PROVIDER_UNAVAILABLE: "provider",
   PROVIDER_REJECTED: "provider",

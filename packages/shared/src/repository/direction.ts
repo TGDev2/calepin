@@ -47,7 +47,13 @@
 import type { $Enums, Prisma } from "@prisma/client";
 
 import { getDatabaseClient } from "../database/client";
-import { ConflictError, InternalError, NotFoundError } from "../errors/app-error";
+import {
+  type AppError,
+  ConflictError,
+  InternalError,
+  NotFoundError,
+  ValidationError,
+} from "../errors/app-error";
 import { fail, type Result, succeed } from "../errors/result";
 import {
   assessCanonicalDirectionObsolescence,
@@ -479,6 +485,123 @@ export async function writeUserDirection(
     });
 
     return succeed(created);
+  });
+}
+
+export interface WriteGeneratedDirectionsInput {
+  /**
+   * The accepted proposals, in the order they are to be written — which is the
+   * order the relaunch retained them in, and the order
+   * `getDirectionsForComparison` reads them back in.
+   *
+   * `DirectionContentInput` again rather than a second shape: a generated
+   * direction and a hand-written one differ by their `origin` column and by
+   * nothing else, which is what `writeUserDirection`'s own doc comment already
+   * claims of the row it writes.
+   */
+  readonly directions: readonly DirectionContentInput[];
+}
+
+export interface GeneratedDirectionsWritten {
+  readonly directionCount: number;
+}
+
+/**
+ * Writes the directions a mission proposed, inside a transaction the caller
+ * holds (CAL-210).
+ *
+ * `writeGeneratedAnalysisWithin`'s shape one stage down, and everything it
+ * shares with it is the point:
+ *
+ * - **It takes the caller's transaction rather than opening one.** The write has
+ *   to land in the statement that completes the attempt (§7: *succeed is a
+ *   single atomic operation*), so `GenerationProduct.append` hands it the client
+ *   `completeGenerationAttempt` is already holding, under the generation's own
+ *   row lock. A refusal here rolls the directions, the attempt and the
+ *   generation back together, which is what makes *never a partial write*
+ *   structural rather than careful.
+ * - **One statement.** An interactive transaction has a five-second budget by
+ *   default and this one is already holding a row lock, an attempt update and a
+ *   closing status write; three round trips where one `createMany` does is how
+ *   an answer somebody paid for comes to be rolled back by a timeout. Nothing
+ *   here needs the ids back, so `createMany` rather than `createManyAndReturn`.
+ * - **It refuses a project that already holds standing proposals**, the same
+ *   refusal the executor makes before paying for anything. Decided twice on
+ *   purpose: the author may write their own direction while the generation runs,
+ *   and a lock is true for every writer or it is true for none.
+ *
+ * **The project is confirmed through this client.** These rows have no existing
+ * `CreativeDirection` for a `scopedWhere` to protect — `writeUserDirection`
+ * answers that with `withProjectTransaction`, and this function cannot, because
+ * it must stay inside the transaction it was handed. The count below is that
+ * same check, run against the caller's client: a scope that was forged rather
+ * than opened by `openProjectScope` reaches nothing.
+ *
+ * The caller must be inside `runWithActor`: `CreativeDirection` carries the
+ * audit block, and the sentinel default the column would otherwise take is
+ * refused by its foreign key at commit.
+ *
+ * There is deliberately **no status recompute**. `ProjectProgress` reads
+ * `hasCanonicalDirection`, never *the project has directions*, so proposing
+ * moves no evidence `deriveProjectStatus` reads and `withProjectStatus` would be
+ * a lock taken for nothing — `writeGeneratedAnalysisWithin`'s reasoning, one
+ * stage down.
+ */
+export async function writeGeneratedDirectionsWithin(
+  client: TransactionClient,
+  scope: ProjectScope,
+  input: WriteGeneratedDirectionsInput,
+): Promise<Result<GeneratedDirectionsWritten>> {
+  assertProjectScope(scope);
+
+  if (input.directions.length === 0) {
+    return fail(
+      new ValidationError({
+        message: "a generated proposal holds no direction",
+        userMessage: "La proposition produite ne contient aucune direction.",
+        fieldPath: "directions",
+      }),
+    );
+  }
+
+  const project = await client.project.count({
+    where: { id: scope.projectId, userId: scope.ownerId },
+  });
+
+  if (project === 0) return fail(projectNotFound());
+
+  const standing = await client.creativeDirection.count({
+    where: scopedWhere("CreativeDirection", scope, { discardedAt: null }),
+  });
+
+  if (standing > 0) return fail(directionsAlreadyProposed());
+
+  await client.creativeDirection.createMany({
+    data: input.directions.map((content) => ({
+      projectId: scope.projectId,
+      ...directionContentData(content),
+      origin: "PROPOSED" as const,
+      isCanonical: false,
+    })),
+  });
+
+  return succeed({ directionCount: input.directions.length });
+}
+
+/**
+ * The refusal both writers of a generated proposal raise — the executor before
+ * the model is called, this module at the write.
+ *
+ * One helper so the two cannot word it differently, `analysisAlreadyValidated`'s
+ * arrangement in the analysis module.
+ */
+export function directionsAlreadyProposed(): AppError {
+  return new ConflictError({
+    code: "DIRECTIONS_ALREADY_PROPOSED",
+    message: "the project already holds directions that have not been discarded",
+    userMessage:
+      "Ce projet a déjà des directions en comparaison. " +
+      "Écartez celles qui ne vous conviennent pas, puis demandez un remplacement.",
   });
 }
 
