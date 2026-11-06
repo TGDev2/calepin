@@ -5,3 +5,10 @@ build
 dist
 next-env.d.ts
 pnpm-lock.yaml
+
+# Kept compact on purpose: aligned table padding made it 10 times larger.
+docs/glossary.md
+# Archived as written.
+tasks/archive/
+# Written by /bootstrap-project in its own format; Prettier would change it at every install.
+CLAUDE.md
